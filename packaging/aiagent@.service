@@ -1,0 +1,41 @@
+; packaging/aiagent@.service — a systemd template unit, one instance per user.
+;
+;   sudo systemctl enable --now aiagent@alice
+;
+; The instance name is the user whose agents are watched. Run it as THAT user:
+; the service reads ~/.claude and ~/.codex and talks to that user's tmux
+; server, and it needs no privilege beyond them. Running it as root only makes
+; sense if you deliberately want one instance watching several users, in which
+; case set --homes and accept that a bug then reads every watched home.
+[Unit]
+Description=AI Agent World (%i)
+Documentation=https://github.com/hotkhwan/aiagent
+After=network.target
+
+[Service]
+User=%i
+ExecStart=/usr/local/bin/aiagent serve --listen 127.0.0.1:8890
+Restart=on-failure
+RestartSec=5
+
+; The service writes only its own state directory and reads the two agent
+; config directories. Everything else on the filesystem is read-only to it.
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=%h/.local/state/aiagent
+ReadOnlyPaths=%h/.claude %h/.codex
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+RestrictRealtime=yes
+LockPersonality=yes
+
+; PrivateTmp must stay off: the tmux server's socket lives under /tmp (or
+; $XDG_RUNTIME_DIR), and a private /tmp hides it, so the service would see no
+; sessions at all and report an empty village with no error.
+PrivateTmp=no
+
+[Install]
+WantedBy=default.target

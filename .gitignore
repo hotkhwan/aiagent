@@ -1,0 +1,10 @@
+# build output
+/aiagent
+/dist/
+*.test
+
+# local state that must never be committed
+*.token
+state.json
+audit.jsonl
+workspaces.json

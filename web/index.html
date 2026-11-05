@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>AI Agent World</title>
+<link rel="stylesheet" href="/aiagent/styles.css">
+</head>
+<body>
+<header class="top">
+  <div class="brand"><img src="/aiagent/assets/house-kcmd.png" alt="" class="logo">AI Agent World</div>
+  <div class="host" id="host">—</div>
+  <nav class="views" aria-label="มุมมอง">
+    <button type="button" id="viewMap" class="on" aria-pressed="true">หมู่บ้าน</button>
+    <button type="button" id="viewList" aria-pressed="false">รายการ</button>
+  </nav>
+  <div class="energy" id="energy" aria-live="polite"></div>
+  <div class="conn" id="conn" aria-live="polite">กำลังเชื่อมต่อ…</div>
+  <button type="button" class="ghost" id="accountsBtn" title="บัญชี Claude / Codex บนเครื่องนี้">👤 บัญชี</button>
+  <button type="button" class="ghost" id="togglePanel" aria-expanded="true">ซ่อนแผงขวา ⟩</button>
+  <button type="button" class="ghost" id="logout" title="ออกจากระบบในแท็บนี้">ออก</button>
+</header>
+
+<div class="banner" id="banner" hidden></div>
+
+<main class="main">
+  <section class="stage" id="stage" aria-label="หมู่บ้าน Agent">
+    <div class="stageHead">
+      <h1><button type="button" class="ghost" id="stageBack" hidden aria-label="กลับหมู่บ้าน">←</button><span id="stageTitle">หมู่บ้าน Agent</span></h1>
+      <p id="stageSub">—</p>
+      <span class="phase" id="phaseChip"></span>
+      <button type="button" class="followChip" id="followChip" hidden></button>
+    </div>
+    <div class="sceneTools" id="sceneTools">
+      <button type="button" id="zoomOut" aria-label="ซูมออก">−</button>
+      <span id="zoomVal">100%</span>
+      <button type="button" id="zoomIn" aria-label="ซูมเข้า">+</button>
+      <button type="button" id="fullBtn" aria-label="เต็มจอ" title="เต็มจอ">⛶</button>
+    </div>
+    <div id="village" class="scene" role="group" aria-label="หมู่บ้าน agent"></div>
+    <div class="list" id="list" hidden></div>
+  </section>
+  <aside class="insp" id="insp" aria-label="รายละเอียด"></aside>
+</main>
+
+<footer class="bar">
+  <div class="stats" id="stats"></div>
+  <form class="ask" id="ask" autocomplete="off">
+    <div class="suggest" id="suggest" hidden></div>
+    <div class="askRow">
+      <span class="target" id="askTarget" hidden></span>
+      <select id="askWs" aria-label="ส่งไปที่ workspace"></select>
+      <select id="askMode" aria-label="ชนิดคำสั่ง">
+        <option value="mission">งานใหม่ (ติดตามได้)</option>
+        <option value="message">ข้อความถึง agent</option>
+      </select>
+      <button type="button" class="ghost clip" id="askClip" title="แนบรูป (สูงสุด 10)" aria-label="แนบรูป">📎</button>
+      <div class="thumbs" id="askThumbs"></div>
+      <div class="taWrap"><textarea id="askText" rows="1" maxlength="4000" placeholder="พิมพ์สั่งงานเป็นภาษาไทยได้เลย…" aria-label="ข้อความ"></textarea></div>
+      <input type="file" id="askFile" accept="image/png,image/jpeg,image/gif,image/webp" multiple hidden>
+      <button type="submit" class="pri" id="askGo">ส่ง</button>
+    </div>
+  </form>
+</footer>
+
+<dialog id="confirm">
+  <form method="dialog" class="dlg">
+    <h2 id="confirmTitle">ยืนยัน</h2>
+    <p id="confirmBody"></p>
+    <pre id="confirmText"></pre>
+    <div class="dlgBtns">
+      <button value="cancel" class="ghost">ยกเลิก</button>
+      <button value="ok" class="pri" id="confirmOk">ยืนยัน</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="screenPop" class="screenPop">
+  <div class="spHead"><h2 id="screenPopTitle">จอ</h2><form method="dialog"><button class="ghost" aria-label="ปิด">✕</button></form></div>
+  <div class="spBody" id="screenPopBody"></div>
+</dialog>
+
+<dialog id="accountsDlg" class="screenPop">
+  <div class="spHead"><h2>บัญชี AI บนเครื่องนี้</h2><form method="dialog"><button class="ghost" aria-label="ปิด">✕</button></form></div>
+  <div class="spBody" id="accountsBody"></div>
+</dialog>
+
+<dialog id="reviewDlg" class="screenPop reviewDlg">
+  <div class="spHead"><h2 id="reviewTitle">ตรวจงาน</h2><form method="dialog"><button class="ghost" aria-label="ปิด">✕</button></form></div>
+  <div class="reviewWrap">
+    <iframe id="reviewFrame" title="หน้าตรวจงาน" sandbox="allow-scripts allow-popups" referrerpolicy="no-referrer"></iframe>
+    <aside class="reviewSide" id="reviewSide"></aside>
+  </div>
+</dialog>
+
+<dialog id="lightbox" class="lightbox">
+  <form method="dialog"><button class="ghost lbClose" aria-label="ปิด">✕</button></form>
+  <img id="lightboxImg" alt="รูปขยาย" hidden>
+</dialog>
+
+<dialog id="login">
+  <form class="dlg" id="loginForm">
+    <h2>เข้าสู่ AI Agent World</h2>
+    <p>ใส่ token ของ AI Agent World (ขึ้นต้นด้วย <code>kaw_</code>) — ได้จาก <code>aiagent enable</code> หรือ <code>aiagent rotate-token</code> บนเครื่องนี้ · เก็บไว้เฉพาะแท็บนี้</p>
+    <input id="loginToken" type="password" autocomplete="off" spellcheck="false" aria-label="token">
+    <p class="err" id="loginErr"></p>
+    <div class="dlgBtns"><button type="submit" class="pri">เข้าใช้งาน</button></div>
+  </form>
+</dialog>
+
+<script src="/aiagent/app.js"></script>
+</body>
+</html>
