@@ -94,3 +94,41 @@ structural respect. The weaknesses above are "less lively than intended", not
 
 What to re-request: `ch-research-walkL/walkR` with an actual stride, and
 distinct poses for the seven duplicated infra/deploy states.
+
+---
+
+# Update, 2026-11-07: the seven re-renders
+
+All seven weak slots were replaced. Identified by looking at them — the files
+arrived unnamed, so each was matched to a slot by character and pose: human in
+a yellow hard hat for infra, visored robot for deploy, silver hair and a lab
+coat for research; tablet and server hologram for `work`, question mark and
+lightbulb for `think`, relaxed stance for `rest`; and the walks by which way
+the character faces.
+
+| Slot | What it fixes |
+|---|---|
+| `ch-research-walkL` / `walkR` | a real side-profile stride, replacing six near-identical front-facing poses |
+| `ch-infra-rest`, `ch-infra-work` | distinct poses; infra no longer looks the same working, resting and celebrating |
+| `ch-deploy-rest`, `think`, `work` | distinct poses; deploy no longer identical across four states |
+
+**All 36 sheets are now distinct images.** Previously 31 images filled 36
+slots; no two files share a hash.
+
+## On the leg-movement metric: it is a hint, not a verdict
+
+Three versions of this check were written and **all three gave a wrong answer
+on a real sheet**, each caught by looking at the picture afterwards:
+
+1. **Whole-silhouette width.** A character carrying a laptop has an arm that
+   holds the outline steady while the legs stride. A good walk scored 2%.
+2. **Bottom-third bounding-box width.** A character in a long lab coat keeps a
+   constant hem width while the legs move inside it. A good walk scored 1.4%.
+3. **Bottom-third shape comparison.** Scores the *old* static research walk at
+   0.237 — the same range as walks that genuinely stride.
+
+The numbers are still recorded because they catch the obvious cases, and a
+frame that is byte-identical to its neighbour is caught reliably by the shape
+AND colour test. But **walk quality in this project is confirmed by opening
+the converted sheet and watching the legs**, and every sheet called good above
+was looked at.

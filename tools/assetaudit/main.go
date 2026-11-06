@@ -283,34 +283,31 @@ func analyseFrames(r *Report, img *image.NRGBA, bg color.NRGBA) {
 	if maxW > 0 {
 		r.ShapeSpread = round(float64(maxW-minW)/float64(maxW), 3)
 	}
-	// Leg movement, measured on the bottom third of each frame only.
+	// Leg movement, on the bottom third of each frame.
 	//
-	// Whole-silhouette width is the obvious proxy and it is wrong here: a
-	// character carrying a laptop has an arm that holds the outline steady
-	// while the legs stride underneath. Measured on a real side-profile walk
-	// the whole body varies 2% while the legs vary 20%. Looking only below
-	// the knee line answers the question actually being asked.
-	legMin, legMax := 1<<30, 0
+	// Two earlier attempts at this were wrong in opposite directions and both
+	// were caught by looking at the picture afterwards:
+	//
+	//   - whole-silhouette width: a character carrying a laptop has an arm
+	//     that holds the outline steady while the legs stride underneath, so
+	//     a real walk scored 2% and looked broken.
+	//   - bottom-third bounding-box WIDTH: a character in a long coat keeps a
+	//     constant hem width while the legs move inside it, so a real walk
+	//     scored 1.4% and again looked broken.
+	//
+	// What survives both is comparing the bottom third as a SHAPE between
+	// frames — how much the leg pixels actually move — rather than measuring
+	// how wide they happen to be.
+	legMax := 0.0
 	for i := 0; i < n; i++ {
-		if boxes[i].Empty() {
-			continue
-		}
-		b := boxes[i]
-		legs := image.Rect(b.Min.X, b.Min.Y+b.Dy()*2/3, b.Max.X, b.Max.Y)
-		lb := contentBounds(mask, legs)
-		if lb.Empty() {
-			continue
-		}
-		if lb.Dx() < legMin {
-			legMin = lb.Dx()
-		}
-		if lb.Dx() > legMax {
-			legMax = lb.Dx()
+		for j := i + 1; j < n; j++ {
+			if boxes[i].Empty() || boxes[j].Empty() {
+				continue
+			}
+			legMax = math.Max(legMax, frameDistance(mask, bottomThird(boxes[i]), bottomThird(boxes[j])))
 		}
 	}
-	if legMax > 0 {
-		r.LegSpread = round(float64(legMax-legMin)/float64(legMax), 3)
-	}
+	r.LegSpread = round(legMax, 3)
 
 	if !r.FramesDiffer {
 		r.Notes = append(r.Notes, "repeated frames: identical in both shape and colour")
@@ -318,6 +315,11 @@ func analyseFrames(r *Report, img *image.NRGBA, bg color.NRGBA) {
 	if r.BleedsAcross {
 		r.Notes = append(r.Notes, "content touches a cell edge: the frame grid does not match the art")
 	}
+}
+
+// bottomThird is the part of a frame the legs occupy.
+func bottomThird(b image.Rectangle) image.Rectangle {
+	return image.Rect(b.Min.X, b.Min.Y+b.Dy()*2/3, b.Max.X, b.Max.Y)
 }
 
 // frameDistance compares two frames by resampling both to a small grid of
