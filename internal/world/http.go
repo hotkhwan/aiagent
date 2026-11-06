@@ -169,15 +169,14 @@ func (s *Service) Mount(app *fiber.App) {
 	s.policyOnce.Do(func() { s.StartPolicy(context.Background()) })
 	page := s.asset("index.html", "html")
 	// On its own hostname — behind a tunnel or a reverse proxy — the /aiagent
-	// prefix is redundant, so the root redirects to it rather than making the
-	// operator type a path. It still answers 404 while the switch is off: a
-	// redirect would otherwise reveal that something is installed here.
-	app.Get("/", func(c fiber.Ctx) error {
-		if !s.Store.Enabled() {
-			return hidden(c)
-		}
-		return c.Redirect().Status(fiber.StatusFound).To("/aiagent")
-	})
+	// prefix is redundant, so the root serves the page itself rather than
+	// bouncing through a redirect the operator then sees in the address bar.
+	// The page's own asset and API URLs stay absolute under /aiagent, so both
+	// entry points load exactly the same application.
+	//
+	// Like every other route it answers 404 while the switch is off: anything
+	// else here would announce that something is installed at this address.
+	app.Get("/", page)
 	app.Get("/aiagent", page)
 	app.Get("/aiagent/", page)
 	app.Get("/aiagent/app.js", s.asset("app.js", "js"))

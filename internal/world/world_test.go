@@ -1260,31 +1260,32 @@ func TestDaemonListCached(t *testing.T) {
 	}
 }
 
-// TestRootRedirects covers the root path added so the service can sit on its
-// own hostname (aiagent.example.com) without the operator typing /aiagent.
-// The redirect must not leak existence: while the switch is off, / has to
-// answer 404 like everything else, not 302 to a page that then 404s.
-func TestRootRedirects(t *testing.T) {
+// TestRootServesTheApp covers the root path, added so the service can sit on
+// its own hostname (aiagent.example.com) without the operator typing /aiagent.
+// Root must serve the same page, and — like every other route — must answer
+// 404 while the switch is off rather than revealing the service is installed.
+func TestRootServesTheApp(t *testing.T) {
 	e := newEnv(t)
 
 	code, _, _ := e.do(t, "GET", "/", "", "")
 	if code != 404 {
-		t.Fatalf("/ while disabled = %d, want 404: a redirect reveals the service is installed", code)
+		t.Fatalf("/ while disabled = %d, want 404: anything else announces the service is here", code)
 	}
 
 	if _, err := e.store.Enable("test"); err != nil {
 		t.Fatal(err)
 	}
-	req := httptest.NewRequest("GET", "/", nil)
-	res, err := e.app.Test(req, fiber.TestConfig{Timeout: 5 * time.Second})
-	if err != nil {
-		t.Fatal(err)
+	code, _, root := e.do(t, "GET", "/", "", "")
+	if code != 200 {
+		t.Fatalf("/ while enabled = %d, want 200", code)
 	}
-	defer res.Body.Close()
-	if res.StatusCode != 302 {
-		t.Fatalf("/ while enabled = %d, want 302", res.StatusCode)
+	_, _, prefixed := e.do(t, "GET", "/aiagent", "", "")
+	if root != prefixed {
+		t.Error("/ and /aiagent served different bodies; both must be the same application")
 	}
-	if loc := res.Header.Get("Location"); loc != "/aiagent" {
-		t.Fatalf("redirect Location = %q, want %q", loc, "/aiagent")
+	// The page must keep absolute asset URLs, or loading it from / would ask
+	// for /app.js, which is not a route.
+	if !strings.Contains(root, "/aiagent/app.js") {
+		t.Error("page does not reference /aiagent/app.js; its assets would 404 when served from /")
 	}
 }
