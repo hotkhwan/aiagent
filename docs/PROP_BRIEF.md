@@ -40,19 +40,69 @@ Needed source width = `drawn width x 1.875 x 2`, rounded to 10.
 
 ## 2. Style
 
-Same anchor as the cast: `docs/audit/style-reference.png` and
-`docs/CHARACTER_BRIEF.md` §1. For furniture that means:
+> **Corrected 2026-11-07, after batch 01.** The first version of this section
+> said "the rooms are navy with neon signage" and asked for a cool ambient on
+> every prop. That is true of `code` and `ops` and of no other room. Batch 01
+> followed it exactly and produced dark slabs that punch holes in the white
+> `test` lab and read as empty boxes in the amber `library`. The audit, with
+> pictures, is in [audit/propsBatch01Report.md](audit/propsBatch01Report.md).
 
-- **Lit by the room, not by daylight.** The rooms are navy with neon signage.
-  Props carry a cool ambient and one saturated rim or emissive accent in the
-  room's colour — `plan` blue, `library` amber, `code` violet, `test` cyan,
-  `ops` steel blue, `deploy` magenta, `approval` green, `lounge` rose.
-- **Heavy dark outline**, the same weight as the characters, so a prop and an
-  agent standing beside it belong to one drawing.
-- **Chunky and simplified.** No fine detail: at the map scale a room is 440px
-  wide and everything in it is a sixth of its focus size.
+Open two files before drawing anything:
+
+- **[audit/props-current.jpg](audit/props-current.jpg)** — all 39 props that
+  ship today. This is the technique to match and the content to keep.
+- **[audit/room-light-reference.jpg](audit/room-light-reference.jpg)** — the
+  eight backgrounds, side by side.
+
+### 2.1 Painted, not vector
+
+The rooms are painted illustrations: soft shading, a light direction, bounced
+light, reflective floors. A prop must be painted the same way. Flat fills with
+a hard outline read as a UI widget pasted onto a photograph — that is the whole
+of what went wrong in batch 01, and no amount of correct sizing rescues it.
+
+The existing props have the right technique. What they lack is resolution and,
+in a few rooms, the right colour temperature.
+
+### 2.2 Each room has its own light
+
+There is no single palette. Match the room the prop stands in:
+
+| Room | The background actually is | Props should be |
+|---|---|---|
+| `plan` | cool blue and lavender, mid-bright | light, cool, a cyan accent |
+| `library` | **warm amber** wood and lantern light | warm wood, warm highlights |
+| `code` | violet and magenta neon, mid-dark | mid value, violet rim |
+| `test` | **bright white and cyan lab**, high key | **light** — dark props punch holes |
+| `ops` | deep blue with cyan server glow | the one genuinely dark room |
+| `deploy` | hot magenta and yellow hazard, saturated | mid, magenta accent |
+| `approval` | pale mint and green, bright | light, soft green |
+| `lounge` | rose, peach and amber, warm and bright | warm, soft |
+
+A prop used in more than one room (`desk-white2` is in code, ops and test)
+takes the lighter reading, so it survives the bright room.
+
+### 2.3 Keep what the prop contains
+
+A prop file is usually a **group**, not a single object. `desk-blue2` is a desk
+*and* a chair, a monitor, a small robot, a stack of books and a plant.
+`shelf-big` is a bookcase *and* its books, a lamp, a framed picture, storage
+boxes and a trailing vine. Replacing them with a bare desk and a bare shelf
+empties the room — the chairs and the robots vanish and nothing puts them back.
+
+`audit/props-current.jpg` is the inventory. The redraw must hold the same
+objects in the same arrangement.
+
+### 2.4 The rest
+
+- **Outline** in the same weight as the characters, so a prop and an agent
+  standing beside it belong to one drawing — but an outline on painted
+  shading, not an outline instead of it.
+- **Chunky and simplified.** At map scale a room is 440px wide and everything
+  in it is a sixth of its focus size.
 - Screens, strips and panels may glow; nothing else emits light.
-- No characters, no text, no logos drawn into a prop.
+- No characters, no text, no logos drawn into a prop. (The little robots in
+  `desk-*` are existing scenery and stay — they are not the agent cast.)
 
 ## 3. Canvas rules
 
@@ -190,6 +240,19 @@ go test ./...
 Then each room is composed and looked at, because size and alpha are the only
 things the tools can judge. A prop passes when it is the right size, cut out,
 and does not look lit by a different room than the one it stands in.
+
+Batch 01 passed every automated check — all ten widths exact, real alpha, tight
+crop, correct names — and still had to be rejected on sight. Composing it into
+the real rooms is what settled it, and that is one command:
+
+```sh
+# old and new side by side, over the real background, at the real positions
+go run ./tools/roomcompare -new <folder> -rooms code,test,library -out cmp.png
+```
+
+If that tool does not exist yet, the throwaway harness that produced
+`audit/props-batch01-rooms.jpg` is worth rebuilding before reviewing a batch by
+eye in isolation. Props do not fail on their own; they fail in the room.
 
 The five character sheets in `aiagent_art_rebuild_starter_20261107.zip` stay
 uninstalled until all 36 arrive — the pack's own README says so, and half a
