@@ -184,3 +184,10 @@ Two coherent ways forward, and they should not be mixed:
    style is the one outcome to avoid.
 
 The five files are untouched in `~/Downloads` either way.
+
+**Decision, 2026-11-07: option 2.** The cast is re-rendered in the new design.
+The brief is [../CHARACTER_BRIEF.md](../CHARACTER_BRIEF.md), with
+[style-reference.png](style-reference.png) as the anchor: panels 1-3 are
+already in the new style and define it, panels 4-6 keep their concept and get
+restyled to match. Until all 36 arrive, the installed cast stays as it is —
+consistent, if older-looking.
