@@ -399,6 +399,28 @@ Every file below must exist with exactly this name and size.
 
 ---
 
+## Turning a generated sheet into a shipped one
+
+Generators produce big frames on a flat green background — 3072x512 for a
+six-frame walk, 2508x627 for a four-frame loop. `tools/spritesheet` does the
+conversion:
+
+```sh
+go run ./tools/spritesheet -in raw.png -frames 6 -out web/assets/ch-dev-walkR.png
+go run ./tools/spritesheet -in raw.png -frames 4 -out web/assets/ch-dev-work.png
+```
+
+It keys the background out (sampling the corners unless you pass `-key`),
+despills the edges so nothing keeps a green rim over a warm room, and scales
+every frame by ONE factor measured across the whole sheet, anchored
+bottom-centre. That last part is the one that matters: trimming each frame
+separately resizes each pose independently, and the character then bobs and
+changes height as it walks.
+
+Useful flags: `-key 00ff00` when the corners are not the backdrop, `-tol`
+(default 0.34) when the key is leaving fringes or eating the art, and
+`-frames` which must match the source.
+
 ## Checking a batch before you commit it
 
 **`go test ./web/` checks everything on this page** — names against the serving
