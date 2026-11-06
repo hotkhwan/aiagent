@@ -173,6 +173,13 @@ func TestPropsAreCutOut(t *testing.T) {
 			}
 		}
 		switch {
+		// Home-screen icons are deliberately opaque: iOS composites a
+		// transparent icon onto black, so they are rendered onto the app's
+		// background colour instead (tools/appicon).
+		case strings.HasPrefix(n, "icon-"):
+			if transparent {
+				t.Errorf("%s has transparency; a home-screen icon must be opaque or iOS will matte it onto black", n)
+			}
 		case strings.HasSuffix(n, ".jpg"):
 			if !strings.HasPrefix(n, "bg-") {
 				t.Errorf("%s is a JPG but not a room background; props need PNG alpha", n)

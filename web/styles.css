@@ -820,3 +820,26 @@ dialog.screenPop.full { width: 100vw; height: 100vh; max-width: 100vw; max-heigh
 .renameBtn { opacity: 0; font-size: 13px; padding: 2px 6px; transition: opacity .15s ease }
 .who:hover .renameBtn, .renameBtn:focus-visible { opacity: .75 }
 .renameBtn:hover { opacity: 1 }
+
+/* ---------- installed on a home screen ---------- */
+/* With viewport-fit=cover a standalone window paints edge to edge, so the top
+   bar would sit under the iPad status area and the composer under the home
+   indicator. These insets are 0 in a normal browser tab. */
+.top { padding-top: calc(12px + env(safe-area-inset-top)) }
+.bar { padding-bottom: calc(14px + env(safe-area-inset-bottom)) }
+.top, .bar { padding-left: calc(24px + env(safe-area-inset-left));
+  padding-right: calc(24px + env(safe-area-inset-right)) }
+
+/* Touch: the drag handles are pointer-sized. Give them a real target on a
+   finger, and stop iOS Safari zooming when the composer is focused — an
+   input below 16px triggers an automatic zoom that never zooms back. */
+@media (pointer: coarse) {
+  .inspGrip { width: 22px; left: -11px }
+  #askText, input, select, textarea { font-size: 16px }
+}
+
+/* Standalone has no browser chrome to pull on, so a stray vertical drag
+   bounces the whole page. Let the scrolling panes own it instead. */
+@media (display-mode: standalone) {
+  html, body { overscroll-behavior: none }
+}

@@ -181,6 +181,24 @@ func (s *Service) Mount(app *fiber.App) {
 	app.Get("/aiagent/", page)
 	app.Get("/aiagent/app.js", s.asset("app.js", "js"))
 	app.Get("/aiagent/styles.css", s.asset("styles.css", "css"))
+	// The manifest is what makes this installable to a home screen. It is not
+	// secret, but it still answers 404 while the switch is off like everything
+	// else, so a disabled install stays indistinguishable from an absent one.
+	app.Get("/aiagent/manifest.webmanifest", func(c fiber.Ctx) error {
+		if !s.Store.Enabled() {
+			return hidden(c)
+		}
+		b, err := fs.ReadFile(uiFS, "manifest.webmanifest")
+		if err != nil {
+			return hidden(c)
+		}
+		// Set the header directly: Type() treats its argument as a file
+		// extension, and "application/manifest+json" is not one, so the
+		// manifest went out as application/octet-stream and was ignored.
+		s.pageHeaders(c)
+		c.Set("Content-Type", "application/manifest+json; charset=utf-8")
+		return c.Status(fiber.StatusOK).Send(b)
+	})
 	app.Get("/aiagent/assets/:name", s.handleAsset)
 	app.Get("/aiagent/review-view/:ticket", s.handleReviewView)
 

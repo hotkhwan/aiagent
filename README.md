@@ -71,6 +71,18 @@ There is no self-signed-certificate fallback: a certificate you must click
 past teaches you to click past certificate warnings, and this service can type
 into your agents.
 
+### On an iPad or a phone
+
+Open it in Safari or Chrome and use **Add to Home Screen**. It installs as an
+icon and opens without an address bar, full screen. The token is kept in that
+install's own storage, so you log in once.
+
+Regenerate the icons after an art change:
+
+```sh
+go run ./tools/appicon -in web/assets/house-kcmd.png -out web/assets
+```
+
 ### Status line (recommended)
 
 Claude Code only reports plan usage to its status line, so this is the only way

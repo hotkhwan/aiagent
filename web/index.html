@@ -2,9 +2,23 @@
 <html lang="th">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- viewport-fit=cover so a standalone iPad window can paint under the home
+     indicator; the CSS then insets the content with env(safe-area-inset-*). -->
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="referrer" content="no-referrer">
 <title>AI Agent World</title>
+
+<!-- Installable: an icon on the home screen, opening without an address bar.
+     iOS still reads the apple-* tags as well as the manifest, so both are here. -->
+<link rel="manifest" href="/aiagent/manifest.webmanifest">
+<meta name="theme-color" content="#0E1324">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="AI Agent">
+<link rel="apple-touch-icon" href="/aiagent/assets/icon-180.png">
+<link rel="icon" href="/aiagent/assets/icon-192.png" type="image/png">
+
 <link rel="stylesheet" href="/aiagent/styles.css">
 </head>
 <body>

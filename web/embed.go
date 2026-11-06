@@ -7,5 +7,5 @@ import "embed"
 
 // FS is the UI tree: index.html, app.js, styles.css and assets/.
 //
-//go:embed all:assets index.html app.js styles.css
+//go:embed all:assets index.html app.js styles.css manifest.webmanifest
 var FS embed.FS
