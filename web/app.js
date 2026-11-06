@@ -303,15 +303,34 @@ function renderComposerTargets () {
   const cur = st.target !== undefined ? st.target : sel.value
   sel.replaceChildren()
   const ready = st.snap.workspaces.filter(w => w.agentReady)
-  sel.append(h('option', { value: '' }, ready.length ? '— เลือกปลายทาง —' : 'ไม่มี agent พร้อมรับงาน'))
-  for (const w of st.snap.workspaces) {
-    if (!w.dirExists) continue
-    const label = w.name + (w.agentReady ? ' · ' + w.agentCommand + ' (tmux ' + w.tmuxSession + ')' : w.tmuxAlive ? ' · ไม่มี agent (shell)' : ' · ปิดอยู่')
-    sel.append(h('option', { value: w.name, disabled: !w.agentReady }, label))
+  // Sessions the web can already type to directly — a background session the
+  // service relays through `claude attach`. They were left out of this list,
+  // so with no tmux workspace configured the composer said "no agent ready"
+  // while two agents were in fact reachable; the only way to reach them was to
+  // click the character first, which is not where the composer sends you.
+  const live = (st.snap.sessions || []).filter(x => x.live && x.messageVia)
+  sel.append(h('option', { value: '' }, ready.length || live.length ? '— เลือกปลายทาง —' : 'ไม่มี agent พร้อมรับงาน'))
+  if (live.length) {
+    const g = h('optgroup', { label: 'agent ที่กำลังทำงาน' })
+    for (const x of live) {
+      g.append(h('option', { value: 'session:' + x.sessionId },
+        x.displayName + ' · ' + (x.messageVia === 'relay' ? 'relay' : 'agcmd ' + x.dispatchVia)))
+    }
+    sel.append(g)
+  }
+  const usable = st.snap.workspaces.filter(w => w.dirExists)
+  if (usable.length) {
+    const g = h('optgroup', { label: 'workspace (agcmd)' })
+    for (const w of usable) {
+      const label = w.name + (w.agentReady ? ' · ' + w.agentCommand + ' (tmux ' + w.tmuxSession + ')' : w.tmuxAlive ? ' · ไม่มี agent (shell)' : ' · ปิดอยู่')
+      g.append(h('option', { value: w.name, disabled: !w.agentReady }, label))
+    }
+    sel.append(g)
   }
   // never pick a target for the operator: only an explicit choice or the
   // selected agent's own workspace
-  sel.value = cur && ready.some(w => w.name === cur) ? cur : ''
+  const stillThere = cur && (ready.some(w => w.name === cur) || live.some(x => 'session:' + x.sessionId === cur))
+  sel.value = stillThere ? cur : ''
   updateComposerHint()
 }
 
@@ -336,16 +355,30 @@ function updateComposerHint () {
     return
   }
   const ws = $('askWs').value
+  const picked = targetSession(ws)
   const w = ws && st.snap && st.snap.workspaces.find(x => x.name === ws)
   const input = $('askText')
   if (st.blockReason) {
     input.placeholder = st.blockReason
+  } else if (picked) {
+    input.placeholder = 'พิมพ์ถึง ' + picked.displayName + '… (Enter ส่ง · Shift+Enter ขึ้นบรรทัด)'
   } else if (w) {
     input.placeholder = 'ส่งถึง ' + w.name + ' (' + w.agentCommand + ' ใน tmux ' + w.tmuxSession + ')…'
   } else {
     input.placeholder = 'เลือกปลายทางก่อน หรือคลิกตัวละครที่รับงานได้'
   }
-  $('askGo').disabled = !w
+  // A mission is an agcmd run and needs a workspace; a session can only be
+  // messaged, so hide the mode picker rather than offer a choice that fails.
+  $('askMode').hidden = !!picked
+  $('askGo').disabled = !w && !picked
+}
+
+// targetSession resolves a "session:<id>" value from the target picker.
+function targetSession (value) {
+  if (!value || !value.startsWith('session:') || !st.snap) return null
+  const id = value.slice('session:'.length)
+  const x = (st.snap.sessions || []).find(y => y.sessionId === id)
+  return x && x.live && x.messageVia ? x : null
 }
 
 // ---------- world: village of houses + house interiors (HTML scenes) ----------
@@ -2174,6 +2207,8 @@ $('ask').addEventListener('submit', async e => {
   const ta = $('askText')
   if (sess) return sendChat(sess, ta, $('askThumbs'))
   const ws = $('askWs').value
+  const picked = targetSession(ws)
+  if (picked) return sendChat(picked, ta, $('askThumbs'))
   const mode = $('askMode').value
   let text = expandPastes(ta.value).trim()
   const files = st.attach || []

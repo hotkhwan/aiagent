@@ -55,7 +55,24 @@ func (f *fakeRunner) Run(_ context.Context, name string, args ...string) ([]byte
 				return []byte("claude\n"), nil
 			}
 			return []byte(f.panes), nil
-		case "capture-pane":
+		case "send-keys", "capture-pane":
+			// Real tmux refuses a bare "=name" here — that targets a PANE, and
+			// no pane is named after the session, so it answers
+			// `can't find pane`. Only "=name:" (session:window) resolves. The
+			// fake used to return the prompt whatever the target, which is why
+			// a relay that could never see the prompt passed its tests.
+			for i, a := range args {
+				if a != "-t" || i+1 >= len(args) {
+					continue
+				}
+				t := args[i+1]
+				if strings.HasPrefix(t, "=") && !strings.HasSuffix(t, ":") {
+					return []byte("can't find pane: " + t), errors.New("exit status 1")
+				}
+			}
+			if args[0] == "send-keys" {
+				return nil, nil
+			}
 			return []byte("──\n❯ \n──"), nil
 		}
 		return nil, nil
@@ -601,12 +618,16 @@ func TestSessionMessageRelayAndConversation(t *testing.T) {
 			got = append(got, strings.Join(c, " "))
 		}
 	}
+	// Every pane-targeting command takes "=name:", never "=name". This list
+	// used to hold the bare form for the two send-keys lines, which is what
+	// the code did and what real tmux rejects — so the test was pinning the
+	// bug in place: no relayed message had ever reached an agent.
 	want := []string{
 		"new-session -d -s aiagent-aaaa1111 -x 220 -y 50 claude attach aaaa1111",
 		"set-option -w -t =aiagent-aaaa1111: window-size manual",
 		"resize-window -t =aiagent-aaaa1111: -x 220 -y 50",
-		"send-keys -t =aiagent-aaaa1111 -l -- สวัสดีจากเว็บ",
-		"send-keys -t =aiagent-aaaa1111 Enter",
+		"send-keys -t =aiagent-aaaa1111: -l -- สวัสดีจากเว็บ",
+		"send-keys -t =aiagent-aaaa1111: Enter",
 	}
 	if strings.Join(got, "|") != strings.Join(want, "|") {
 		t.Fatalf("relay tmux calls =\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))

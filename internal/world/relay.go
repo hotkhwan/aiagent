@@ -134,11 +134,17 @@ func (c *Collector) relaySend(ctx context.Context, short, message string) error 
 	_, _ = c.tmux(ctx, "set-option", "-w", "-t", "="+name+":", "window-size", "manual")
 	_, _ = c.tmux(ctx, "resize-window", "-t", "="+name+":", "-x", "220", "-y", "50")
 	// wait until the pane runs the attach client and its prompt is drawn
+	//
+	// capture-pane needs "=name:" like the window options above, NOT "=name":
+	// with the bare form it answers `can't find pane` on every attempt, so the
+	// screen was always empty, the prompt was never found, and every relayed
+	// message failed with RELAY_NOT_READY after the full 16-second wait. The
+	// window-size comment above records the same trap one command earlier.
 	ready := false
 	for i := 0; i < 40 && !ready; i++ {
 		cmd, err := c.tmux(ctx, "list-panes", "-t", "="+name, "-F", "#{pane_current_command}")
 		if err == nil && agentReady(strings.TrimSpace(cmd)) {
-			screen, _ := c.tmux(ctx, "capture-pane", "-p", "-t", "="+name)
+			screen, _ := c.tmux(ctx, "capture-pane", "-p", "-t", "="+name+":")
 			ready = strings.Contains(screen, "❯")
 		}
 		if !ready {
@@ -146,13 +152,15 @@ func (c *Collector) relaySend(ctx context.Context, short, message string) error 
 		}
 	}
 	if !ready {
-		return &APIError{504, "AIAGENT_RELAY_NOT_READY", "the session did not become ready to receive text"}
+		return &APIError{504, "AIAGENT_RELAY_NOT_READY",
+			"the session did not become ready to receive text — it is probably still working; try again when it is idle"}
 	}
-	if _, err := c.tmux(ctx, "send-keys", "-t", "="+name, "-l", "--", message); err != nil {
+	// "=name:" again, not "=name": send-keys takes a pane target too.
+	if _, err := c.tmux(ctx, "send-keys", "-t", "="+name+":", "-l", "--", message); err != nil {
 		return &APIError{502, "AIAGENT_RELAY_FAILED", "send failed"}
 	}
 	c.sleep(400 * time.Millisecond)
-	if _, err := c.tmux(ctx, "send-keys", "-t", "="+name, "Enter"); err != nil {
+	if _, err := c.tmux(ctx, "send-keys", "-t", "="+name+":", "Enter"); err != nil {
 		return &APIError{502, "AIAGENT_RELAY_FAILED", "send failed"}
 	}
 	return nil

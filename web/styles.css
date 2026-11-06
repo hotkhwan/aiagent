@@ -797,9 +797,11 @@ h3.mdH { font-size: 1.08em } h4.mdH { font-size: 1em } h5.mdH, h6.mdH { font-siz
 body.resizing { user-select: none; cursor: col-resize }
 
 /* Dialogs: a sensible reading size, a drag corner, and a full-screen state. */
-dialog.screenPop { width: min(900px, calc(100vw - 32px)); max-width: calc(100vw - 32px);
-  max-height: calc(100vh - 48px); resize: both; overflow: hidden;
-  display: flex; flex-direction: column }
+/* :not(.reviewDlg) — the review dialog sets its own, wider size above and a
+   blanket width here squeezed its 340px side column until the layout broke. */
+dialog.screenPop:not(.reviewDlg) { width: min(900px, calc(100vw - 32px)) }
+dialog.screenPop { max-width: calc(100vw - 32px); max-height: calc(100vh - 48px);
+  resize: both; overflow: hidden; display: flex; flex-direction: column }
 dialog.screenPop[open] { display: flex }
 dialog.screenPop .spBody { overflow: auto; flex: 1; min-height: 0 }
 dialog.screenPop.full { width: 100vw; height: 100vh; max-width: 100vw; max-height: 100vh;
