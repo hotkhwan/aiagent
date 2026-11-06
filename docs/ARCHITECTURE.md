@@ -29,7 +29,9 @@ browser ──HTTP(loopback)──▶ cmd/aiagent ──▶ internal/world
   tabs cost one collection
 - `claude.go`, `codex.go` — each provider's on-disk session format
 - `proc.go` — `/proc`: liveness, parent/child ancestry, open file handles.
-  **This is why the collector is Linux-only.**
+  **The only Linux-specific part.** Without it the collector still reports
+  sessions (the `claude agents` daemon path supplies them), but loses pid
+  liveness, the pane-ancestry check behind `dispatchVia`, and Codex presence.
 - `daemon.go`, `subagents.go`, `watches.go` — background sessions, sub-agents,
   monitored jobs
 - `usage.go` — plan usage, from the Claude status line and the Codex rollout.

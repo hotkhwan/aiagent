@@ -118,9 +118,13 @@ version, including what is **not** protected, is in
 ## Known gaps
 
 - **The UI is Thai only.** The code and docs are English; the interface is not.
-- **Linux-first.** Session and process discovery reads `/proc`, so the
-  collector finds nothing on macOS or BSD. The CLI and the service build and
-  run there; the village will be empty.
+- **Linux-first, but not Linux-only.** Process discovery reads `/proc`, which
+  macOS and BSD do not have. Measured on macOS: sessions Claude Code's own
+  daemon reports (`claude agents`) *do* appear and the village populates, but
+  everything derived from the process table does not — pid-based liveness,
+  the pane-ancestry check that decides whether a session can be dispatched to,
+  and Codex process presence. Treat macOS as a usable read-only view, not as a
+  supported host.
 - **No tests for the browser code.** The Go side has tests and the embedded
   art is checked against its spec (`go test ./...`), but `web/app.js` itself
   has none.
