@@ -56,6 +56,10 @@ code, pre, .mono { font-family: ui-monospace, 'IBM Plex Mono', monospace; font-s
 .pill.normal i { background: var(--brand) } .pill.eco i, .pill.critical i { background: var(--amber) } .pill.reserve i { background: var(--rose) } .pill.guarded i { background: var(--muted) }
 .pill.eco, .pill.critical { color: var(--amber) } .pill.reserve { color: var(--rose) }
 .conn { color: var(--muted); font-size: 13px }
+/* The language switch is one or two characters, so without a border it reads
+   as a stray word in the status text beside it rather than as a button. */
+.ghost.lang { padding: 4px 10px; border-color: var(--line); font-size: 13px; font-weight: 600; letter-spacing: .3px }
+.ghost.lang:hover { border-color: var(--brand); color: var(--brand) }
 .conn.ok::before { content: '●'; color: var(--brand); margin-right: 6px }
 .conn.bad { color: var(--rose) }
 .banner { padding: 10px 24px; background: rgba(245,184,75,.12); color: var(--amber); border-bottom: 1px solid var(--line) }

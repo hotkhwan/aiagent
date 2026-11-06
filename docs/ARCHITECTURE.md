@@ -73,6 +73,40 @@ browser ──HTTP(loopback)──▶ cmd/aiagent ──▶ internal/world
    private checkouts is how this code got stuck in a private repository in the
    first place.
 
+## Language
+
+The UI is Thai and English. `web/i18n.js` holds the dictionary and ships
+before `app.js`.
+
+**The Thai string is the key.** `tr('ห้องพัฒนา')` says what it renders where
+`tr('room.code')` would not, and a key with no entry falls back to Thai — a
+usable screen — rather than to a raw identifier. `tr` and not `t`, because
+`t` is a natural loop variable and app.js binds it twice; a shadowed
+translator throws on whichever branch happens to run.
+
+Two mechanisms, for two kinds of string:
+
+- `tr(s)` for anything `app.js` builds at runtime.
+- `applyStaticLang()` for `index.html`. It walks the document once at load,
+  remembers every Thai text node and every Thai `title`, `aria-label` and
+  `placeholder`, and swaps them on demand — so the markup needs no `data-i18n`
+  attributes. The Thai already in it is the key.
+
+Anything the user owns — a session name, a workspace, a message — is never
+passed through `tr()`, so it is never translated.
+
+Switching language **reloads the page**. `app.js` builds its label tables at
+module scope, so the Thai in them is translated once when the script runs and
+a later `render()` would hand back the same frozen strings. Translating at
+every lookup would also work, but only for as long as nobody adds a table and
+forgets; the reload is correct without that promise, and the token and the
+language both live in `localStorage`. `?lang=en` overrides the stored choice,
+which is how a given language gets screenshotted.
+
+`TestEveryThaiStringIsTranslated` fails if `app.js` passes a string to `tr()`
+that the dictionary does not have. Without it a missing line is invisible:
+`tr()` returns its argument, and the English page simply has Thai in it.
+
 ## Testing
 
 ```sh

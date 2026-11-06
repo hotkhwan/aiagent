@@ -179,6 +179,7 @@ func (s *Service) Mount(app *fiber.App) {
 	app.Get("/", page)
 	app.Get("/aiagent", page)
 	app.Get("/aiagent/", page)
+	app.Get("/aiagent/i18n.js", s.asset("i18n.js", "js"))
 	app.Get("/aiagent/app.js", s.asset("app.js", "js"))
 	app.Get("/aiagent/styles.css", s.asset("styles.css", "css"))
 	// The manifest is what makes this installable to a home screen. It is not

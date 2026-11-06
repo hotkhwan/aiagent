@@ -194,6 +194,52 @@ func TestPropsAreCutOut(t *testing.T) {
 	}
 }
 
+// TestEveryThaiStringIsTranslated catches the one failure mode i18n has.
+//
+// t() returns its argument unchanged when the dictionary has no entry, which
+// is the right behaviour at runtime — a missing line shows Thai rather than a
+// raw key — and is invisible in review. The result is an English page with
+// Thai scattered through it, and nothing anywhere says so. So every string
+// app.js passes to t() must have an entry in i18n.js.
+func TestEveryThaiStringIsTranslated(t *testing.T) {
+	app, err := fs.ReadFile(FS, "app.js")
+	if err != nil {
+		t.Fatalf("read app.js: %v", err)
+	}
+	dict, err := fs.ReadFile(FS, "i18n.js")
+	if err != nil {
+		t.Fatalf("read i18n.js: %v", err)
+	}
+
+	// Keys are written one per line as 'thai': — the value may wrap to the
+	// next line, which does not affect the key.
+	keys := map[string]bool{}
+	for _, m := range regexp.MustCompile(`(?m)^\s*'((?:[^'\\]|\\.)*)':`).FindAllStringSubmatch(string(dict), -1) {
+		keys[m[1]] = true
+	}
+	if len(keys) == 0 {
+		t.Fatal("i18n.js has no dictionary entries — the EN table was renamed or restructured; update this test with it")
+	}
+
+	thai := regexp.MustCompile(`[\x{0E00}-\x{0E7F}]`)
+	calls := regexp.MustCompile(`\btr\('((?:[^'\\\n]|\\.)*)'\)`)
+	seen, missing := map[string]bool{}, 0
+	for _, m := range calls.FindAllStringSubmatch(string(app), -1) {
+		s := m[1]
+		if !thai.MatchString(s) || seen[s] {
+			continue
+		}
+		seen[s] = true
+		if !keys[s] {
+			missing++
+			t.Errorf("app.js passes %q to t() but i18n.js has no entry; it will stay Thai on the English page", s)
+		}
+	}
+	if len(seen) == 0 {
+		t.Error("found no t('…') calls carrying Thai in app.js — either the wrapping was lost or this test stopped matching it")
+	}
+}
+
 // TestEveryRoomHasAGlyph keeps the workflow stepper honest.
 //
 // iconSvg() falls back to a plain dash for an unknown key, so a room with no

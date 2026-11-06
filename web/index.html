@@ -31,6 +31,9 @@
   </nav>
   <div class="energy" id="energy" aria-live="polite"></div>
   <div class="conn" id="conn" aria-live="polite">กำลังเชื่อมต่อ…</div>
+  <!-- The label is the language you would switch TO. app.js sets it after
+       i18n.js has captured the shell, so the capture never sees it. -->
+  <button type="button" class="ghost lang" id="langBtn" aria-label="Language / ภาษา">EN</button>
   <button type="button" class="ghost" id="accountsBtn" title="บัญชี Claude / Codex บนเครื่องนี้">👤 บัญชี</button>
   <button type="button" class="ghost" id="panelPopBtn" title="เปิดแผงขวาเป็นหน้าต่างใหญ่">⤢ ขยายแผง</button>
   <button type="button" class="ghost" id="togglePanel" aria-expanded="true">ซ่อนแผงขวา ⟩</button>
@@ -129,6 +132,9 @@
   </form>
 </dialog>
 
+<!-- i18n.js first: it captures the Thai in the markup above as its own keys,
+     and that has to happen before app.js starts changing the DOM. -->
+<script src="/aiagent/i18n.js"></script>
 <script src="/aiagent/app.js"></script>
 </body>
 </html>
