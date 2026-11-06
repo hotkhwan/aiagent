@@ -56,6 +56,16 @@ the binary and served through a name allowlist. By subject:
 |---|---|---|---|---|---|
 | `web/assets/*` | *unrecorded — AI-generated, supplied by the owner* | **unknown** | **undecided** | — | — |
 
+## Decision: regenerate the set (owner, 2026-11-06)
+
+The owner chose to **replace every image with a freshly generated set** rather
+than try to reconstruct provenance for the current one. The replacement is
+specified file by file in [ASSET_SPEC.md](ASSET_SPEC.md) — 230 slots with exact
+names and canvas sizes, so a new set drops in with no code change.
+
+Until that set lands, the table above still governs: the images in the tree are
+**all rights reserved**, not Apache-2.0.
+
 ## If the licence cannot be cleared
 
 The code stands on its own. Replace the images rather than hold the project
