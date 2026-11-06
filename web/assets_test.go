@@ -186,3 +186,46 @@ func TestPropsAreCutOut(t *testing.T) {
 		}
 	}
 }
+
+// TestDialogDisplayStaysScoped guards one CSS mistake that is invisible in a
+// diff and total in effect.
+//
+// A <dialog> is hidden by the user agent's `dialog:not([open]) { display:
+// none }`. Any author rule that sets `display` on a dialog without [open]
+// beats it, and every dialog in the app is then permanently on screen, over
+// the page, and impossible to close — closing only removes [open], and
+// nothing else was hiding it. That shipped once.
+func TestDialogDisplayStaysScoped(t *testing.T) {
+	b, err := fs.ReadFile(FS, "styles.css")
+	if err != nil {
+		t.Fatalf("read styles.css: %v", err)
+	}
+	// Each rule is "selectors { declarations }"; look at the ones naming a
+	// dialog and check any display declaration is gated on [open].
+	for _, rule := range strings.Split(string(b), "}") {
+		open := strings.Index(rule, "{")
+		if open < 0 {
+			continue
+		}
+		selector := strings.TrimSpace(rule[:open])
+		body := rule[open+1:]
+		// Only the last line of the previous rule can trail in; selectors
+		// start after the last newline that is not part of this selector.
+		if i := strings.LastIndex(selector, ";"); i >= 0 {
+			selector = strings.TrimSpace(selector[i+1:])
+		}
+		if !strings.Contains(selector, "dialog") {
+			continue
+		}
+		if !strings.Contains(body, "display:") {
+			continue
+		}
+		if strings.Contains(selector, "[open]") || strings.Contains(body, "display: none") {
+			continue
+		}
+		t.Errorf("rule %q sets display on a dialog without [open]; "+
+			"it will override `dialog:not([open]) { display: none }` and leave every dialog "+
+			"stuck open and unclosable. Move the display declaration into a [open] rule.",
+			strings.Join(strings.Fields(selector), " "))
+	}
+}
