@@ -59,6 +59,7 @@ type Report struct {
 	MinShapeDist     float64  `json:"minShapeDistance"`
 	MinColourDist    float64  `json:"minColourDistance"`
 	ShapeSpread      float64  `json:"shapeSpread"`
+	LegSpread        float64  `json:"legSpread"`
 	DuplicatePairs   []string `json:"duplicateFramePairs,omitempty"`
 	BleedsAcross     bool     `json:"bleedsAcrossFrames"`
 	FitsCell         bool     `json:"fitsCell"`
@@ -178,10 +179,16 @@ func inspect(p string, idx, cell int) (Report, *image.NRGBA) {
 		r.FrameGuess = 8
 	}
 
-	if r.IsChromaGreen && r.FrameGuess > 0 {
+	switch {
+	case r.IsChromaGreen && r.FrameGuess > 0:
 		analyseFrames(&r, img, bg)
-	} else if !r.IsChromaGreen {
-		r.Notes = append(r.Notes, "not a chroma-key sheet: treated as a finished picture")
+	case r.HasAlpha && r.FrameGuess > 0:
+		// Already converted: the alpha IS the cut-out, so there is nothing to
+		// key. The same frame checks still apply, and they matter more here —
+		// this is the shape that would be installed.
+		analyseFrames(&r, img, color.NRGBA{})
+	case !r.IsChromaGreen:
+		r.Notes = append(r.Notes, "not a sheet: treated as a finished picture")
 	}
 	return r, thumbnail(img, cell, bg)
 }
@@ -193,7 +200,11 @@ func analyseFrames(r *Report, img *image.NRGBA, bg color.NRGBA) {
 	if fw == 0 {
 		return
 	}
-	mask := keyed(img, bg)
+	// A zero key means the image already carries its alpha.
+	mask := img
+	if (bg != color.NRGBA{}) {
+		mask = keyed(img, bg)
+	}
 
 	var boxes []image.Rectangle
 	for i := 0; i < n; i++ {
@@ -272,6 +283,35 @@ func analyseFrames(r *Report, img *image.NRGBA, bg color.NRGBA) {
 	if maxW > 0 {
 		r.ShapeSpread = round(float64(maxW-minW)/float64(maxW), 3)
 	}
+	// Leg movement, measured on the bottom third of each frame only.
+	//
+	// Whole-silhouette width is the obvious proxy and it is wrong here: a
+	// character carrying a laptop has an arm that holds the outline steady
+	// while the legs stride underneath. Measured on a real side-profile walk
+	// the whole body varies 2% while the legs vary 20%. Looking only below
+	// the knee line answers the question actually being asked.
+	legMin, legMax := 1<<30, 0
+	for i := 0; i < n; i++ {
+		if boxes[i].Empty() {
+			continue
+		}
+		b := boxes[i]
+		legs := image.Rect(b.Min.X, b.Min.Y+b.Dy()*2/3, b.Max.X, b.Max.Y)
+		lb := contentBounds(mask, legs)
+		if lb.Empty() {
+			continue
+		}
+		if lb.Dx() < legMin {
+			legMin = lb.Dx()
+		}
+		if lb.Dx() > legMax {
+			legMax = lb.Dx()
+		}
+	}
+	if legMax > 0 {
+		r.LegSpread = round(float64(legMax-legMin)/float64(legMax), 3)
+	}
+
 	if !r.FramesDiffer {
 		r.Notes = append(r.Notes, "repeated frames: identical in both shape and colour")
 	}

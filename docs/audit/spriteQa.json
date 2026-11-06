@@ -1,0 +1,2381 @@
+[
+  {
+    "index": 1,
+    "originalFilename": "ch-dev-rest.png",
+    "fileSize": 79443,
+    "width": 512,
+    "height": 128,
+    "modifiedAt": "2026-11-06T16:38:40+07:00",
+    "sha256": "a0b54bbb930b37950af82c4f7bdd6f11331938ae4a104df9f6318249a7ac251e",
+    "background": "#000000",
+    "isChromaGreen": false,
+    "hasAlpha": true,
+    "aspect": 4,
+    "frameGuess": 4,
+    "frames": [
+      {
+        "n": 1,
+        "empty": false,
+        "boxX": 21,
+        "boxY": 6,
+        "boxW": 86,
+        "boxH": 120,
+        "fillFraction": 0.63
+      },
+      {
+        "n": 2,
+        "empty": false,
+        "boxX": 19,
+        "boxY": 6,
+        "boxW": 90,
+        "boxH": 120,
+        "fillFraction": 0.659
+      },
+      {
+        "n": 3,
+        "empty": false,
+        "boxX": 21,
+        "boxY": 6,
+        "boxW": 86,
+        "boxH": 120,
+        "fillFraction": 0.63
+      },
+      {
+        "n": 4,
+        "empty": false,
+        "boxX": 21,
+        "boxY": 6,
+        "boxW": 86,
+        "boxH": 120,
+        "fillFraction": 0.63
+      }
+    ],
+    "framesDiffer": false,
+    "minShapeDistance": 0.0045,
+    "minColourDistance": 0.0096,
+    "shapeSpread": 0.044,
+    "legSpread": 0.023,
+    "duplicateFramePairs": [
+      "1=3 shape 0.005 colour 0.011",
+      "1=4 shape 0.007 colour 0.010"
+    ],
+    "bleedsAcrossFrames": false,
+    "fitsCell": true,
+    "notes": [
+      "repeated frames: identical in both shape and colour"
+    ]
+  },
+  {
+    "index": 2,
+    "originalFilename": "ch-tester-work.png",
+    "fileSize": 82348,
+    "width": 512,
+    "height": 128,
+    "modifiedAt": "2026-11-06T16:38:40+07:00",
+    "sha256": "4e714499d335bdf76adecc1b430dd739f4604cc561f1eccfa61260ed33351571",
+    "background": "#000000",
+    "isChromaGreen": false,
+    "hasAlpha": true,
+    "aspect": 4,
+    "frameGuess": 4,
+    "frames": [
+      {
+        "n": 1,
+        "empty": false,
+        "boxX": 25,
+        "boxY": 6,
+        "boxW": 78,
+        "boxH": 120,
+        "fillFraction": 0.571
+      },
+      {
+        "n": 2,
+        "empty": false,
+        "boxX": 22,
+        "boxY": 6,
+        "boxW": 83,
+        "boxH": 120,
+        "fillFraction": 0.608
+      },
+      {
+        "n": 3,
+        "empty": false,
+        "boxX": 17,
+        "boxY": 6,
+        "boxW": 93,
+        "boxH": 120,
+        "fillFraction": 0.681
+      },
+      {
+        "n": 4,
+        "empty": false,
+        "boxX": 20,
+        "boxY": 6,
+        "boxW": 87,
+        "boxH": 120,
+        "fillFraction": 0.637
+      }
+    ],
+    "framesDiffer": true,
+    "minShapeDistance": 0.0833,
+    "minColourDistance": 0.0669,
+    "shapeSpread": 0.161,
+    "legSpread": 0.077,
+    "bleedsAcrossFrames": false,
+    "fitsCell": true
+  },
+  {
+    "index": 3,
+    "originalFilename": "ch-research-work.png",
+    "fileSize": 79857,
+    "width": 512,
+    "height": 128,
+    "modifiedAt": "2026-11-06T16:38:40+07:00",
+    "sha256": "f5a41fe0478dd6829ec9925ac38387a44f343e91d94d17fed4f4b80b30dcf562",
+    "background": "#000000",
+    "isChromaGreen": false,
+    "hasAlpha": true,
+    "aspect": 4,
+    "frameGuess": 4,
+    "frames": [
+      {
+        "n": 1,
+        "empty": false,
+        "boxX": 27,
+        "boxY": 6,
+        "boxW": 74,
+        "boxH": 120,
+        "fillFraction": 0.542
+      },
+      {
+        "n": 2,
+        "empty": false,
+        "boxX": 26,
+        "boxY": 6,
+        "boxW": 75,
+        "boxH": 120,
+        "fillFraction": 0.549
+      },
+      {
+        "n": 3,
+        "empty": false,
+        "boxX": 25,
+        "boxY": 6,
+        "boxW": 78,
+        "boxH": 120,
+        "fillFraction": 0.571
+      },
+      {
+        "n": 4,
+        "empty": false,
+        "boxX": 23,
+        "boxY": 6,
+        "boxW": 81,
+        "boxH": 120,
+        "fillFraction": 0.593
+      }
+    ],
+    "framesDiffer": true,
+    "minShapeDistance": 0.0094,
+    "minColourDistance": 0.0178,
+    "shapeSpread": 0.086,
+    "legSpread": 0.016,
+    "bleedsAcrossFrames": false,
+    "fitsCell": true
+  },
+  {
+    "index": 4,
+    "originalFilename": "ch-research-walkR.png",
+    "fileSize": 116997,
+    "width": 768,
+    "height": 128,
+    "modifiedAt": "2026-11-06T16:38:40+07:00",
+    "sha256": "fdbe7bdd4e61d082981461b83f9711eb738db01fe1b2478c5f1894e809e8d1f9",
+    "background": "#000000",
+    "isChromaGreen": false,
+    "hasAlpha": true,
+    "aspect": 6,
+    "frameGuess": 6,
+    "frames": [
+      {
+        "n": 1,
+        "empty": false,
+        "boxX": 27,
+        "boxY": 7,
+        "boxW": 74,
+        "boxH": 119,
+        "fillFraction": 0.537
+      },
+      {
+        "n": 2,
+        "empty": false,
+        "boxX": 27,
+        "boxY": 7,
+        "boxW": 73,
+        "boxH": 119,
+        "fillFraction": 0.53
+      },
+      {
+        "n": 3,
+        "empty": false,
+        "boxX": 27,
+        "boxY": 7,
+        "boxW": 73,
+        "boxH": 119,
+        "fillFraction": 0.53
+      },
+      {
+        "n": 4,
+        "empty": false,
+        "boxX": 27,
+        "boxY": 8,
+        "boxW": 74,
+        "boxH": 118,
+        "fillFraction": 0.533
+      },
+      {
+        "n": 5,
+        "empty": false,
+        "boxX": 27,
+        "boxY": 6,
+        "boxW": 73,
+        "boxH": 120,
+        "fillFraction": 0.535
+      },
+      {
+        "n": 6,
+        "empty": false,
+        "boxX": 27,
+        "boxY": 7,
+        "boxW": 73,
+        "boxH": 119,
+        "fillFraction": 0.53
+      }
+    ],
+    "framesDiffer": true,
+    "minShapeDistance": 0.0187,
+    "minColourDistance": 0.0195,
+    "shapeSpread": 0.014,
+    "legSpread": 0.033,
+    "bleedsAcrossFrames": false,
+    "fitsCell": true
+  },
+  {
+    "index": 5,
+    "originalFilename": "ch-research-walkL.png",
+    "fileSize": 117602,
+    "width": 768,
+    "height": 128,
+    "modifiedAt": "2026-11-06T16:38:40+07:00",
+    "sha256": "dd740cc0bc0913403fb003be145d01177917125a2fabdba068a0bf02ac78e785",
+    "background": "#000000",
+    "isChromaGreen": false,
+    "hasAlpha": true,
+    "aspect": 6,
+    "frameGuess": 6,
+    "frames": [
+      {
+        "n": 1,
+        "empty": false,
+        "boxX": 27,
+        "boxY": 7,
+        "boxW": 74,
+        "boxH": 119,
+        "fillFraction": 0.537
+      },
+      {
+        "n": 2,
+        "empty": false,
+        "boxX": 27,
+        "boxY": 7,
+        "boxW": 73,
+        "boxH": 119,
+        "fillFraction": 0.53
+      },
+      {
+        "n": 3,
+        "empty": false,
+        "boxX": 27,
+        "boxY": 7,
+        "boxW": 73,
+        "boxH": 119,
+        "fillFraction": 0.53
+      },
+      {
+        "n": 4,
+        "empty": false,
+        "boxX": 27,
+        "boxY": 8,
+        "boxW": 74,
+        "boxH": 118,
+        "fillFraction": 0.533
+      },
+      {
+        "n": 5,
+        "empty": false,
+        "boxX": 27,
+        "boxY": 6,
+        "boxW": 73,
+        "boxH": 120,
+        "fillFraction": 0.535
+      },
+      {
+        "n": 6,
+        "empty": false,
+        "boxX": 27,
+        "boxY": 7,
+        "boxW": 73,
+        "boxH": 119,
+        "fillFraction": 0.53
+      }
+    ],
+    "framesDiffer": true,
+    "minShapeDistance": 0.0207,
+    "minColourDistance": 0.0178,
+    "shapeSpread": 0.014,
+    "legSpread": 0.033,
+    "bleedsAcrossFrames": false,
+    "fitsCell": true
+  },
+  {
+    "index": 6,
+    "originalFilename": "ch-research-think.png",
+    "fileSize": 80735,
+    "width": 512,
+    "height": 128,
+    "modifiedAt": "2026-11-06T16:38:40+07:00",
+    "sha256": "5d2fecb6ebde9650705a748df63c2b1f9e0fa86836a66ad98a409e75ed4745b6",
+    "background": "#000000",
+    "isChromaGreen": false,
+    "hasAlpha": true,
+    "aspect": 4,
+    "frameGuess": 4,
+    "frames": [
+      {
+        "n": 1,
+        "empty": false,
+        "boxX": 26,
+        "boxY": 6,
+        "boxW": 75,
+        "boxH": 120,
+        "fillFraction": 0.549
+      },
+      {
+        "n": 2,
+        "empty": false,
+        "boxX": 26,
+        "boxY": 6,
+        "boxW": 75,
+        "boxH": 120,
+        "fillFraction": 0.549
+      },
+      {
+        "n": 3,
+        "empty": false,
+        "boxX": 24,
+        "boxY": 6,
+        "boxW": 80,
+        "boxH": 120,
+        "fillFraction": 0.586
+      },
+      {
+        "n": 4,
+        "empty": false,
+        "boxX": 26,
+        "boxY": 6,
+        "boxW": 75,
+        "boxH": 120,
+        "fillFraction": 0.549
+      }
+    ],
+    "framesDiffer": true,
+    "minShapeDistance": 0.0062,
+    "minColourDistance": 0.0127,
+    "shapeSpread": 0.063,
+    "legSpread": 0.016,
+    "bleedsAcrossFrames": false,
+    "fitsCell": true
+  },
+  {
+    "index": 7,
+    "originalFilename": "ch-research-rest.png",
+    "fileSize": 76861,
+    "width": 512,
+    "height": 128,
+    "modifiedAt": "2026-11-06T16:38:40+07:00",
+    "sha256": "76b13f78a955253cadc136d6022bab8f50a4fc7652c3d50e82f0cbb644e27241",
+    "background": "#000000",
+    "isChromaGreen": false,
+    "hasAlpha": true,
+    "aspect": 4,
+    "frameGuess": 4,
+    "frames": [
+      {
+        "n": 1,
+        "empty": false,
+        "boxX": 27,
+        "boxY": 6,
+        "boxW": 74,
+        "boxH": 120,
+        "fillFraction": 0.542
+      },
+      {
+        "n": 2,
+        "empty": false,
+        "boxX": 27,
+        "boxY": 6,
+        "boxW": 74,
+        "boxH": 120,
+        "fillFraction": 0.542
+      },
+      {
+        "n": 3,
+        "empty": false,
+        "boxX": 26,
+        "boxY": 6,
+        "boxW": 76,
+        "boxH": 120,
+        "fillFraction": 0.557
+      },
+      {
+        "n": 4,
+        "empty": false,
+        "boxX": 27,
+        "boxY": 6,
+        "boxW": 74,
+        "boxH": 120,
+        "fillFraction": 0.542
+      }
+    ],
+    "framesDiffer": false,
+    "minShapeDistance": 0.0042,
+    "minColourDistance": 0.0084,
+    "shapeSpread": 0.026,
+    "legSpread": 0,
+    "duplicateFramePairs": [
+      "1=4 shape 0.004 colour 0.008"
+    ],
+    "bleedsAcrossFrames": false,
+    "fitsCell": true,
+    "notes": [
+      "repeated frames: identical in both shape and colour"
+    ]
+  },
+  {
+    "index": 8,
+    "originalFilename": "ch-research-cheer.png",
+    "fileSize": 83424,
+    "width": 512,
+    "height": 128,
+    "modifiedAt": "2026-11-06T16:38:40+07:00",
+    "sha256": "7102e8bc7e234c5e152e17dd2013ab93bb6a88d266adf440ff9d7246ba679117",
+    "background": "#000000",
+    "isChromaGreen": false,
+    "hasAlpha": true,
+    "aspect": 4,
+    "frameGuess": 4,
+    "frames": [
+      {
+        "n": 1,
+        "empty": false,
+        "boxX": 27,
+        "boxY": 6,
+        "boxW": 74,
+        "boxH": 120,
+        "fillFraction": 0.542
+      },
+      {
+        "n": 2,
+        "empty": false,
+        "boxX": 27,
+        "boxY": 6,
+        "boxW": 74,
+        "boxH": 120,
+        "fillFraction": 0.542
+      },
+      {
+        "n": 3,
+        "empty": false,
+        "boxX": 21,
+        "boxY": 8,
+        "boxW": 86,
+        "boxH": 118,
+        "fillFraction": 0.619
+      },
+      {
+        "n": 4,
+        "empty": false,
+        "boxX": 22,
+        "boxY": 6,
+        "boxW": 83,
+        "boxH": 120,
+        "fillFraction": 0.608
+      }
+    ],
+    "framesDiffer": true,
+    "minShapeDistance": 0.0335,
+    "minColourDistance": 0.0597,
+    "shapeSpread": 0.14,
+    "legSpread": 0.149,
+    "bleedsAcrossFrames": false,
+    "fitsCell": true
+  },
+  {
+    "index": 9,
+    "originalFilename": "ch-dev-work.png",
+    "fileSize": 86807,
+    "width": 512,
+    "height": 128,
+    "modifiedAt": "2026-11-06T16:38:40+07:00",
+    "sha256": "768f4d70c7d3a2015d01e74e31efc6215405c4df20d822bf6535d88de0257f81",
+    "background": "#000000",
+    "isChromaGreen": false,
+    "hasAlpha": true,
+    "aspect": 4,
+    "frameGuess": 4,
+    "frames": [
+      {
+        "n": 1,
+        "empty": false,
+        "boxX": 17,
+        "boxY": 6,
+        "boxW": 93,
+        "boxH": 120,
+        "fillFraction": 0.681
+      },
+      {
+        "n": 2,
+        "empty": false,
+        "boxX": 17,
+        "boxY": 6,
+        "boxW": 93,
+        "boxH": 120,
+        "fillFraction": 0.681
+      },
+      {
+        "n": 3,
+        "empty": false,
+        "boxX": 17,
+        "boxY": 6,
+        "boxW": 93,
+        "boxH": 120,
+        "fillFraction": 0.681
+      },
+      {
+        "n": 4,
+        "empty": false,
+        "boxX": 13,
+        "boxY": 6,
+        "boxW": 101,
+        "boxH": 120,
+        "fillFraction": 0.74
+      }
+    ],
+    "framesDiffer": false,
+    "minShapeDistance": 0.0038,
+    "minColourDistance": 0.0097,
+    "shapeSpread": 0.079,
+    "legSpread": 0,
+    "duplicateFramePairs": [
+      "1=3 shape 0.004 colour 0.010"
+    ],
+    "bleedsAcrossFrames": false,
+    "fitsCell": true,
+    "notes": [
+      "repeated frames: identical in both shape and colour"
+    ]
+  },
+  {
+    "index": 10,
+    "originalFilename": "ch-dev-walkR.png",
+    "fileSize": 121464,
+    "width": 768,
+    "height": 128,
+    "modifiedAt": "2026-11-06T16:38:40+07:00",
+    "sha256": "bb9a173d77d33edacdc255a27c66dcc58571a70a52e2bd4482da5ad6e82a982b",
+    "background": "#000000",
+    "isChromaGreen": false,
+    "hasAlpha": true,
+    "aspect": 6,
+    "frameGuess": 6,
+    "frames": [
+      {
+        "n": 1,
+        "empty": false,
+        "boxX": 16,
+        "boxY": 6,
+        "boxW": 96,
+        "boxH": 120,
+        "fillFraction": 0.703
+      },
+      {
+        "n": 2,
+        "empty": false,
+        "boxX": 17,
+        "boxY": 6,
+        "boxW": 94,
+        "boxH": 120,
+        "fillFraction": 0.688
+      },
+      {
+        "n": 3,
+        "empty": false,
+        "boxX": 17,
+        "boxY": 6,
+        "boxW": 94,
+        "boxH": 120,
+        "fillFraction": 0.688
+      },
+      {
+        "n": 4,
+        "empty": false,
+        "boxX": 16,
+        "boxY": 6,
+        "boxW": 95,
+        "boxH": 120,
+        "fillFraction": 0.696
+      },
+      {
+        "n": 5,
+        "empty": false,
+        "boxX": 17,
+        "boxY": 6,
+        "boxW": 94,
+        "boxH": 120,
+        "fillFraction": 0.688
+      },
+      {
+        "n": 6,
+        "empty": false,
+        "boxX": 17,
+        "boxY": 6,
+        "boxW": 94,
+        "boxH": 120,
+        "fillFraction": 0.688
+      }
+    ],
+    "framesDiffer": true,
+    "minShapeDistance": 0.0351,
+    "minColourDistance": 0.0248,
+    "shapeSpread": 0.021,
+    "legSpread": 0.375,
+    "bleedsAcrossFrames": false,
+    "fitsCell": true
+  },
+  {
+    "index": 11,
+    "originalFilename": "ch-dev-walkL.png",
+    "fileSize": 121041,
+    "width": 768,
+    "height": 128,
+    "modifiedAt": "2026-11-06T16:38:40+07:00",
+    "sha256": "d87e52961e3da23426befd124dde86b98a738bfdfceca2104f7c8fc6a5aa8b6d",
+    "background": "#000000",
+    "isChromaGreen": false,
+    "hasAlpha": true,
+    "aspect": 6,
+    "frameGuess": 6,
+    "frames": [
+      {
+        "n": 1,
+        "empty": false,
+        "boxX": 16,
+        "boxY": 6,
+        "boxW": 96,
+        "boxH": 120,
+        "fillFraction": 0.703
+      },
+      {
+        "n": 2,
+        "empty": false,
+        "boxX": 17,
+        "boxY": 6,
+        "boxW": 94,
+        "boxH": 120,
+        "fillFraction": 0.688
+      },
+      {
+        "n": 3,
+        "empty": false,
+        "boxX": 17,
+        "boxY": 6,
+        "boxW": 94,
+        "boxH": 120,
+        "fillFraction": 0.688
+      },
+      {
+        "n": 4,
+        "empty": false,
+        "boxX": 16,
+        "boxY": 6,
+        "boxW": 95,
+        "boxH": 120,
+        "fillFraction": 0.696
+      },
+      {
+        "n": 5,
+        "empty": false,
+        "boxX": 17,
+        "boxY": 6,
+        "boxW": 94,
+        "boxH": 120,
+        "fillFraction": 0.688
+      },
+      {
+        "n": 6,
+        "empty": false,
+        "boxX": 17,
+        "boxY": 6,
+        "boxW": 94,
+        "boxH": 120,
+        "fillFraction": 0.688
+      }
+    ],
+    "framesDiffer": true,
+    "minShapeDistance": 0.0356,
+    "minColourDistance": 0.0318,
+    "shapeSpread": 0.021,
+    "legSpread": 0.375,
+    "bleedsAcrossFrames": false,
+    "fitsCell": true
+  },
+  {
+    "index": 12,
+    "originalFilename": "ch-dev-think.png",
+    "fileSize": 87594,
+    "width": 512,
+    "height": 128,
+    "modifiedAt": "2026-11-06T16:38:40+07:00",
+    "sha256": "754d3a71eb92bb2fafc784eb1b5fd71f9227a3e0d12d06ef43a9350231ab52a6",
+    "background": "#000000",
+    "isChromaGreen": false,
+    "hasAlpha": true,
+    "aspect": 4,
+    "frameGuess": 4,
+    "frames": [
+      {
+        "n": 1,
+        "empty": false,
+        "boxX": 17,
+        "boxY": 6,
+        "boxW": 93,
+        "boxH": 120,
+        "fillFraction": 0.681
+      },
+      {
+        "n": 2,
+        "empty": false,
+        "boxX": 17,
+        "boxY": 6,
+        "boxW": 94,
+        "boxH": 120,
+        "fillFraction": 0.688
+      },
+      {
+        "n": 3,
+        "empty": false,
+        "boxX": 17,
+        "boxY": 6,
+        "boxW": 93,
+        "boxH": 120,
+        "fillFraction": 0.681
+      },
+      {
+        "n": 4,
+        "empty": false,
+        "boxX": 17,
+        "boxY": 6,
+        "boxW": 94,
+        "boxH": 120,
+        "fillFraction": 0.688
+      }
+    ],
+    "framesDiffer": false,
+    "minShapeDistance": 0.0078,
+    "minColourDistance": 0.007,
+    "shapeSpread": 0.011,
+    "legSpread": 0,
+    "duplicateFramePairs": [
+      "2=4 shape 0.008 colour 0.007"
+    ],
+    "bleedsAcrossFrames": false,
+    "fitsCell": true,
+    "notes": [
+      "repeated frames: identical in both shape and colour"
+    ]
+  },
+  {
+    "index": 13,
+    "originalFilename": "ch-dev-cheer.png",
+    "fileSize": 89788,
+    "width": 512,
+    "height": 128,
+    "modifiedAt": "2026-11-06T16:38:40+07:00",
+    "sha256": "dc1acb2815c3ede81a5cd7eb335811c1fcf5c3675c90486992795a83188c9bf6",
+    "background": "#000000",
+    "isChromaGreen": false,
+    "hasAlpha": true,
+    "aspect": 4,
+    "frameGuess": 4,
+    "frames": [
+      {
+        "n": 1,
+        "empty": false,
+        "boxX": 17,
+        "boxY": 7,
+        "boxW": 94,
+        "boxH": 119,
+        "fillFraction": 0.683
+      },
+      {
+        "n": 2,
+        "empty": false,
+        "boxX": 11,
+        "boxY": 7,
+        "boxW": 105,
+        "boxH": 119,
+        "fillFraction": 0.763
+      },
+      {
+        "n": 3,
+        "empty": false,
+        "boxX": 14,
+        "boxY": 6,
+        "boxW": 99,
+        "boxH": 120,
+        "fillFraction": 0.725
+      },
+      {
+        "n": 4,
+        "empty": false,
+        "boxX": 16,
+        "boxY": 7,
+        "boxW": 95,
+        "boxH": 119,
+        "fillFraction": 0.69
+      }
+    ],
+    "framesDiffer": true,
+    "minShapeDistance": 0.0225,
+    "minColourDistance": 0.0295,
+    "shapeSpread": 0.105,
+    "legSpread": 0.088,
+    "bleedsAcrossFrames": false,
+    "fitsCell": true
+  },
+  {
+    "index": 14,
+    "originalFilename": "ch-infra-cheer.png",
+    "fileSize": 73542,
+    "width": 512,
+    "height": 128,
+    "modifiedAt": "2026-11-06T16:38:42+07:00",
+    "sha256": "eeeb91aaaa5027c40a5a25268e0b0fbf43f9ba2dd708672625fb42a8a9c4084b",
+    "background": "#000000",
+    "isChromaGreen": false,
+    "hasAlpha": true,
+    "aspect": 4,
+    "frameGuess": 4,
+    "frames": [
+      {
+        "n": 1,
+        "empty": false,
+        "boxX": 30,
+        "boxY": 6,
+        "boxW": 67,
+        "boxH": 120,
+        "fillFraction": 0.491
+      },
+      {
+        "n": 2,
+        "empty": false,
+        "boxX": 33,
+        "boxY": 6,
+        "boxW": 61,
+        "boxH": 120,
+        "fillFraction": 0.447
+      },
+      {
+        "n": 3,
+        "empty": false,
+        "boxX": 21,
+        "boxY": 7,
+        "boxW": 86,
+        "boxH": 119,
+        "fillFraction": 0.625
+      },
+      {
+        "n": 4,
+        "empty": false,
+        "boxX": 25,
+        "boxY": 6,
+        "boxW": 77,
+        "boxH": 120,
+        "fillFraction": 0.564
+      }
+    ],
+    "framesDiffer": true,
+    "minShapeDistance": 0.0818,
+    "minColourDistance": 0.0576,
+    "shapeSpread": 0.291,
+    "legSpread": 0.138,
+    "bleedsAcrossFrames": false,
+    "fitsCell": true
+  },
+  {
+    "index": 15,
+    "originalFilename": "ch-deploy-think.png",
+    "fileSize": 82881,
+    "width": 512,
+    "height": 128,
+    "modifiedAt": "2026-11-06T16:38:42+07:00",
+    "sha256": "85dca634c325c58e9d465bda87a56f6955a283014eb7fb914866ef9500d5b153",
+    "background": "#000000",
+    "isChromaGreen": false,
+    "hasAlpha": true,
+    "aspect": 4,
+    "frameGuess": 4,
+    "frames": [
+      {
+        "n": 1,
+        "empty": false,
+        "boxX": 25,
+        "boxY": 6,
+        "boxW": 78,
+        "boxH": 120,
+        "fillFraction": 0.571
+      },
+      {
+        "n": 2,
+        "empty": false,
+        "boxX": 24,
+        "boxY": 6,
+        "boxW": 79,
+        "boxH": 120,
+        "fillFraction": 0.579
+      },
+      {
+        "n": 3,
+        "empty": false,
+        "boxX": 24,
+        "boxY": 6,
+        "boxW": 79,
+        "boxH": 120,
+        "fillFraction": 0.579
+      },
+      {
+        "n": 4,
+        "empty": false,
+        "boxX": 25,
+        "boxY": 6,
+        "boxW": 78,
+        "boxH": 120,
+        "fillFraction": 0.571
+      }
+    ],
+    "framesDiffer": true,
+    "minShapeDistance": 0.0281,
+    "minColourDistance": 0.06,
+    "shapeSpread": 0.013,
+    "legSpread": 0.284,
+    "bleedsAcrossFrames": false,
+    "fitsCell": true
+  },
+  {
+    "index": 16,
+    "originalFilename": "ch-deploy-rest.png",
+    "fileSize": 82881,
+    "width": 512,
+    "height": 128,
+    "modifiedAt": "2026-11-06T16:38:42+07:00",
+    "sha256": "85dca634c325c58e9d465bda87a56f6955a283014eb7fb914866ef9500d5b153",
+    "background": "#000000",
+    "isChromaGreen": false,
+    "hasAlpha": true,
+    "aspect": 4,
+    "frameGuess": 4,
+    "frames": [
+      {
+        "n": 1,
+        "empty": false,
+        "boxX": 25,
+        "boxY": 6,
+        "boxW": 78,
+        "boxH": 120,
+        "fillFraction": 0.571
+      },
+      {
+        "n": 2,
+        "empty": false,
+        "boxX": 24,
+        "boxY": 6,
+        "boxW": 79,
+        "boxH": 120,
+        "fillFraction": 0.579
+      },
+      {
+        "n": 3,
+        "empty": false,
+        "boxX": 24,
+        "boxY": 6,
+        "boxW": 79,
+        "boxH": 120,
+        "fillFraction": 0.579
+      },
+      {
+        "n": 4,
+        "empty": false,
+        "boxX": 25,
+        "boxY": 6,
+        "boxW": 78,
+        "boxH": 120,
+        "fillFraction": 0.571
+      }
+    ],
+    "framesDiffer": true,
+    "minShapeDistance": 0.0281,
+    "minColourDistance": 0.06,
+    "shapeSpread": 0.013,
+    "legSpread": 0.284,
+    "bleedsAcrossFrames": false,
+    "fitsCell": true
+  },
+  {
+    "index": 17,
+    "originalFilename": "ch-tester-walkR.png",
+    "fileSize": 110555,
+    "width": 768,
+    "height": 128,
+    "modifiedAt": "2026-11-06T16:38:42+07:00",
+    "sha256": "e264c312d57efa266727f6eef94ebb55e5d7dc05e255d441acebe43f6c7d63d6",
+    "background": "#000000",
+    "isChromaGreen": false,
+    "hasAlpha": true,
+    "aspect": 6,
+    "frameGuess": 6,
+    "frames": [
+      {
+        "n": 1,
+        "empty": false,
+        "boxX": 27,
+        "boxY": 6,
+        "boxW": 74,
+        "boxH": 120,
+        "fillFraction": 0.542
+      },
+      {
+        "n": 2,
+        "empty": false,
+        "boxX": 27,
+        "boxY": 6,
+        "boxW": 73,
+        "boxH": 120,
+        "fillFraction": 0.535
+      },
+      {
+        "n": 3,
+        "empty": false,
+        "boxX": 27,
+        "boxY": 8,
+        "boxW": 73,
+        "boxH": 118,
+        "fillFraction": 0.526
+      },
+      {
+        "n": 4,
+        "empty": false,
+        "boxX": 27,
+        "boxY": 6,
+        "boxW": 74,
+        "boxH": 120,
+        "fillFraction": 0.542
+      },
+      {
+        "n": 5,
+        "empty": false,
+        "boxX": 28,
+        "boxY": 6,
+        "boxW": 72,
+        "boxH": 120,
+        "fillFraction": 0.527
+      },
+      {
+        "n": 6,
+        "empty": false,
+        "boxX": 27,
+        "boxY": 6,
+        "boxW": 73,
+        "boxH": 120,
+        "fillFraction": 0.535
+      }
+    ],
+    "framesDiffer": true,
+    "minShapeDistance": 0.0131,
+    "minColourDistance": 0.0237,
+    "shapeSpread": 0.027,
+    "legSpread": 0.413,
+    "bleedsAcrossFrames": false,
+    "fitsCell": true
+  },
+  {
+    "index": 18,
+    "originalFilename": "ch-tester-walkL.png",
+    "fileSize": 110793,
+    "width": 768,
+    "height": 128,
+    "modifiedAt": "2026-11-06T16:38:42+07:00",
+    "sha256": "e64d694b3539face0b8d9349591332565eacfa32745ff9ad7a8dd7ebd6e93ea7",
+    "background": "#000000",
+    "isChromaGreen": false,
+    "hasAlpha": true,
+    "aspect": 6,
+    "frameGuess": 6,
+    "frames": [
+      {
+        "n": 1,
+        "empty": false,
+        "boxX": 27,
+        "boxY": 6,
+        "boxW": 74,
+        "boxH": 120,
+        "fillFraction": 0.542
+      },
+      {
+        "n": 2,
+        "empty": false,
+        "boxX": 27,
+        "boxY": 6,
+        "boxW": 73,
+        "boxH": 120,
+        "fillFraction": 0.535
+      },
+      {
+        "n": 3,
+        "empty": false,
+        "boxX": 27,
+        "boxY": 8,
+        "boxW": 73,
+        "boxH": 118,
+        "fillFraction": 0.526
+      },
+      {
+        "n": 4,
+        "empty": false,
+        "boxX": 27,
+        "boxY": 6,
+        "boxW": 74,
+        "boxH": 120,
+        "fillFraction": 0.542
+      },
+      {
+        "n": 5,
+        "empty": false,
+        "boxX": 28,
+        "boxY": 6,
+        "boxW": 72,
+        "boxH": 120,
+        "fillFraction": 0.527
+      },
+      {
+        "n": 6,
+        "empty": false,
+        "boxX": 27,
+        "boxY": 6,
+        "boxW": 73,
+        "boxH": 120,
+        "fillFraction": 0.535
+      }
+    ],
+    "framesDiffer": true,
+    "minShapeDistance": 0.0135,
+    "minColourDistance": 0.0224,
+    "shapeSpread": 0.027,
+    "legSpread": 0.413,
+    "bleedsAcrossFrames": false,
+    "fitsCell": true
+  },
+  {
+    "index": 19,
+    "originalFilename": "ch-deploy-cheer.png",
+    "fileSize": 82881,
+    "width": 512,
+    "height": 128,
+    "modifiedAt": "2026-11-06T16:38:42+07:00",
+    "sha256": "85dca634c325c58e9d465bda87a56f6955a283014eb7fb914866ef9500d5b153",
+    "background": "#000000",
+    "isChromaGreen": false,
+    "hasAlpha": true,
+    "aspect": 4,
+    "frameGuess": 4,
+    "frames": [
+      {
+        "n": 1,
+        "empty": false,
+        "boxX": 25,
+        "boxY": 6,
+        "boxW": 78,
+        "boxH": 120,
+        "fillFraction": 0.571
+      },
+      {
+        "n": 2,
+        "empty": false,
+        "boxX": 24,
+        "boxY": 6,
+        "boxW": 79,
+        "boxH": 120,
+        "fillFraction": 0.579
+      },
+      {
+        "n": 3,
+        "empty": false,
+        "boxX": 24,
+        "boxY": 6,
+        "boxW": 79,
+        "boxH": 120,
+        "fillFraction": 0.579
+      },
+      {
+        "n": 4,
+        "empty": false,
+        "boxX": 25,
+        "boxY": 6,
+        "boxW": 78,
+        "boxH": 120,
+        "fillFraction": 0.571
+      }
+    ],
+    "framesDiffer": true,
+    "minShapeDistance": 0.0281,
+    "minColourDistance": 0.06,
+    "shapeSpread": 0.013,
+    "legSpread": 0.284,
+    "bleedsAcrossFrames": false,
+    "fitsCell": true
+  },
+  {
+    "index": 20,
+    "originalFilename": "ch-infra-rest.png",
+    "fileSize": 73542,
+    "width": 512,
+    "height": 128,
+    "modifiedAt": "2026-11-06T16:38:42+07:00",
+    "sha256": "eeeb91aaaa5027c40a5a25268e0b0fbf43f9ba2dd708672625fb42a8a9c4084b",
+    "background": "#000000",
+    "isChromaGreen": false,
+    "hasAlpha": true,
+    "aspect": 4,
+    "frameGuess": 4,
+    "frames": [
+      {
+        "n": 1,
+        "empty": false,
+        "boxX": 30,
+        "boxY": 6,
+        "boxW": 67,
+        "boxH": 120,
+        "fillFraction": 0.491
+      },
+      {
+        "n": 2,
+        "empty": false,
+        "boxX": 33,
+        "boxY": 6,
+        "boxW": 61,
+        "boxH": 120,
+        "fillFraction": 0.447
+      },
+      {
+        "n": 3,
+        "empty": false,
+        "boxX": 21,
+        "boxY": 7,
+        "boxW": 86,
+        "boxH": 119,
+        "fillFraction": 0.625
+      },
+      {
+        "n": 4,
+        "empty": false,
+        "boxX": 25,
+        "boxY": 6,
+        "boxW": 77,
+        "boxH": 120,
+        "fillFraction": 0.564
+      }
+    ],
+    "framesDiffer": true,
+    "minShapeDistance": 0.0818,
+    "minColourDistance": 0.0576,
+    "shapeSpread": 0.291,
+    "legSpread": 0.138,
+    "bleedsAcrossFrames": false,
+    "fitsCell": true
+  },
+  {
+    "index": 21,
+    "originalFilename": "ch-infra-think.png",
+    "fileSize": 68290,
+    "width": 512,
+    "height": 128,
+    "modifiedAt": "2026-11-06T16:38:42+07:00",
+    "sha256": "fa7005f661050b282c8df4a88dab21916fcd295f3d00002e1f2abb0bb8c2fa74",
+    "background": "#000000",
+    "isChromaGreen": false,
+    "hasAlpha": true,
+    "aspect": 4,
+    "frameGuess": 4,
+    "frames": [
+      {
+        "n": 1,
+        "empty": false,
+        "boxX": 33,
+        "boxY": 6,
+        "boxW": 62,
+        "boxH": 120,
+        "fillFraction": 0.454
+      },
+      {
+        "n": 2,
+        "empty": false,
+        "boxX": 30,
+        "boxY": 6,
+        "boxW": 67,
+        "boxH": 120,
+        "fillFraction": 0.491
+      },
+      {
+        "n": 3,
+        "empty": false,
+        "boxX": 23,
+        "boxY": 12,
+        "boxW": 81,
+        "boxH": 114,
+        "fillFraction": 0.564
+      },
+      {
+        "n": 4,
+        "empty": false,
+        "boxX": 33,
+        "boxY": 6,
+        "boxW": 62,
+        "boxH": 120,
+        "fillFraction": 0.454
+      }
+    ],
+    "framesDiffer": true,
+    "minShapeDistance": 0.0213,
+    "minColourDistance": 0.0235,
+    "shapeSpread": 0.235,
+    "legSpread": 0.039,
+    "bleedsAcrossFrames": false,
+    "fitsCell": true
+  },
+  {
+    "index": 22,
+    "originalFilename": "ch-infra-walkL.png",
+    "fileSize": 124203,
+    "width": 768,
+    "height": 128,
+    "modifiedAt": "2026-11-06T16:38:42+07:00",
+    "sha256": "54a3412cd7b8388a9c1c0d1777d7d97e27c1abd7ced29bb6cd0d9974ee971ea6",
+    "background": "#000000",
+    "isChromaGreen": false,
+    "hasAlpha": true,
+    "aspect": 6,
+    "frameGuess": 6,
+    "frames": [
+      {
+        "n": 1,
+        "empty": false,
+        "boxX": 24,
+        "boxY": 6,
+        "boxW": 80,
+        "boxH": 120,
+        "fillFraction": 0.586
+      },
+      {
+        "n": 2,
+        "empty": false,
+        "boxX": 24,
+        "boxY": 6,
+        "boxW": 79,
+        "boxH": 120,
+        "fillFraction": 0.579
+      },
+      {
+        "n": 3,
+        "empty": false,
+        "boxX": 24,
+        "boxY": 6,
+        "boxW": 79,
+        "boxH": 120,
+        "fillFraction": 0.579
+      },
+      {
+        "n": 4,
+        "empty": false,
+        "boxX": 24,
+        "boxY": 6,
+        "boxW": 79,
+        "boxH": 120,
+        "fillFraction": 0.579
+      },
+      {
+        "n": 5,
+        "empty": false,
+        "boxX": 24,
+        "boxY": 6,
+        "boxW": 79,
+        "boxH": 120,
+        "fillFraction": 0.579
+      },
+      {
+        "n": 6,
+        "empty": false,
+        "boxX": 24,
+        "boxY": 6,
+        "boxW": 79,
+        "boxH": 120,
+        "fillFraction": 0.579
+      }
+    ],
+    "framesDiffer": true,
+    "minShapeDistance": 0.0221,
+    "minColourDistance": 0.0327,
+    "shapeSpread": 0.013,
+    "legSpread": 0.292,
+    "bleedsAcrossFrames": false,
+    "fitsCell": true
+  },
+  {
+    "index": 23,
+    "originalFilename": "ch-infra-walkR.png",
+    "fileSize": 124339,
+    "width": 768,
+    "height": 128,
+    "modifiedAt": "2026-11-06T16:38:42+07:00",
+    "sha256": "42b89bf379171019a436e10918326de19a9f7e76d3feb1a449c86d62535c8b5c",
+    "background": "#000000",
+    "isChromaGreen": false,
+    "hasAlpha": true,
+    "aspect": 6,
+    "frameGuess": 6,
+    "frames": [
+      {
+        "n": 1,
+        "empty": false,
+        "boxX": 24,
+        "boxY": 6,
+        "boxW": 80,
+        "boxH": 120,
+        "fillFraction": 0.586
+      },
+      {
+        "n": 2,
+        "empty": false,
+        "boxX": 24,
+        "boxY": 6,
+        "boxW": 79,
+        "boxH": 120,
+        "fillFraction": 0.579
+      },
+      {
+        "n": 3,
+        "empty": false,
+        "boxX": 24,
+        "boxY": 6,
+        "boxW": 79,
+        "boxH": 120,
+        "fillFraction": 0.579
+      },
+      {
+        "n": 4,
+        "empty": false,
+        "boxX": 24,
+        "boxY": 6,
+        "boxW": 79,
+        "boxH": 120,
+        "fillFraction": 0.579
+      },
+      {
+        "n": 5,
+        "empty": false,
+        "boxX": 24,
+        "boxY": 6,
+        "boxW": 79,
+        "boxH": 120,
+        "fillFraction": 0.579
+      },
+      {
+        "n": 6,
+        "empty": false,
+        "boxX": 24,
+        "boxY": 6,
+        "boxW": 79,
+        "boxH": 120,
+        "fillFraction": 0.579
+      }
+    ],
+    "framesDiffer": true,
+    "minShapeDistance": 0.0177,
+    "minColourDistance": 0.0304,
+    "shapeSpread": 0.013,
+    "legSpread": 0.292,
+    "bleedsAcrossFrames": false,
+    "fitsCell": true
+  },
+  {
+    "index": 24,
+    "originalFilename": "ch-infra-work.png",
+    "fileSize": 73542,
+    "width": 512,
+    "height": 128,
+    "modifiedAt": "2026-11-06T16:38:42+07:00",
+    "sha256": "eeeb91aaaa5027c40a5a25268e0b0fbf43f9ba2dd708672625fb42a8a9c4084b",
+    "background": "#000000",
+    "isChromaGreen": false,
+    "hasAlpha": true,
+    "aspect": 4,
+    "frameGuess": 4,
+    "frames": [
+      {
+        "n": 1,
+        "empty": false,
+        "boxX": 30,
+        "boxY": 6,
+        "boxW": 67,
+        "boxH": 120,
+        "fillFraction": 0.491
+      },
+      {
+        "n": 2,
+        "empty": false,
+        "boxX": 33,
+        "boxY": 6,
+        "boxW": 61,
+        "boxH": 120,
+        "fillFraction": 0.447
+      },
+      {
+        "n": 3,
+        "empty": false,
+        "boxX": 21,
+        "boxY": 7,
+        "boxW": 86,
+        "boxH": 119,
+        "fillFraction": 0.625
+      },
+      {
+        "n": 4,
+        "empty": false,
+        "boxX": 25,
+        "boxY": 6,
+        "boxW": 77,
+        "boxH": 120,
+        "fillFraction": 0.564
+      }
+    ],
+    "framesDiffer": true,
+    "minShapeDistance": 0.0818,
+    "minColourDistance": 0.0576,
+    "shapeSpread": 0.291,
+    "legSpread": 0.138,
+    "bleedsAcrossFrames": false,
+    "fitsCell": true
+  },
+  {
+    "index": 25,
+    "originalFilename": "ch-tester-think.png",
+    "fileSize": 81581,
+    "width": 512,
+    "height": 128,
+    "modifiedAt": "2026-11-06T16:38:42+07:00",
+    "sha256": "57795714c701ab562f358b47810e86a5f2d2bd7c7b9ddf7c1d7071eca86a7be5",
+    "background": "#000000",
+    "isChromaGreen": false,
+    "hasAlpha": true,
+    "aspect": 4,
+    "frameGuess": 4,
+    "frames": [
+      {
+        "n": 1,
+        "empty": false,
+        "boxX": 25,
+        "boxY": 6,
+        "boxW": 77,
+        "boxH": 120,
+        "fillFraction": 0.564
+      },
+      {
+        "n": 2,
+        "empty": false,
+        "boxX": 22,
+        "boxY": 6,
+        "boxW": 83,
+        "boxH": 120,
+        "fillFraction": 0.608
+      },
+      {
+        "n": 3,
+        "empty": false,
+        "boxX": 20,
+        "boxY": 6,
+        "boxW": 87,
+        "boxH": 120,
+        "fillFraction": 0.637
+      },
+      {
+        "n": 4,
+        "empty": false,
+        "boxX": 25,
+        "boxY": 6,
+        "boxW": 77,
+        "boxH": 120,
+        "fillFraction": 0.564
+      }
+    ],
+    "framesDiffer": true,
+    "minShapeDistance": 0.0107,
+    "minColourDistance": 0.02,
+    "shapeSpread": 0.115,
+    "legSpread": 0.02,
+    "bleedsAcrossFrames": false,
+    "fitsCell": true
+  },
+  {
+    "index": 26,
+    "originalFilename": "ch-tester-rest.png",
+    "fileSize": 72543,
+    "width": 512,
+    "height": 128,
+    "modifiedAt": "2026-11-06T16:38:42+07:00",
+    "sha256": "ef823a665db455c00a1dc5a5fcad7a056cc87cec05ebec409ca6d1f516487257",
+    "background": "#000000",
+    "isChromaGreen": false,
+    "hasAlpha": true,
+    "aspect": 4,
+    "frameGuess": 4,
+    "frames": [
+      {
+        "n": 1,
+        "empty": false,
+        "boxX": 28,
+        "boxY": 6,
+        "boxW": 71,
+        "boxH": 120,
+        "fillFraction": 0.52
+      },
+      {
+        "n": 2,
+        "empty": false,
+        "boxX": 28,
+        "boxY": 6,
+        "boxW": 71,
+        "boxH": 120,
+        "fillFraction": 0.52
+      },
+      {
+        "n": 3,
+        "empty": false,
+        "boxX": 23,
+        "boxY": 6,
+        "boxW": 81,
+        "boxH": 120,
+        "fillFraction": 0.593
+      },
+      {
+        "n": 4,
+        "empty": false,
+        "boxX": 28,
+        "boxY": 6,
+        "boxW": 71,
+        "boxH": 120,
+        "fillFraction": 0.52
+      }
+    ],
+    "framesDiffer": false,
+    "minShapeDistance": 0.0033,
+    "minColourDistance": 0.0073,
+    "shapeSpread": 0.123,
+    "legSpread": 0.021,
+    "duplicateFramePairs": [
+      "1=2 shape 0.003 colour 0.007",
+      "1=4 shape 0.005 colour 0.010",
+      "2=4 shape 0.006 colour 0.012"
+    ],
+    "bleedsAcrossFrames": false,
+    "fitsCell": true,
+    "notes": [
+      "repeated frames: identical in both shape and colour"
+    ]
+  },
+  {
+    "index": 27,
+    "originalFilename": "ch-deploy-work.png",
+    "fileSize": 82881,
+    "width": 512,
+    "height": 128,
+    "modifiedAt": "2026-11-06T16:38:42+07:00",
+    "sha256": "85dca634c325c58e9d465bda87a56f6955a283014eb7fb914866ef9500d5b153",
+    "background": "#000000",
+    "isChromaGreen": false,
+    "hasAlpha": true,
+    "aspect": 4,
+    "frameGuess": 4,
+    "frames": [
+      {
+        "n": 1,
+        "empty": false,
+        "boxX": 25,
+        "boxY": 6,
+        "boxW": 78,
+        "boxH": 120,
+        "fillFraction": 0.571
+      },
+      {
+        "n": 2,
+        "empty": false,
+        "boxX": 24,
+        "boxY": 6,
+        "boxW": 79,
+        "boxH": 120,
+        "fillFraction": 0.579
+      },
+      {
+        "n": 3,
+        "empty": false,
+        "boxX": 24,
+        "boxY": 6,
+        "boxW": 79,
+        "boxH": 120,
+        "fillFraction": 0.579
+      },
+      {
+        "n": 4,
+        "empty": false,
+        "boxX": 25,
+        "boxY": 6,
+        "boxW": 78,
+        "boxH": 120,
+        "fillFraction": 0.571
+      }
+    ],
+    "framesDiffer": true,
+    "minShapeDistance": 0.0281,
+    "minColourDistance": 0.06,
+    "shapeSpread": 0.013,
+    "legSpread": 0.284,
+    "bleedsAcrossFrames": false,
+    "fitsCell": true
+  },
+  {
+    "index": 28,
+    "originalFilename": "ch-tester-cheer.png",
+    "fileSize": 88639,
+    "width": 512,
+    "height": 128,
+    "modifiedAt": "2026-11-06T16:38:42+07:00",
+    "sha256": "670836734b6da667e4228961e512243357bc960cba86f913ebab8f5d435cae02",
+    "background": "#000000",
+    "isChromaGreen": false,
+    "hasAlpha": true,
+    "aspect": 4,
+    "frameGuess": 4,
+    "frames": [
+      {
+        "n": 1,
+        "empty": false,
+        "boxX": 19,
+        "boxY": 6,
+        "boxW": 89,
+        "boxH": 120,
+        "fillFraction": 0.652
+      },
+      {
+        "n": 2,
+        "empty": false,
+        "boxX": 17,
+        "boxY": 6,
+        "boxW": 93,
+        "boxH": 120,
+        "fillFraction": 0.681
+      },
+      {
+        "n": 3,
+        "empty": false,
+        "boxX": 16,
+        "boxY": 6,
+        "boxW": 96,
+        "boxH": 120,
+        "fillFraction": 0.703
+      },
+      {
+        "n": 4,
+        "empty": false,
+        "boxX": 12,
+        "boxY": 6,
+        "boxW": 104,
+        "boxH": 120,
+        "fillFraction": 0.762
+      }
+    ],
+    "framesDiffer": true,
+    "minShapeDistance": 0.0861,
+    "minColourDistance": 0.0979,
+    "shapeSpread": 0.144,
+    "legSpread": 0.148,
+    "bleedsAcrossFrames": false,
+    "fitsCell": true
+  },
+  {
+    "index": 29,
+    "originalFilename": "ch-deploy-walkL.png",
+    "fileSize": 123305,
+    "width": 768,
+    "height": 128,
+    "modifiedAt": "2026-11-06T16:38:44+07:00",
+    "sha256": "caf5ff550b051517934b61d34ee35cee0e83a9f6d29cce4641a62985b509bcd8",
+    "background": "#000000",
+    "isChromaGreen": false,
+    "hasAlpha": true,
+    "aspect": 6,
+    "frameGuess": 6,
+    "frames": [
+      {
+        "n": 1,
+        "empty": false,
+        "boxX": 25,
+        "boxY": 6,
+        "boxW": 78,
+        "boxH": 120,
+        "fillFraction": 0.571
+      },
+      {
+        "n": 2,
+        "empty": false,
+        "boxX": 24,
+        "boxY": 6,
+        "boxW": 79,
+        "boxH": 120,
+        "fillFraction": 0.579
+      },
+      {
+        "n": 3,
+        "empty": false,
+        "boxX": 24,
+        "boxY": 6,
+        "boxW": 79,
+        "boxH": 120,
+        "fillFraction": 0.579
+      },
+      {
+        "n": 4,
+        "empty": false,
+        "boxX": 25,
+        "boxY": 6,
+        "boxW": 78,
+        "boxH": 120,
+        "fillFraction": 0.571
+      },
+      {
+        "n": 5,
+        "empty": false,
+        "boxX": 23,
+        "boxY": 6,
+        "boxW": 81,
+        "boxH": 120,
+        "fillFraction": 0.593
+      },
+      {
+        "n": 6,
+        "empty": false,
+        "boxX": 25,
+        "boxY": 6,
+        "boxW": 78,
+        "boxH": 120,
+        "fillFraction": 0.571
+      }
+    ],
+    "framesDiffer": true,
+    "minShapeDistance": 0.0244,
+    "minColourDistance": 0.0371,
+    "shapeSpread": 0.037,
+    "legSpread": 0.303,
+    "bleedsAcrossFrames": false,
+    "fitsCell": true
+  },
+  {
+    "index": 30,
+    "originalFilename": "ch-designer-work.png",
+    "fileSize": 90798,
+    "width": 512,
+    "height": 128,
+    "modifiedAt": "2026-11-06T16:38:44+07:00",
+    "sha256": "2541aaa09789191fe45f0fa0e1ed0aa6a9a77717bc7894c0cdc95edb94a98fc6",
+    "background": "#000000",
+    "isChromaGreen": false,
+    "hasAlpha": true,
+    "aspect": 4,
+    "frameGuess": 4,
+    "frames": [
+      {
+        "n": 1,
+        "empty": false,
+        "boxX": 20,
+        "boxY": 7,
+        "boxW": 87,
+        "boxH": 119,
+        "fillFraction": 0.632
+      },
+      {
+        "n": 2,
+        "empty": false,
+        "boxX": 19,
+        "boxY": 7,
+        "boxW": 89,
+        "boxH": 119,
+        "fillFraction": 0.646
+      },
+      {
+        "n": 3,
+        "empty": false,
+        "boxX": 18,
+        "boxY": 7,
+        "boxW": 91,
+        "boxH": 119,
+        "fillFraction": 0.661
+      },
+      {
+        "n": 4,
+        "empty": false,
+        "boxX": 17,
+        "boxY": 6,
+        "boxW": 94,
+        "boxH": 120,
+        "fillFraction": 0.688
+      }
+    ],
+    "framesDiffer": true,
+    "minShapeDistance": 0.0277,
+    "minColourDistance": 0.0256,
+    "shapeSpread": 0.074,
+    "legSpread": 0.029,
+    "bleedsAcrossFrames": false,
+    "fitsCell": true
+  },
+  {
+    "index": 31,
+    "originalFilename": "ch-deploy-walkR.png",
+    "fileSize": 123461,
+    "width": 768,
+    "height": 128,
+    "modifiedAt": "2026-11-06T16:38:44+07:00",
+    "sha256": "e3e4f5e8cc96a8e2257aab8f3435c7e41cd7cb34e130d6181d53082a1ee7d6a9",
+    "background": "#000000",
+    "isChromaGreen": false,
+    "hasAlpha": true,
+    "aspect": 6,
+    "frameGuess": 6,
+    "frames": [
+      {
+        "n": 1,
+        "empty": false,
+        "boxX": 25,
+        "boxY": 6,
+        "boxW": 78,
+        "boxH": 120,
+        "fillFraction": 0.571
+      },
+      {
+        "n": 2,
+        "empty": false,
+        "boxX": 24,
+        "boxY": 6,
+        "boxW": 79,
+        "boxH": 120,
+        "fillFraction": 0.579
+      },
+      {
+        "n": 3,
+        "empty": false,
+        "boxX": 24,
+        "boxY": 6,
+        "boxW": 79,
+        "boxH": 120,
+        "fillFraction": 0.579
+      },
+      {
+        "n": 4,
+        "empty": false,
+        "boxX": 25,
+        "boxY": 6,
+        "boxW": 78,
+        "boxH": 120,
+        "fillFraction": 0.571
+      },
+      {
+        "n": 5,
+        "empty": false,
+        "boxX": 23,
+        "boxY": 6,
+        "boxW": 81,
+        "boxH": 120,
+        "fillFraction": 0.593
+      },
+      {
+        "n": 6,
+        "empty": false,
+        "boxX": 25,
+        "boxY": 6,
+        "boxW": 78,
+        "boxH": 120,
+        "fillFraction": 0.571
+      }
+    ],
+    "framesDiffer": true,
+    "minShapeDistance": 0.0246,
+    "minColourDistance": 0.0395,
+    "shapeSpread": 0.037,
+    "legSpread": 0.303,
+    "bleedsAcrossFrames": false,
+    "fitsCell": true
+  },
+  {
+    "index": 32,
+    "originalFilename": "ch-designer-cheer.png",
+    "fileSize": 82136,
+    "width": 512,
+    "height": 128,
+    "modifiedAt": "2026-11-06T16:38:44+07:00",
+    "sha256": "92903afd901e95586d6174cba0964b493919f66efea7fe7fd0baa28f747b86f2",
+    "background": "#000000",
+    "isChromaGreen": false,
+    "hasAlpha": true,
+    "aspect": 4,
+    "frameGuess": 4,
+    "frames": [
+      {
+        "n": 1,
+        "empty": false,
+        "boxX": 21,
+        "boxY": 20,
+        "boxW": 85,
+        "boxH": 106,
+        "fillFraction": 0.55
+      },
+      {
+        "n": 2,
+        "empty": false,
+        "boxX": 24,
+        "boxY": 20,
+        "boxW": 79,
+        "boxH": 106,
+        "fillFraction": 0.511
+      },
+      {
+        "n": 3,
+        "empty": false,
+        "boxX": 18,
+        "boxY": 6,
+        "boxW": 92,
+        "boxH": 120,
+        "fillFraction": 0.674
+      },
+      {
+        "n": 4,
+        "empty": false,
+        "boxX": 19,
+        "boxY": 20,
+        "boxW": 89,
+        "boxH": 106,
+        "fillFraction": 0.576
+      }
+    ],
+    "framesDiffer": true,
+    "minShapeDistance": 0.0702,
+    "minColourDistance": 0.0907,
+    "shapeSpread": 0.141,
+    "legSpread": 0.288,
+    "bleedsAcrossFrames": false,
+    "fitsCell": true
+  },
+  {
+    "index": 33,
+    "originalFilename": "ch-designer-rest.png",
+    "fileSize": 98079,
+    "width": 512,
+    "height": 128,
+    "modifiedAt": "2026-11-06T16:38:44+07:00",
+    "sha256": "9e40894efe107a9706ec2d1b8bc5cfc5986451f20fcd19a76a6eda35c345ab33",
+    "background": "#000000",
+    "isChromaGreen": false,
+    "hasAlpha": true,
+    "aspect": 4,
+    "frameGuess": 4,
+    "frames": [
+      {
+        "n": 1,
+        "empty": false,
+        "boxX": 18,
+        "boxY": 6,
+        "boxW": 92,
+        "boxH": 120,
+        "fillFraction": 0.674
+      },
+      {
+        "n": 2,
+        "empty": false,
+        "boxX": 18,
+        "boxY": 7,
+        "boxW": 91,
+        "boxH": 119,
+        "fillFraction": 0.661
+      },
+      {
+        "n": 3,
+        "empty": false,
+        "boxX": 17,
+        "boxY": 16,
+        "boxW": 93,
+        "boxH": 110,
+        "fillFraction": 0.624
+      },
+      {
+        "n": 4,
+        "empty": false,
+        "boxX": 18,
+        "boxY": 6,
+        "boxW": 91,
+        "boxH": 120,
+        "fillFraction": 0.667
+      }
+    ],
+    "framesDiffer": false,
+    "minShapeDistance": 0.0062,
+    "minColourDistance": 0.0111,
+    "shapeSpread": 0.022,
+    "legSpread": 0.028,
+    "duplicateFramePairs": [
+      "1=4 shape 0.006 colour 0.011"
+    ],
+    "bleedsAcrossFrames": false,
+    "fitsCell": true,
+    "notes": [
+      "repeated frames: identical in both shape and colour"
+    ]
+  },
+  {
+    "index": 34,
+    "originalFilename": "ch-designer-think.png",
+    "fileSize": 89653,
+    "width": 512,
+    "height": 128,
+    "modifiedAt": "2026-11-06T16:38:44+07:00",
+    "sha256": "6018af9e3f46772301f56a4579c127b32b1de4f0b51b533c097ec048f22858a5",
+    "background": "#000000",
+    "isChromaGreen": false,
+    "hasAlpha": true,
+    "aspect": 4,
+    "frameGuess": 4,
+    "frames": [
+      {
+        "n": 1,
+        "empty": false,
+        "boxX": 21,
+        "boxY": 13,
+        "boxW": 86,
+        "boxH": 113,
+        "fillFraction": 0.593
+      },
+      {
+        "n": 2,
+        "empty": false,
+        "boxX": 18,
+        "boxY": 13,
+        "boxW": 92,
+        "boxH": 113,
+        "fillFraction": 0.635
+      },
+      {
+        "n": 3,
+        "empty": false,
+        "boxX": 17,
+        "boxY": 6,
+        "boxW": 94,
+        "boxH": 120,
+        "fillFraction": 0.688
+      },
+      {
+        "n": 4,
+        "empty": false,
+        "boxX": 8,
+        "boxY": 13,
+        "boxW": 111,
+        "boxH": 113,
+        "fillFraction": 0.766
+      }
+    ],
+    "framesDiffer": true,
+    "minShapeDistance": 0.1089,
+    "minColourDistance": 0.1,
+    "shapeSpread": 0.225,
+    "legSpread": 0.052,
+    "bleedsAcrossFrames": false,
+    "fitsCell": true
+  },
+  {
+    "index": 35,
+    "originalFilename": "ch-designer-walkL.png",
+    "fileSize": 126245,
+    "width": 768,
+    "height": 128,
+    "modifiedAt": "2026-11-06T16:38:44+07:00",
+    "sha256": "f1a78fd4926d76c98f0526f8669ffb7afb4609f301b4af92b7e424ab8e3c05a9",
+    "background": "#000000",
+    "isChromaGreen": false,
+    "hasAlpha": true,
+    "aspect": 6,
+    "frameGuess": 6,
+    "frames": [
+      {
+        "n": 1,
+        "empty": false,
+        "boxX": 25,
+        "boxY": 6,
+        "boxW": 77,
+        "boxH": 120,
+        "fillFraction": 0.564
+      },
+      {
+        "n": 2,
+        "empty": false,
+        "boxX": 26,
+        "boxY": 6,
+        "boxW": 76,
+        "boxH": 120,
+        "fillFraction": 0.557
+      },
+      {
+        "n": 3,
+        "empty": false,
+        "boxX": 26,
+        "boxY": 6,
+        "boxW": 75,
+        "boxH": 120,
+        "fillFraction": 0.549
+      },
+      {
+        "n": 4,
+        "empty": false,
+        "boxX": 26,
+        "boxY": 6,
+        "boxW": 76,
+        "boxH": 120,
+        "fillFraction": 0.557
+      },
+      {
+        "n": 5,
+        "empty": false,
+        "boxX": 26,
+        "boxY": 6,
+        "boxW": 75,
+        "boxH": 120,
+        "fillFraction": 0.549
+      },
+      {
+        "n": 6,
+        "empty": false,
+        "boxX": 26,
+        "boxY": 6,
+        "boxW": 76,
+        "boxH": 120,
+        "fillFraction": 0.557
+      }
+    ],
+    "framesDiffer": true,
+    "minShapeDistance": 0.0202,
+    "minColourDistance": 0.0174,
+    "shapeSpread": 0.026,
+    "legSpread": 0.171,
+    "bleedsAcrossFrames": false,
+    "fitsCell": true
+  },
+  {
+    "index": 36,
+    "originalFilename": "ch-designer-walkR.png",
+    "fileSize": 126529,
+    "width": 768,
+    "height": 128,
+    "modifiedAt": "2026-11-06T16:38:44+07:00",
+    "sha256": "6be45bc808ecfc001af9dde8bc4c77ea001f57832c3fe01081c69e980ee3024d",
+    "background": "#000000",
+    "isChromaGreen": false,
+    "hasAlpha": true,
+    "aspect": 6,
+    "frameGuess": 6,
+    "frames": [
+      {
+        "n": 1,
+        "empty": false,
+        "boxX": 25,
+        "boxY": 6,
+        "boxW": 77,
+        "boxH": 120,
+        "fillFraction": 0.564
+      },
+      {
+        "n": 2,
+        "empty": false,
+        "boxX": 26,
+        "boxY": 6,
+        "boxW": 76,
+        "boxH": 120,
+        "fillFraction": 0.557
+      },
+      {
+        "n": 3,
+        "empty": false,
+        "boxX": 26,
+        "boxY": 6,
+        "boxW": 75,
+        "boxH": 120,
+        "fillFraction": 0.549
+      },
+      {
+        "n": 4,
+        "empty": false,
+        "boxX": 26,
+        "boxY": 6,
+        "boxW": 76,
+        "boxH": 120,
+        "fillFraction": 0.557
+      },
+      {
+        "n": 5,
+        "empty": false,
+        "boxX": 26,
+        "boxY": 6,
+        "boxW": 75,
+        "boxH": 120,
+        "fillFraction": 0.549
+      },
+      {
+        "n": 6,
+        "empty": false,
+        "boxX": 26,
+        "boxY": 6,
+        "boxW": 76,
+        "boxH": 120,
+        "fillFraction": 0.557
+      }
+    ],
+    "framesDiffer": true,
+    "minShapeDistance": 0.02,
+    "minColourDistance": 0.0179,
+    "shapeSpread": 0.026,
+    "legSpread": 0.171,
+    "bleedsAcrossFrames": false,
+    "fitsCell": true
+  }
+]
