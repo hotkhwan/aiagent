@@ -200,6 +200,7 @@ func (s *Service) Mount(app *fiber.App) {
 		return c.Status(fiber.StatusOK).Send(b)
 	})
 	app.Get("/aiagent/assets/:name", s.handleAsset)
+	app.Get("/aiagent/fonts/:name", s.handleFont)
 	app.Get("/aiagent/review-view/:ticket", s.handleReviewView)
 
 	api := app.Group("/aiagent/api", s.gate)
@@ -243,6 +244,30 @@ func (s *Service) Mount(app *fiber.App) {
 // more than the token already presented.
 
 var assetName = regexp.MustCompile(`^[A-Za-z0-9-]{1,40}\.(png|jpg)$`)
+
+// fontName is the allowlist for /aiagent/fonts/. Fonts live on their own
+// route rather than under assets/ because they need a year-long immutable
+// cache and a different content type, and because widening assetName to
+// accept woff2 would also widen every scene-image path.
+var fontName = regexp.MustCompile(`^[A-Za-z0-9-]{1,40}\.woff2$`)
+
+// handleFont serves one embedded web font. The files are content-addressed by
+// weight and subset and never change in place, so they are safe to pin for a
+// year; a new font means a new file name.
+func (s *Service) handleFont(c fiber.Ctx) error {
+	name := c.Params("name")
+	if !s.Store.Enabled() || !fontName.MatchString(name) {
+		return hidden(c)
+	}
+	b, err := fs.ReadFile(uiFS, "fonts/"+name)
+	if err != nil {
+		return hidden(c)
+	}
+	c.Set("X-Content-Type-Options", "nosniff")
+	c.Set("Cache-Control", "private, max-age=31536000, immutable")
+	c.Set("Content-Type", "font/woff2")
+	return c.Status(fiber.StatusOK).Send(b)
+}
 
 // handleAsset serves one embedded scene image (allowlisted names only).
 func (s *Service) handleAsset(c fiber.Ctx) error {

@@ -1,7 +1,35 @@
+/* Mali, by Cadson Demak — SIL Open Font License 1.1, web/fonts/OFL.txt.
+   Served from this binary, never from a CDN: the page must render the same on
+   a machine with no internet, and loading a font from a third party would tell
+   them who opens this service and when.
+   Latin and Thai only; the Vietnamese and latin-ext cuts are not shipped.
+   unicode-range is what keeps the Thai file off a page that has no Thai. */
+@font-face { font-family: 'Mali'; font-style: normal; font-weight: 400; font-display: swap;
+  src: url('/aiagent/fonts/mali-400-thai.woff2') format('woff2');
+  unicode-range: U+02D7, U+0303, U+0331, U+0E01-0E5B, U+200C-200D, U+25CC }
+@font-face { font-family: 'Mali'; font-style: normal; font-weight: 400; font-display: swap;
+  src: url('/aiagent/fonts/mali-400-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD }
+@font-face { font-family: 'Mali'; font-style: normal; font-weight: 600; font-display: swap;
+  src: url('/aiagent/fonts/mali-600-thai.woff2') format('woff2');
+  unicode-range: U+02D7, U+0303, U+0331, U+0E01-0E5B, U+200C-200D, U+25CC }
+@font-face { font-family: 'Mali'; font-style: normal; font-weight: 600; font-display: swap;
+  src: url('/aiagent/fonts/mali-600-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD }
+@font-face { font-family: 'Mali'; font-style: normal; font-weight: 700; font-display: swap;
+  src: url('/aiagent/fonts/mali-700-thai.woff2') format('woff2');
+  unicode-range: U+02D7, U+0303, U+0331, U+0E01-0E5B, U+200C-200D, U+25CC }
+@font-face { font-family: 'Mali'; font-style: normal; font-weight: 700; font-display: swap;
+  src: url('/aiagent/fonts/mali-700-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD }
+
 :root {
   --sky: #0E1324; --sky2: #161C33; --sky3: #1D2440; --ink: #EEF0FA; --muted: #9AA2C2; --line: #262E4D;
   --brand: #00DC82; --brandInk: #04281A; --amber: #F5B84B; --rose: #F2727F; --claude: #E48D62; --codex: #5CC8F0;
-  --font: 'IBM Plex Sans Thai', 'Noto Sans Thai', 'Sarabun', system-ui, sans-serif;
+  /* Mali is a handwriting face: it runs small and light for its point size,
+     so the fallbacks stay behind it for the seconds before it loads and for
+     any glyph the Latin and Thai cuts do not carry. */
+  --font: 'Mali', 'IBM Plex Sans Thai', 'Noto Sans Thai', system-ui, sans-serif;
 }
 * { box-sizing: border-box; margin: 0 }
 html, body { height: 100% }
