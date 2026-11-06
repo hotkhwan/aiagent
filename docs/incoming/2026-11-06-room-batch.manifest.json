@@ -1,0 +1,140 @@
+{
+  "source": "Procedural SVG rendering with Python and CairoSVG",
+  "createdDate": "2026-11-06",
+  "artDirection": "neon sakura cyberpunk architecture concept",
+  "assets": [
+    {
+      "fileName": "bg-approval.jpg",
+      "sizeBytes": 115354
+    },
+    {
+      "fileName": "bg-code.jpg",
+      "sizeBytes": 111917
+    },
+    {
+      "fileName": "bg-deploy.jpg",
+      "sizeBytes": 113835
+    },
+    {
+      "fileName": "bg-library.jpg",
+      "sizeBytes": 141183
+    },
+    {
+      "fileName": "bg-lounge.jpg",
+      "sizeBytes": 109084
+    },
+    {
+      "fileName": "bg-ops.jpg",
+      "sizeBytes": 123526
+    },
+    {
+      "fileName": "bg-plan.jpg",
+      "sizeBytes": 115702
+    },
+    {
+      "fileName": "bg-test.jpg",
+      "sizeBytes": 120716
+    },
+    {
+      "fileName": "icon-approval.svg",
+      "sizeBytes": 258
+    },
+    {
+      "fileName": "icon-code.svg",
+      "sizeBytes": 235
+    },
+    {
+      "fileName": "icon-deploy.svg",
+      "sizeBytes": 322
+    },
+    {
+      "fileName": "icon-library.svg",
+      "sizeBytes": 300
+    },
+    {
+      "fileName": "icon-lounge.svg",
+      "sizeBytes": 271
+    },
+    {
+      "fileName": "icon-ops.svg",
+      "sizeBytes": 372
+    },
+    {
+      "fileName": "icon-plan.svg",
+      "sizeBytes": 339
+    },
+    {
+      "fileName": "icon-test.svg",
+      "sizeBytes": 272
+    },
+    {
+      "fileName": "plq-approval.png",
+      "sizeBytes": 7996
+    },
+    {
+      "fileName": "plq-code.png",
+      "sizeBytes": 6062
+    },
+    {
+      "fileName": "plq-deploy.png",
+      "sizeBytes": 7485
+    },
+    {
+      "fileName": "plq-library.png",
+      "sizeBytes": 5725
+    },
+    {
+      "fileName": "plq-lounge.png",
+      "sizeBytes": 6495
+    },
+    {
+      "fileName": "plq-ops.png",
+      "sizeBytes": 7363
+    },
+    {
+      "fileName": "plq-plan.png",
+      "sizeBytes": 5927
+    },
+    {
+      "fileName": "plq-test.png",
+      "sizeBytes": 5209
+    },
+    {
+      "fileName": "preview-all-rooms.jpg",
+      "sizeBytes": 233805
+    },
+    {
+      "fileName": "sky-approval.png",
+      "sizeBytes": 15536
+    },
+    {
+      "fileName": "sky-code.png",
+      "sizeBytes": 14724
+    },
+    {
+      "fileName": "sky-deploy.png",
+      "sizeBytes": 16009
+    },
+    {
+      "fileName": "sky-library.png",
+      "sizeBytes": 14931
+    },
+    {
+      "fileName": "sky-lounge.png",
+      "sizeBytes": 15857
+    },
+    {
+      "fileName": "sky-ops.png",
+      "sizeBytes": 15540
+    },
+    {
+      "fileName": "sky-plan.png",
+      "sizeBytes": 16126
+    },
+    {
+      "fileName": "sky-test.png",
+      "sizeBytes": 15432
+    }
+  ],
+  "status": "concept assets, QA and runtime integration not performed"
+}

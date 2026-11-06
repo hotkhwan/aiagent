@@ -98,6 +98,50 @@ Per-room content, from the current prop lists and the mockups:
 Also needed per room, unchanged from ASSET_SPEC: `sky-<key>.png` **800x500**
 (what the window shows) and `plq-<key>.png` (the door plaque).
 
+## 3b. Time of day — the code already has five phases
+
+> Owner, 2026-11-06: backgrounds should follow the time of day —
+> เช้า / สาย / บ่าย / เย็น / ดึก.
+
+`applyPhase()` in `web/app.js` already computes exactly those five, from the
+machine clock, every 30 seconds, and writes `document.body.dataset.phase`:
+
+| Key | Thai | Hours |
+|---|---|---|
+| `morning` | เช้า | 06:00–08:59 |
+| `late` | สาย | 09:00–11:59 |
+| `afternoon` | บ่าย | 12:00–15:59 |
+| `evening` | เย็น | 16:00–18:59 |
+| `night` | ดึก | 19:00–05:59 |
+
+So nothing new has to be invented — the phases, their names and their
+boundaries are settled. The only question is how much art each one gets.
+
+**Today** there is one background per room and the phase is applied as a CSS
+tint, plus a sky gradient and a sun/moon. It works, it costs 8 files, and it
+is why evening already looks like evening.
+
+**Three ways to go further**, cheapest first:
+
+| Option | Files | What you get |
+|---|---|---|
+| **A. Sky only** — `sky-<room>-<phase>.png`, keep one `bg-` per room | 8 x 5 = **40** small PNGs (+8 existing bg) | Real dawn/noon/dusk/night **through the window**, which is where a person actually reads the time of day. Room light still CSS-tinted |
+| **B. Sky + a light pass** — A, plus a per-phase overlay PNG per room | 40 + 40 | Adds a real cast of light across the wall and floor, not a flat tint |
+| **C. Full** — `bg-<room>-<phase>.jpg` | 8 x 5 = **40** backgrounds at 1600x1000 | Every surface lit correctly. Costs ~5x the background bytes and 5x the redraw work on every future room edit |
+
+**Recommended: A.** The window is the time-of-day cue; the sky PNGs are
+800x500 and small, and one wrong-looking room costs one file to fix instead of
+five. Keep C in reserve for rooms where the light genuinely has to fall
+differently — `lounge` at night is the obvious candidate.
+
+Whichever is chosen, the file naming is `<kind>-<room>-<phase>.<ext>` using the
+five keys above exactly, and the serving allowlist still applies
+(`^[A-Za-z0-9-]{1,40}\.(png|jpg)$` — all five keys are safe within it).
+
+A per-phase set also needs a **fallback rule**: if `sky-code-late.png` is
+missing, fall back to `sky-code.png` rather than render a hole. That is a code
+change, small, and it lets the set arrive one phase at a time.
+
 ## 4. Animation — and the rule that governs all of it
 
 > **A sprite may only move because something really happened.** The project's
