@@ -194,6 +194,35 @@ func TestPropsAreCutOut(t *testing.T) {
 	}
 }
 
+// TestEveryRoomHasAGlyph keeps the workflow stepper honest.
+//
+// iconSvg() falls back to a plain dash for an unknown key, so a room with no
+// entry in iconPaths does not throw, does not log, and does not look broken
+// in a diff — it just draws "—" next to its name in the stepper and in the
+// room label, which reads as a deliberate design until someone asks why one
+// room has no icon. Three of the eight went that way for a month.
+func TestEveryRoomHasAGlyph(t *testing.T) {
+	b, err := fs.ReadFile(FS, "app.js")
+	if err != nil {
+		t.Fatalf("read app.js: %v", err)
+	}
+	src := string(b)
+	start := strings.Index(src, "const iconPaths = {")
+	if start < 0 {
+		t.Fatal("app.js has no `const iconPaths = {` — the glyph table was renamed; update this test with it")
+	}
+	end := strings.Index(src[start:], "\n}")
+	if end < 0 {
+		t.Fatal("iconPaths is not closed by a `}` at column 0")
+	}
+	table := src[start : start+end]
+	for _, r := range rooms {
+		if !regexp.MustCompile(`(?m)^\s*` + regexp.QuoteMeta(r) + `: '`).MatchString(table) {
+			t.Errorf("room %q has no glyph in iconPaths; iconSvg() will silently draw the dash fallback for it", r)
+		}
+	}
+}
+
 // TestDialogDisplayStaysScoped guards one CSS mistake that is invisible in a
 // diff and total in effect.
 //

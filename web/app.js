@@ -702,16 +702,38 @@ function drawVillageHouses (b, counts, all) {
   }
 }
 
+// One glyph per room key, plus the three house markers on the map. These are
+// paths and not PNGs on purpose (docs/REDESIGN_SPEC.md §2): the colour has to
+// come from the room through currentColor, which a drawn icon cannot do.
+//
+// Each is a single path, stroke only, inside the 20x20 safe area of the 24x24
+// box so it still reads at the 20px the workflow stepper draws it at.
+const iconPaths = {
+  plan: 'M8 4h8 M9 3h6v3H9z M7 5H5v16h14V5h-2 M8 11l1.5 1.5L12 10 M14 11h3 M8 16l1.5 1.5L12 15 M14 16h3',
+  library: 'M12 5v15 M12 6c-2.5-2-5.2-2.1-9-1v14c3.7-1.2 6.5-.9 9 1 M12 6c2.5-2 5.2-2.1 9-1v14c-3.7-1.2-6.5-.9-9 1',
+  code: 'M9 7L4 12l5 5 M15 7l5 5-5 5',
+  test: 'M9 3h6 M11 3v7l-6.9 9.7A1.5 1.5 0 0 0 5.3 22h13.4a1.5 1.5 0 0 0 1.2-2.3L13 10V3 M7 17h10',
+  ops: 'M10 2h4l.6 2.1 1.7.7 1.9-1.1 2.8 2.8-1.1 1.9.7 1.7L23 10v4l-2.1.6-.7 1.7 1.1 1.9-2.8 2.8-1.9-1.1-1.7.7L14 23h-4l-.6-2.1-1.7-.7-1.9 1.1L3 18.5l1.1-1.9-.7-1.7L1 14v-4l2.1-.6.7-1.7L2.7 5.8 5.5 3l1.9 1.1 1.7-.7L10 2z M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z',
+  deploy: 'M14 3c3 1 6 4 7 7-1 4-4 7-8 9l-5-5C10 10 11 6 14 3z M8 14l-4 1-2 5 5-2 1-4 M12 19l-1 3-5 0 1-4 M14 9a1.4 1.4 0 1 0 0 2.8A1.4 1.4 0 0 0 14 9z',
+  approval: 'M12 2L21 6v6c0 5-3.2 8.2-9 10-5.8-1.8-9-5-9-10V6z M7.5 12l3 3 6-6',
+  lounge: 'M4 8h13v7a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5z M17 9h2a3 3 0 0 1 0 6h-2 M3 21h17',
+  // house markers: the map keeps its own three, which are not room glyphs
+  term: 'M4 7l5 5-5 5M12 17h8',
+  layers: 'M12 3l9 5-9 5-9-5zM3 13l9 5 9-5',
+  rocket: 'M12 3c3 2 5 6 4 10l-4 4-4-4c-1-4 1-8 4-10zM9 17l-2 4M15 17l2 4M12 9.5v.1'
+}
+
+// The gear is drawn teeth-to-edge, 1 to 23, so beside the other seven it
+// renders a notch larger and crowds them in the stepper. Fit it back into the
+// 20x20 safe area about the centre: 12 + (v - 12) * 10/11.
+const iconFit = { ops: 'translate(1.0909 1.0909) scale(0.90909)' }
+
 function iconSvg (kind) {
   const v = document.createElementNS(ns2, 'svg')
   v.setAttribute('viewBox', '0 0 24 24')
-  const d = {
-    code: 'M8 7l-5 5 5 5M16 7l5 5-5 5',
-    term: 'M4 7l5 5-5 5M12 17h8',
-    layers: 'M12 3l9 5-9 5-9-5zM3 13l9 5 9-5',
-    rocket: 'M12 3c3 2 5 6 4 10l-4 4-4-4c-1-4 1-8 4-10zM9 17l-2 4M15 17l2 4M12 9.5v.1'
-  }[kind] || 'M4 12h16'
-  v.innerHTML = '<path d="' + d + '" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>'
+  const d = iconPaths[kind] || 'M4 12h16'
+  const t = iconFit[kind] ? ' transform="' + iconFit[kind] + '"' : ''
+  v.innerHTML = '<path d="' + d + '"' + t + ' fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>'
   return v
 }
 
@@ -836,7 +858,9 @@ function composeRoom (host, key, scale, withScreen) {
   if (npcs[key]) inner.append(npcEl(key, withScreen))
   host.append(inner)
   const step = rooms2[key] && rooms2[key].step
-  host.append(h('div', { class: 'rlabel2' }, step ? h('em', { class: 'step' }, String(step)) : null, h('b', null, R.th), h('span', null, R.en)))
+  host.append(h('div', { class: 'rlabel2' }, step ? h('em', { class: 'step' }, String(step)) : null,
+    iconPaths[key] ? h('span', { class: 'rlIcon' }, iconSvg(key)) : null,
+    h('b', null, R.th), h('span', null, R.en)))
   return withScreen ? screen : null
 }
 
@@ -903,7 +927,7 @@ function drawInterior () {
   const strip = box('flowStrip', 92, IH - 110, IW - 184, 70)
   strip.append(h('b', { class: 'fsTitle' }, 'ภาพรวมการทำงาน'))
   for (const key of Object.keys(rooms2).sort((x, y) => rooms2[x].step - rooms2[y].step)) {
-    strip.append(h('button', { type: 'button', class: 'fsStep s' + rooms2[key].step, onclick: () => openRoom(key) }, h('i', null, String(rooms2[key].step)), roomShort[key]))
+    strip.append(h('button', { type: 'button', class: 'fsStep s' + rooms2[key].step, onclick: () => openRoom(key) }, h('i', null, String(rooms2[key].step)), h('span', { class: 'fsIcon' }, iconSvg(key)), roomShort[key]))
     if (rooms2[key].step < 8) strip.append(h('span', { class: 'fsArr' }, '→'))
   }
   b.append(strip)

@@ -546,6 +546,10 @@ body:not([data-phase="night"]) .focusHint { color: #2C3654 }
 .hall.side { border-radius: 26px }
 .flowArrow { position: absolute; width: 28px; height: 28px; border-radius: 50%; background: #FFF6E6; color: #B07A3C; font-weight: 800; font-size: 17px; line-height: 28px; text-align: center; box-shadow: 0 2px 4px rgba(120,80,30,.25); pointer-events: none; z-index: 2 }
 .rlabel2 .step { display: inline-grid; place-items: center; width: 20px; height: 20px; margin-right: 6px; border-radius: 50%; background: #00DC82; color: #04221A; font-style: normal; font-weight: 800; font-size: 12px; vertical-align: 1px }
+/* align-self because .rlabel2 is a baseline flex row and an svg has none */
+.rlabel2 .rlIcon { align-self: center; display: inline-grid; place-items: center; color: #7A6450 }
+.rlabel2 .rlIcon svg { width: 16px; height: 16px }
+.focusRoom .rlabel2 .rlIcon svg { width: 24px; height: 24px }
 .scrJob { display: grid; grid-template-columns: 8px 1fr; column-gap: 6px; align-items: center; margin-top: 3px; padding: 3px 6px; border-radius: 6px; background: rgba(245,184,75,.14); font-size: 10px }
 .scrJob i { width: 7px; height: 7px; border-radius: 50%; background: #F5B84B; animation: beacon 1.2s infinite; grid-row: span 2 }
 .scrJob b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #FFE2A6 }
@@ -609,6 +613,16 @@ body:not([data-phase="night"]) .focusHint { color: #2C3654 }
 .fsStep i { display: inline-grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; color: #fff; font-style: normal; font-size: 16px; background: #9B7BE0 }
 .fsStep.s1 i { background: #F28CB4 } .fsStep.s2 i { background: #5FC7B2 } .fsStep.s3 i { background: #E8758C } .fsStep.s4 i { background: #A08BEA }
 .fsStep.s5 i { background: #6E9BF0 } .fsStep.s6 i { background: #F2789A } .fsStep.s7 i { background: #F2B54A } .fsStep.s8 i { background: #6FC48A }
+/* The room glyph. 30 and not the 20 REDESIGN_SPEC §2 names: the strip sits on
+   the 2060-wide interior board, which applyZoom() fits to the stage, so a
+   nominal size is multiplied by roughly 0.53 before anyone sees it. At 20 the
+   glyphs land near 11 real px, where the clipboard's ticks and the gear's
+   teeth are gone; 30 lands near 16, where all eight still read. It matches the
+   step circle beside it.
+   Colour is the button's own, not the step's pastel, which has far too little
+   contrast against #F6F0FF. */
+.fsStep .fsIcon { display: inline-grid; place-items: center; margin-right: -3px; opacity: .85 }
+.fsStep .fsIcon svg { width: 30px; height: 30px }
 .fsArr { color: #B79BE8; font-size: 22px; font-weight: 800 }
 .npc { z-index: 3; cursor: help }
 .npc .npcImg { top: auto !important; bottom: 0; filter: drop-shadow(0 4px 3px rgba(60,40,20,.25)); animation: stillThink 3s ease-in-out infinite; transform-origin: 50% 100% }

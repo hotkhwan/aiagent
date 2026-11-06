@@ -44,20 +44,32 @@ Give each icon as a single `d` path string meeting all of:
   none
 - **one continuous path** where possible; subpaths with `M` are fine, separate
   `<path>` elements are not
-- legible at **20px**, because that is the size in the workflow stepper
+- legible at **15 real px**. The stepper asks for 30, but the strip sits on the
+  2060-wide interior board that `applyZoom()` fits to the stage, so every
+  nominal size is multiplied by about 0.53 on the way to the screen. An earlier
+  draft of this line said "20px, because that is the size in the workflow
+  stepper" and did not account for the board fit: at 20 nominal the glyphs land
+  near 11 real px, where a clipboard's ticks and a gear's teeth are simply
+  gone. Judge a candidate from a screenshot at 15 real px, never from the
+  artwork viewed large
 
-Eight to produce (three already exist and can be reused as-is):
+All eight now exist in `iconPaths` in `web/app.js` (2026-11-07), from the
+owner's `aiagent_art_rebuild_starter` pack, checked at 15 and 20 real px in
+headless Chrome:
 
 | Key | Glyph | Status |
 |---|---|---|
-| `plan` | Clipboard with two task lines and a tick | **new** |
-| `library` | Open book, spine centred | **new** |
-| `code` | `< >` chevrons | exists |
-| `test` | Conical flask with a level line | **new** |
-| `ops` | Gear, six teeth — or reuse `layers` | exists (as `layers`) |
-| `deploy` | Rocket | exists |
-| `approval` | Shield with a tick | **new** |
-| `lounge` | Coffee cup with a handle, no steam (too fine at 20px) | **new** |
+| `plan` | Clipboard with two task lines and a tick | done |
+| `library` | Open book, spine centred | done |
+| `code` | `< >` chevrons | done |
+| `test` | Conical flask with a level line | done |
+| `ops` | Gear, six teeth. Drawn 1–23, so `iconFit` scales it back into the 20x20 safe area | done |
+| `deploy` | Rocket, tilted, with flame. The map houses keep the older upright `rocket` | done |
+| `approval` | Shield with a tick | done |
+| `lounge` | Coffee cup with a handle, no steam (too fine at this size) | done |
+
+`web/assets_test.go::TestEveryRoomHasAGlyph` fails if a room loses its entry —
+`iconSvg()` falls back to a bare dash, which looks deliberate rather than broken.
 
 Colours are already a per-room decision in CSS; the mockups read as:
 `plan` blue, `library` amber, `code` violet, `test` cyan, `ops` steel blue,

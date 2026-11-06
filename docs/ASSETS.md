@@ -27,6 +27,13 @@ the binary and served through a name allowlist. By subject:
 | `arr-*`, `scr-*`, `fx-*` | ~18 | arrows, screens, effects |
 | other | remainder | icons and one-off scenery |
 
+The eight room glyphs are **not** in that count and are not files. They are SVG
+path strings in `iconPaths` in `web/app.js`, so they can inherit the room's
+colour (`docs/REDESIGN_SPEC.md` §2). Source: `roomIcons/iconPaths.json` in the
+owner's `aiagent_art_rebuild_starter_20261107.zip`, added 2026-11-07. Same
+provenance question as the rasters below — generator, account and terms are not
+yet recorded.
+
 ## What is known
 
 - They were supplied by the project owner and were **generated with AI image
