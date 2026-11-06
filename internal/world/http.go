@@ -162,11 +162,22 @@ func (s *Service) asset(name, typ string) fiber.Handler {
 	}
 }
 
-// Mount registers the page and API. Call it BEFORE the webinit SPA static
-// fallback so /aiagent is never answered with the setup UI.
+// Mount registers the page and API. When this service shares a listener with
+// another app, call it BEFORE that app's static fallback so /aiagent is never
+// answered with the other app's UI.
 func (s *Service) Mount(app *fiber.App) {
 	s.policyOnce.Do(func() { s.StartPolicy(context.Background()) })
 	page := s.asset("index.html", "html")
+	// On its own hostname — behind a tunnel or a reverse proxy — the /aiagent
+	// prefix is redundant, so the root redirects to it rather than making the
+	// operator type a path. It still answers 404 while the switch is off: a
+	// redirect would otherwise reveal that something is installed here.
+	app.Get("/", func(c fiber.Ctx) error {
+		if !s.Store.Enabled() {
+			return hidden(c)
+		}
+		return c.Redirect().Status(fiber.StatusFound).To("/aiagent")
+	})
 	app.Get("/aiagent", page)
 	app.Get("/aiagent/", page)
 	app.Get("/aiagent/app.js", s.asset("app.js", "js"))

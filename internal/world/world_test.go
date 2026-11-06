@@ -1259,3 +1259,32 @@ func TestDaemonListCached(t *testing.T) {
 		t.Fatalf("claude agents ran %d times, want 3", n())
 	}
 }
+
+// TestRootRedirects covers the root path added so the service can sit on its
+// own hostname (aiagent.example.com) without the operator typing /aiagent.
+// The redirect must not leak existence: while the switch is off, / has to
+// answer 404 like everything else, not 302 to a page that then 404s.
+func TestRootRedirects(t *testing.T) {
+	e := newEnv(t)
+
+	code, _, _ := e.do(t, "GET", "/", "", "")
+	if code != 404 {
+		t.Fatalf("/ while disabled = %d, want 404: a redirect reveals the service is installed", code)
+	}
+
+	if _, err := e.store.Enable("test"); err != nil {
+		t.Fatal(err)
+	}
+	req := httptest.NewRequest("GET", "/", nil)
+	res, err := e.app.Test(req, fiber.TestConfig{Timeout: 5 * time.Second})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != 302 {
+		t.Fatalf("/ while enabled = %d, want 302", res.StatusCode)
+	}
+	if loc := res.Header.Get("Location"); loc != "/aiagent" {
+		t.Fatalf("redirect Location = %q, want %q", loc, "/aiagent")
+	}
+}
