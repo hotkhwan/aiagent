@@ -1,5 +1,14 @@
 # Prop brief — the furniture, and why the rooms still look old
 
+> **Status, 2026-11-07.** Ten of the 39 are done and shipped — `plant-big`,
+> `desk-blue2`, `desk-pink2`, `desk-white2`, `cactus`, `filing-blue`,
+> `printer2`, `hydrangea`, `shelf-big`, `shelf-tall`. See
+> [audit/propsBatch02Report.md](audit/propsBatch02Report.md), including the
+> two things that still need fixing in them. **29 to go.**
+>
+> Raw art does not need to arrive trimmed or sized: `tools/propprep` does
+> that, reading the widths out of `roomDefs`. What it cannot do is draw.
+
 The character cast and the room plaques are in the new design. The **props are
 not**: every desk, sofa, rug and plant in the eight rooms is still the pastel
 set from 2026-11-05. In a navy neon room a cream desk and a yellow sofa read as
@@ -250,9 +259,17 @@ the real rooms is what settled it, and that is one command:
 go run ./tools/roomcompare -new <folder> -rooms code,test,library -out cmp.png
 ```
 
-If that tool does not exist yet, the throwaway harness that produced
-`audit/props-batch01-rooms.jpg` is worth rebuilding before reviewing a batch by
-eye in isolation. Props do not fail on their own; they fail in the room.
+Raw generator output goes through `tools/propprep` first — it trims to the
+alpha, scales to the width `roomDefs` draws the prop at, and quantises to a
+256-colour palette, which is worth about 4x on the wire for painted art and is
+invisible at the size the prop is actually shown:
+
+```sh
+go run ./tools/propprep -in <raw folder> -out /tmp/ready \
+  -map 01=desk-blue2,02=desk-pink2,...
+```
+
+Props do not fail on their own; they fail in the room.
 
 The five character sheets in `aiagent_art_rebuild_starter_20261107.zip` stay
 uninstalled until all 36 arrive — the pack's own README says so, and half a
