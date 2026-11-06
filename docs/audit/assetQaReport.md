@@ -33,13 +33,37 @@ arm and vials for Test, server racks for Ops, hazard stripes and a launch pad
 for Deploy, green doors for Approval, plants and warm light for Lounge. The
 centres are clear, which is what the walking lane needs.
 
-| Asset | Name | File index | Delivered | Spec | Action |
+| Asset | Name | File index | Delivered | Spec | Outcome |
 |---|---|---:|---|---|---|
-| 1–8 | `bg-plan` … `bg-lounge` | 39–46 | 1586x992 | 1600x1000 | resample |
-| 9–10 | `sky-plan`, `sky-library` | 47–48 | 1586x992 | 800x500 | resample |
+| 1–8 | `bg-plan` … `bg-lounge` | 39–46 | 1586x992 | 1600x1000 | **installed** (resampled, JPEG q78) |
+| 9–10 | `sky-plan`, `sky-library` | 47–48 | 1586x992 | 800x500 | **not installed** — see the correction below |
 
 Aspect is 1.599 against the spec's 1.600, so the resample is lossless in
 practice. **This is the one group that is close to usable.**
+
+## Correction, found while converting: `sky-*.png` is a MASK, not a picture
+
+This audit first treated assets 9–16 as pictures of sky. They are not.
+`app.js` sets them as a **CSS mask** on the room's sky layer
+(`sky.style.maskImage`), so the alpha channel is the data and the colour is
+discarded. A picture installed there would mask nothing useful.
+
+Two consequences:
+
+- **Candidates 47 and 48 are not sky masks.** They are finished city views at
+  1586x992. Converting them to `sky-plan.png` / `sky-library.png` would add
+  1.6 MB of image data that is thrown away by the mask. They were NOT
+  installed; what they are for is an open question for the owner.
+- **The masks in the tree today are effectively blank.** Measured:
+  `sky-code.png` is over 99.9% fully opaque. The mask therefore covers the
+  whole room, and the time-of-day layer washes the entire scene rather than
+  showing through a window. The per-phase sky work discussed in
+  REDESIGN_SPEC.md §3b should start from this: **the window shape has never
+  been cut**, and that is the asset actually missing — one alpha mask per
+  room marking its window.
+
+This is also why replacing the eight backgrounds was safe: the mask is a
+uniform rectangle, so it does not depend on where the old room's window was.
 
 ## Assets 21–56 — characters: the real problem
 
