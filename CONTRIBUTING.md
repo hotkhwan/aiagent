@@ -54,6 +54,11 @@ Do not add images to `web/assets/` until the licensing question in
 [docs/ASSETS.md](docs/ASSETS.md) is resolved, and never add one whose
 provenance you cannot write down.
 
+New art must satisfy [docs/ASSET_SPEC.md](docs/ASSET_SPEC.md) — exact file
+names, canvas sizes, sprite-sheet grids, and real alpha. `go test ./web/`
+checks all of it; a file that passes the build but fails those tests would
+have shipped as a broken-looking village.
+
 ## Licence
 
 Contributions are accepted under [Apache-2.0](LICENSE).

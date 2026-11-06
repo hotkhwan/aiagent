@@ -396,6 +396,14 @@ Every file below must exist with exactly this name and size.
 
 ## Checking a batch before you commit it
 
+**`go test ./web/` checks everything on this page** — names against the serving
+allowlist, every sprite-sheet grid, each room's background and sky size, and
+that every prop carries real transparency. Run it first; it names the offending
+file and says what is wrong with it.
+
+The shell equivalents below are for checking a batch *before* it is copied into
+the tree:
+
 ```sh
 cd web/assets
 # names the server will actually serve

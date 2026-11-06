@@ -121,8 +121,9 @@ version, including what is **not** protected, is in
 - **Linux-first.** Session and process discovery reads `/proc`, so the
   collector finds nothing on macOS or BSD. The CLI and the service build and
   run there; the village will be empty.
-- **No tests for the browser code.** The Go side has tests (`go test ./...`);
-  `web/app.js` has none.
+- **No tests for the browser code.** The Go side has tests and the embedded
+  art is checked against its spec (`go test ./...`), but `web/app.js` itself
+  has none.
 - **Asset licensing is unresolved** — see [docs/ASSETS.md](docs/ASSETS.md).
   Until that is settled, treat the images as all rights reserved even though
   the code is Apache-2.0.

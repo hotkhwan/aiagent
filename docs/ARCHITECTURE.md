@@ -19,7 +19,7 @@ browser ──HTTP(loopback)──▶ cmd/aiagent ──▶ internal/world
 | `cmd/aiagent` | CLI and service entry point: `serve`, `enable`, `disable`, `rotate-token`, `status`, `statusline`, `review` |
 | `internal/world` | Everything else; the package is deliberately flat |
 | `internal/audit` | Append-only JSONL log: intent before an action, result after |
-| `web` | The UI, `//go:embed`-ed. It is its own package because `//go:embed` cannot reach a parent directory, so the declaration must sit beside the files |
+| `web` | The UI, `//go:embed`-ed. It is its own package because `//go:embed` cannot reach a parent directory, so the declaration must sit beside the files. Its tests check the art against `docs/ASSET_SPEC.md` |
 
 ### Inside `internal/world`
 
@@ -78,6 +78,14 @@ go test ./...
 
 The tests drive the real HTTP service against a fake filesystem and a fake
 command runner, so dispatch, the token gate, redaction and the review flow are
-exercised end to end. `web/app.js` has no tests — that is a known gap.
+exercised end to end.
+
+`web/assets_test.go` is `docs/ASSET_SPEC.md` made executable: it checks the
+embedded art for sprite-sheet grids, room completeness, serving-allowlist
+names, and that every prop is actually cut out. These are the failures that a
+code review cannot see and that reach the user as a village that looks wrong.
+Run it after any art drop.
+
+`web/app.js` itself has no tests — that is a known gap.
 
 When you add a check, **break it once and watch it fail** before you trust it.
