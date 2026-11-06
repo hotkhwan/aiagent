@@ -1,5 +1,10 @@
 # Asset specification — for a clean-licence replacement set
 
+> The owner's 2026-11-06 redesign mockups change the look and add screens.
+> What is art, what is an SVG path, and what is code is worked out in
+> [REDESIGN_SPEC.md](REDESIGN_SPEC.md) — read that first. The names, sizes
+> and alpha rules on this page still govern every raster file.
+
 Every image in `web/assets/` is to be **regenerated from scratch** so the set can
 ship under Apache-2.0 alongside the code, replacing the current images whose
 provenance was never recorded (see [ASSETS.md](ASSETS.md)).
