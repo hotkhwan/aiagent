@@ -116,6 +116,17 @@ It refuses the same things the service refuses: an unconfigured workspace
 name, and a pane that is running a shell rather than an agent — typing into a
 shell would execute your text as a command.
 
+### Tab completion
+
+`install.sh` sets it up for zsh and bash. Workspace names and run ids are
+completed from the live configuration, so tab shows what this machine can
+actually reach rather than a list baked in at install time:
+
+```
+agcmd dispatch <TAB>       → your configured workspaces
+agcmd eng approve <TAB>    → the run ids that exist
+```
+
 State lives in `$AIAGENT_STATE_DIR`, else `$XDG_STATE_HOME/aiagent`, else
 `~/.local/state/aiagent`.
 

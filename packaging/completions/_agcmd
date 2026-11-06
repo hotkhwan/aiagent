@@ -1,0 +1,128 @@
+#compdef agcmd aiagent
+# zsh completion for agcmd and aiagent.
+#
+# Workspace names and run ids are completed from the live configuration rather
+# than a hard-coded list, so tab shows what this machine can actually reach.
+# Both lookups are read-only and fail silently: a missing config or a stopped
+# tmux server must leave you with plain completion, never an error over your
+# prompt.
+
+_agcmd_workspaces() {
+  local -a ws
+  ws=(${(f)"$(agcmd ws list 2>/dev/null | awk 'NR>1 && $1 != "" {print $1}')"})
+  (( ${#ws} )) && _describe -t workspaces 'workspace' ws
+}
+
+_agcmd_runs() {
+  local -a runs
+  runs=(${(f)"$(agcmd eng status 2>/dev/null | awk 'NR>1 && $1 ~ /^ENG-/ {print $1}')"})
+  (( ${#runs} )) && _describe -t runs 'run' runs
+}
+
+_agcmd() {
+  local -a cmds
+  cmds=(
+    'ws:list configured workspaces and their state'
+    'dispatch:send a message to a workspace'"'"'s agent'
+    'eng:create or manage a tracked run'
+    'restart:interrupt what the agent is doing'
+    'help:show usage'
+  )
+
+  if (( CURRENT == 2 )); then
+    _describe -t commands 'agcmd command' cmds
+    return
+  fi
+
+  case "${words[2]}" in
+  ws)
+    (( CURRENT == 3 )) && _values 'subcommand' 'list[configured workspaces and their state]'
+    ;;
+  dispatch)
+    case $CURRENT in
+    3) _agcmd_workspaces ;;
+    4) _message 'message to send' ;;
+    esac
+    ;;
+  restart)
+    (( CURRENT == 3 )) && _agcmd_workspaces
+    ;;
+  eng)
+    local -a sub
+    sub=(
+      'status:list runs, or show one'
+      'answer:answer a run waiting on a decision'
+      'approve:mark a waiting run approved'
+      'abort:stop a run and mark it aborted'
+      'archive:hide a finished run from the board'
+      'note:append a line to the run log'
+    )
+    case $CURRENT in
+    3)
+      # `agcmd eng <task> <ws>` shares this position with the subcommands, so
+      # offer both rather than pretending the task form does not exist.
+      _describe -t commands 'eng subcommand' sub
+      _message 'or: the task text, followed by a workspace'
+      ;;
+    4)
+      case "${words[3]}" in
+      status|answer|approve|abort|archive|note) _agcmd_runs ;;
+      *) _agcmd_workspaces ;;
+      esac
+      ;;
+    5)
+      case "${words[3]}" in
+      answer) _message 'answer text' ;;
+      note) _message 'note text' ;;
+      esac
+      ;;
+    esac
+    ;;
+  esac
+}
+
+_aiagent() {
+  local -a cmds
+  cmds=(
+    'serve:run the service'
+    'enable:turn it on and print a new token'
+    'rotate-token:replace the token'
+    'disable:turn it off'
+    'status:is it on?'
+    'statusline:Claude Code status line command'
+    'review:file an HTML page for the operator to review'
+    'help:show usage'
+  )
+
+  if (( CURRENT == 2 )); then
+    _describe -t commands 'aiagent command' cmds
+    return
+  fi
+
+  case "${words[2]}" in
+  serve)
+    _arguments \
+      '--listen[address to listen on]:address:_hosts' \
+      '--state-dir[where state lives]:directory:_files -/' \
+      '--homes[colon-separated home directories to watch]:homes:' \
+      '--workspaces[workspace config file]:file:_files -g "*.json"' \
+      '--tls-cert[TLS certificate]:file:_files -g "*.pem"' \
+      '--tls-key[TLS private key]:file:_files -g "*.pem"'
+    ;;
+  enable|disable|rotate-token|status)
+    _arguments '--state-dir[where state lives]:directory:_files -/'
+    ;;
+  review)
+    _arguments \
+      '--title[what was done or changed]:title:' \
+      '--summary[short summary shown in the list]:summary:' \
+      '--session[session id]:session:' \
+      '*:page:_files -g "*.html"'
+    ;;
+  esac
+}
+
+case "$service" in
+aiagent) _aiagent "$@" ;;
+*) _agcmd "$@" ;;
+esac

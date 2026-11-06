@@ -60,6 +60,27 @@ for b in aiagent agcmd; do
 	fi
 done
 
+# Shell completion. zsh looks in a directory on $fpath; bash needs the file
+# sourced. Both are optional — the tools work without them.
+compDir="${COMPDIR:-$HOME/.local/share/zsh/site-functions}"
+case "$(basename "${SHELL:-sh}")" in
+zsh)
+	mkdir -p "$compDir"
+	install -m 0644 "$root/packaging/completions/_agcmd" "$compDir/_agcmd"
+	echo "installed zsh completion to $compDir/_agcmd"
+	# $fpath only exists inside zsh, and this script is /bin/sh, so ask zsh.
+	if ! zsh -c 'print -l $fpath' 2>/dev/null | grep -qx "$compDir"; then
+		completionNote="$compDir"
+	fi
+	;;
+bash)
+	mkdir -p "$HOME/.local/share/bash-completion"
+	install -m 0644 "$root/packaging/completions/agcmd.bash" "$HOME/.local/share/bash-completion/agcmd.bash"
+	echo "installed bash completion to $HOME/.local/share/bash-completion/agcmd.bash"
+	completionNote="bash"
+	;;
+esac
+
 stateDir="${XDG_STATE_HOME:-$HOME/.local/state}/aiagent"
 mkdir -p "$stateDir"
 if [ ! -e "$stateDir/workspaces.json" ]; then
@@ -115,6 +136,29 @@ Reach the service from another device over a private network (Tailscale
 Serve, a Cloudflare Tunnel, an SSH tunnel, or a reverse proxy that terminates
 TLS). Do not publish the port directly.
 EOF
+
+if [ -n "${completionNote:-}" ]; then
+	case "$(basename "${SHELL:-sh}")" in
+	zsh)
+		cat <<EOF_COMP
+
+Tab completion is installed but not yet on \$fpath. Add to ~/.zshrc, above
+any compinit line:
+
+  fpath=($completionNote \$fpath)
+  autoload -Uz compinit && compinit
+EOF_COMP
+		;;
+	bash)
+		cat <<EOF_COMP
+
+Tab completion is installed. Enable it:
+
+  echo 'source $HOME/.local/share/bash-completion/agcmd.bash' >> ~/.bashrc
+EOF_COMP
+		;;
+	esac
+fi
 
 case ":$PATH:" in
 *":$bindir:"*) ;;
