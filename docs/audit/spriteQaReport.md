@@ -132,3 +132,55 @@ frame that is byte-identical to its neighbour is caught reliably by the shape
 AND colour test. But **walk quality in this project is confirmed by opening
 the converted sheet and watching the legs**, and every sheet called good above
 was looked at.
+
+---
+
+# Update, 2026-11-07 (second batch): NOT installed
+
+Five sheets arrived for the five slots that still repeat a frame internally —
+`ch-designer-rest`, `ch-dev-rest`, `ch-dev-think`, `ch-dev-work`,
+`ch-tester-rest`. They are **not installed**, because they are a redesign of
+the characters rather than a repair of those five animations.
+
+## What was measured
+
+Mean colour of the opaque pixels in the head region of frame 1, against the
+character already in the tree:
+
+| Slot | Installed | New | Distance |
+|---|---|---|---:|
+| `dev` | RGB(191, 89, 145) — pink | RGB(28, 92, 171) — blue | **164** |
+| `designer` | RGB(129, 79, 147) | RGB(110, 71, 106) | 47 |
+| `tester` | RGB(70, 89, 81) | RGB(100, 85, 89) | 31 |
+
+Three of the five sheets are a **blue-haired** character. The developer in the
+tree is pink-haired, in all six of its existing animations. Installing these
+would give a developer who is pink-haired while walking and celebrating and
+blue-haired while working, thinking and resting.
+
+The other two are closer but still different people on screen: the installed
+designer has solid purple hair and carries a tablet, the new one has dark hair
+with pink tips and carries a palette and swatches; the installed tester glows
+teal and holds a tablet, the new one glows blue and holds a clipboard.
+
+## Why that is worse than the bug it fixes
+
+The defect being repaired is a repeated frame — a loop that stutters. The
+defect that would be introduced is a character whose identity changes with its
+mood. The first is a small animation flaw; the second reads as two different
+agents and is noticed immediately.
+
+Structurally the sheets are fine: four distinct poses each, no repeated frames,
+chroma green, and they convert cleanly. Nothing is wrong with them as art.
+
+## The decision this needs
+
+Two coherent ways forward, and they should not be mixed:
+
+1. **Keep the cast as installed** and re-request these five against the
+   existing designs — pink-haired dev, purple-haired designer with a tablet,
+   teal tester. The reference is in the tree: `web/assets/ch-<role>-cheer.png`.
+2. **Accept the redesign** and re-request **all 36** in it. Half a cast in each
+   style is the one outcome to avoid.
+
+The five files are untouched in `~/Downloads` either way.
