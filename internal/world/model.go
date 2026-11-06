@@ -10,7 +10,7 @@ import "time"
 //	ended    — no live process holds the session (exited); history only
 //
 // A session is never reported "completed" here: process exit is not proof
-// of a successful task. Task outcome lives on kcmd eng runs (self-reported,
+// of a successful task. Task outcome lives on agcmd eng runs (self-reported,
 // labelled as such).
 const (
 	StatusRunning = "running"
@@ -66,7 +66,7 @@ type Session struct {
 	Cwd         string `json:"cwd"`
 	RepoID      string `json:"repoId"`
 	Workspace   string `json:"workspace,omitempty"`
-	// DispatchVia names the kcmd workspace whose tmux agent pane IS this
+	// DispatchVia names the agcmd workspace whose tmux agent pane IS this
 	// session's process (pid descends from the pane). Only then does sending
 	// work from the web reach this exact session.
 	DispatchVia  string     `json:"dispatchVia,omitempty"`
@@ -87,12 +87,12 @@ type Session struct {
 	// (working | blocked | done) when the daemon knows this session.
 	AgentState string `json:"agentState,omitempty"`
 	// StopVia is the supported way the web may stop this agent:
-	// "claudeStop" (`claude stop <id>`, conversation kept) or "kcmdRestart"
-	// (`kcmd restart <workspace>` for a CLI running in a kcmd tmux pane).
+	// "claudeStop" (`claude stop <id>`, conversation kept) or "agcmdRestart"
+	// (`agcmd restart <workspace>` for a CLI running in a agcmd tmux pane).
 	// Empty → StopBlocked explains why it must be stopped where it runs.
 	StopVia     string `json:"stopVia,omitempty"`
 	StopBlocked string `json:"stopBlocked,omitempty"`
-	// MessageVia: "kcmd" | "relay" — how the web can type to THIS session.
+	// MessageVia: "agcmd" | "relay" — how the web can type to THIS session.
 	MessageVia     string     `json:"messageVia,omitempty"`
 	MessageBlocked string     `json:"messageBlocked,omitempty"`
 	PRs            []PRLink   `json:"prs,omitempty"`
@@ -113,14 +113,14 @@ type Session struct {
 	inPane     string
 }
 
-// Decision is a kcmd eng question waiting for a human.
+// Decision is a agcmd eng question waiting for a human.
 type Decision struct {
 	Question string   `json:"question"`
 	Options  []string `json:"options"`
 }
 
-// Run is a kcmd eng run (mission). Status is SELF-REPORTED by the agent or an
-// operator through kcmd; Lost is derived (RUNNING but its tmux session gone).
+// Run is a agcmd eng run (mission). Status is SELF-REPORTED by the agent or an
+// operator through agcmd; Lost is derived (RUNNING but its tmux session gone).
 type Run struct {
 	ID          string    `json:"id"`
 	Task        string    `json:"task"`
@@ -134,7 +134,7 @@ type Run struct {
 	Lost        bool      `json:"lost"`
 }
 
-// Workspace is a kcmd workspace an operator may dispatch to.
+// Workspace is a agcmd workspace an operator may dispatch to.
 type Workspace struct {
 	Name         string     `json:"name"`
 	TmuxSession  string     `json:"tmuxSession"`

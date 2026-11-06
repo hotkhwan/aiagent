@@ -46,6 +46,35 @@ type workspaceConfig struct {
 	} `json:"workspaces"`
 }
 
+// WorkspaceInfo is a configured workspace in a form callers outside this
+// package can use — the agcmd CLI reads the same file, so that both it and
+// the service refuse exactly the same names.
+type WorkspaceInfo struct {
+	Name        string
+	TmuxSession string
+	Dir         string
+}
+
+// LoadWorkspaceList reads the config and returns it in exported form. Same
+// file, same validation as LoadWorkspaces.
+func LoadWorkspaceList(path string) ([]WorkspaceInfo, error) {
+	ws, err := LoadWorkspaces(path)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]WorkspaceInfo, 0, len(ws))
+	for _, w := range ws {
+		out = append(out, WorkspaceInfo{Name: w.name, TmuxSession: w.session, Dir: w.dir})
+	}
+	return out, nil
+}
+
+// DefaultWorkspacesPath is where both the service and agcmd look when no
+// explicit path is given.
+func DefaultWorkspacesPath() string {
+	return filepath.Join(DefaultStateDir(), "workspaces.json")
+}
+
 // LoadWorkspaces reads a workspace config. A missing file is not an error: it
 // means "no workspaces", which is the correct state for a view-only install
 // and for the `none` driver. Every entry must carry all three fields and an

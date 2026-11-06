@@ -1,15 +1,15 @@
-// internal/world/kcmd.go
+// internal/world/agcmd.go
 //
-// The kcmd driver is one write path: AI Agent World never types into tmux
-// itself here and never runs a shell. Every action is
-// `kcmd <fixed subcommand> <args...>` executed with an argv (no shell), after:
+// agcmd is the write path: AI Agent World never types into tmux itself and
+// never runs a shell. Every action is
+// `agcmd <fixed subcommand> <args...>` executed with an argv (no shell), after:
 //
 //   - the workspace resolves to a configured entry (see workspaces.go); an
 //     unknown name is refused and never reaches the command line,
 //   - the text is length-limited and stripped of control characters,
 //   - the target tmux `agent` window is confirmed to be running an agent CLI
-//     (claude/codex/node), NOT a bare shell. kcmd would otherwise create an
-//     empty session and type the operator's text into bash.
+//     (claude/codex/node), NOT a bare shell — typing into a shell would run
+//     the operator's text as a command. agcmd re-checks this itself.
 package world
 
 import (
@@ -120,7 +120,7 @@ func (c *Collector) workspaces(tm tmuxState) []Workspace {
 	return out
 }
 
-// ---- kcmd eng runs (read) ----
+// ---- agcmd eng runs (read) ----
 
 var runIDPattern = regexp.MustCompile(`^ENG-[0-9]{8}-[0-9]{3,}$`)
 
@@ -136,7 +136,7 @@ type runFile struct {
 }
 
 func (c *Collector) readRuns(tm tmuxState) []Run {
-	files, _ := filepath.Glob(filepath.Join(c.KcmdRunsDir, "ENG-*.json"))
+	files, _ := filepath.Glob(filepath.Join(c.RunsDir, "ENG-*.json"))
 	var out []Run
 	for _, p := range files {
 		rf, err := readRunFile(p)
@@ -163,12 +163,12 @@ func readRunFile(p string) (runFile, error) {
 	return rf, err
 }
 
-// RunLog returns the last n lines of a run's kcmd log (agent-written notes).
+// RunLog returns the last n lines of a run's log (agent-written notes).
 func (c *Collector) RunLog(id string, n int) ([]string, error) {
 	if !runIDPattern.MatchString(id) {
 		return nil, ErrBadRequest("invalid run id")
 	}
-	p := filepath.Join(c.KcmdRunsDir, id+".log")
+	p := filepath.Join(c.RunsDir, id+".log")
 	fi, err := os.Stat(p)
 	if err != nil {
 		return nil, ErrNotFound("run not found")
@@ -185,7 +185,7 @@ func (c *Collector) RunLog(id string, n int) ([]string, error) {
 	return lines, nil
 }
 
-// ---- actions (write, via kcmd only) ----
+// ---- actions (write, via agcmd only) ----
 
 // APIError carries an HTTP status for the handler layer.
 type APIError struct {
@@ -207,7 +207,7 @@ func ErrConflict(msg string) error { return &APIError{409, "AIAGENT_CONFLICT", m
 
 const maxTextRunes = 4000
 
-// engReserved are words kcmd eng would treat as a subcommand, not task text.
+// engReserved are words `agcmd eng` would treat as a subcommand, not task text.
 var engReserved = map[string]bool{
 	"status": true, "inbox": true, "open": true, "watch": true, "answer": true, "decision": true,
 	"note": true, "set-status": true, "pause": true, "resume": true, "approve": true, "abort": true,
@@ -247,7 +247,7 @@ func cleanText(s string) (string, error) {
 func (c *Collector) requireAgentReady(ctx context.Context, session string) error {
 	tm := c.readTmux(ctx)
 	if _, ok := tm.sessions[session]; !ok {
-		return ErrConflict("tmux session " + session + " is not running — start the agent first (kcmd start)")
+		return ErrConflict("tmux session " + session + " is not running — start the agent first (agcmd start)")
 	}
 	if cmd := tm.agentCmd[session]; !agentReady(cmd) {
 		return ErrConflict("the agent window of " + session + " is a plain shell (" + cmd + "), not an AI agent — refusing to type into a shell")
@@ -255,24 +255,24 @@ func (c *Collector) requireAgentReady(ctx context.Context, session string) error
 	return nil
 }
 
-func (c *Collector) kcmd(ctx context.Context, args ...string) (string, error) {
+func (c *Collector) agcmd(ctx context.Context, args ...string) (string, error) {
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
-	out, err := c.Runner.Run(ctx, c.KcmdPath, args...)
+	out, err := c.Runner.Run(ctx, c.AgcmdPath, args...)
 	text := strings.TrimSpace(string(out))
 	if err != nil {
 		var ee *exec.ExitError
 		if errors.As(err, &ee) || text != "" {
-			return text, &APIError{502, "AIAGENT_KCMD_FAILED", "kcmd failed: " + truncateRunes(text, 300)}
+			return text, &APIError{502, "AGCMD_BIN_FAILED", "agcmd failed: " + truncateRunes(text, 300)}
 		}
-		return text, &APIError{502, "AIAGENT_KCMD_FAILED", "kcmd failed: " + err.Error()}
+		return text, &APIError{502, "AGCMD_BIN_FAILED", "agcmd failed: " + err.Error()}
 	}
 	return text, nil
 }
 
 var createdRunPattern = regexp.MustCompile(`(ENG-[0-9]{8}-[0-9]{3,})\s+RUNNING`)
 
-// Mission creates a tracked kcmd eng run in a workspace.
+// Mission creates a tracked agcmd eng run in a workspace.
 func (c *Collector) Mission(ctx context.Context, workspace, task string) (string, error) {
 	w, ok := c.lookupWorkspace(workspace)
 	if !ok {
@@ -283,12 +283,12 @@ func (c *Collector) Mission(ctx context.Context, workspace, task string) (string
 		return "", err
 	}
 	if engReserved[strings.ToLower(task)] {
-		return "", ErrBadRequest("task text is a reserved kcmd word; describe the task in a sentence")
+		return "", ErrBadRequest("task text is a reserved agcmd word; describe the task in a sentence")
 	}
 	if err := c.requireAgentReady(ctx, w.session); err != nil {
 		return "", err
 	}
-	out, err := c.kcmd(ctx, "eng", task, w.name)
+	out, err := c.agcmd(ctx, "eng", task, w.name)
 	if err != nil {
 		return "", err
 	}
@@ -311,7 +311,7 @@ func (c *Collector) Message(ctx context.Context, workspace, message string) erro
 	if err := c.requireAgentReady(ctx, w.session); err != nil {
 		return err
 	}
-	_, err = c.kcmd(ctx, "dispatch", w.name, message)
+	_, err = c.agcmd(ctx, "dispatch", w.name, message)
 	return err
 }
 
@@ -319,7 +319,7 @@ func (c *Collector) loadRun(id string) (runFile, error) {
 	if !runIDPattern.MatchString(id) {
 		return runFile{}, ErrBadRequest("invalid run id")
 	}
-	rf, err := readRunFile(filepath.Join(c.KcmdRunsDir, id+".json"))
+	rf, err := readRunFile(filepath.Join(c.RunsDir, id+".json"))
 	if err != nil {
 		return rf, ErrNotFound("run not found")
 	}
@@ -342,12 +342,12 @@ func (c *Collector) Answer(ctx context.Context, id, answer string) error {
 	if err := c.requireAgentReady(ctx, rf.Session); err != nil {
 		return err
 	}
-	_, err = c.kcmd(ctx, "eng", "answer", id, answer)
+	_, err = c.agcmd(ctx, "eng", "answer", id, answer)
 	return err
 }
 
 // SetRunStatus records approve (→READY) or abort (→ABORTED) on a run. It
-// changes kcmd bookkeeping only; it does not merge, deploy or kill anything.
+// changes agcmd bookkeeping only; it does not merge, deploy or kill anything.
 func (c *Collector) SetRunStatus(ctx context.Context, id, action string) error {
 	rf, err := c.loadRun(id)
 	if err != nil {
@@ -362,7 +362,7 @@ func (c *Collector) SetRunStatus(ctx context.Context, id, action string) error {
 	case "DONE", "ABORTED", "ARCHIVED":
 		return ErrConflict("run is already " + rf.Status)
 	}
-	_, err = c.kcmd(ctx, "eng", action, id)
+	_, err = c.agcmd(ctx, "eng", action, id)
 	return err
 }
 
@@ -384,9 +384,9 @@ func (c *Collector) Stop(ctx context.Context, sessionID string) (string, error) 
 		return "", ErrNotFound("no live session with that id")
 	}
 	switch target.StopVia {
-	case "kcmdRestart":
-		_, err := c.kcmd(ctx, "restart", target.inPane)
-		return "kcmd restart " + target.inPane, err
+	case "agcmdRestart":
+		_, err := c.agcmd(ctx, "restart", target.inPane)
+		return "agcmd restart " + target.inPane, err
 	case "claudeStop":
 		short := target.SessionID
 		if len(short) > 8 {

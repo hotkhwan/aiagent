@@ -117,6 +117,19 @@ users, and it widens the blast radius of any bug to all of them.
 - **Traffic interception.** There is no transport security of its own on
   loopback. Anything beyond this machine must be wrapped by you.
 
+## Posture chosen for this deployment (owner, 2026-11-06)
+
+The owner's instance runs behind a Cloudflare Tunnel on a public hostname with
+**the token as the only gate** — Cloudflare Access was offered and declined.
+
+Written down plainly so nobody has to guess later: that means the whole of
+"NOT defended against" above applies to anyone on the internet who obtains the
+token, and the lockout (10 wrong tokens per address per 5 minutes) is the only
+thing standing between a guesser and the service. It is a 32-byte random
+token, so guessing is not the realistic risk; losing or pasting it is. Rotate
+with `aiagent rotate-token` the moment you suspect it has leaked — the old one
+stops working immediately.
+
 ## Before you expose it
 
 - [ ] `aiagent status` shows enabled, and you hold the token privately.

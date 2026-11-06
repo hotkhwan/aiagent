@@ -5,19 +5,19 @@
 //	GET  /aiagent                      the AI Agent World page (404 while disabled)
 //	GET  /aiagent/api/snapshot         token
 //	GET  /aiagent/api/sessions/:id     token — session + tool timeline
-//	GET  /aiagent/api/runs/:id/log     token — kcmd eng run notes (tail)
-//	POST /aiagent/api/missions         token — {workspace, task}   → kcmd eng
-//	POST /aiagent/api/messages         token — {workspace, message}→ kcmd dispatch
-//	POST /aiagent/api/runs/:id/answer  token — {answer}            → kcmd eng answer
-//	POST /aiagent/api/runs/:id/approve token                       → kcmd eng approve
-//	POST /aiagent/api/runs/:id/abort   token                       → kcmd eng abort
+//	GET  /aiagent/api/runs/:id/log     token — agcmd eng run notes (tail)
+//	POST /aiagent/api/missions         token — {workspace, task}   → agcmd eng
+//	POST /aiagent/api/messages         token — {workspace, message}→ agcmd dispatch
+//	POST /aiagent/api/runs/:id/answer  token — {answer}            → agcmd eng answer
+//	POST /aiagent/api/runs/:id/approve token                       → agcmd eng approve
+//	POST /aiagent/api/runs/:id/abort   token                       → agcmd eng abort
 //	GET  /aiagent/api/sessions/:id/messages token — redacted user/assistant text
 //	POST /aiagent/api/sessions/:id/message  token — {message} → that session
-//	                                   (kcmd dispatch, or relay for own bg sessions)
+//	                                   (agcmd dispatch, or relay for own bg sessions)
 //	POST /aiagent/api/uploads          token — raw image body → {path} for a message
 //	POST /aiagent/api/sessions/:id/model token — /model <opus|sonnet|haiku> via the session's channel
 //	POST /aiagent/api/sessions/:id/stop token — claude stop <id> (own bg session)
-//	                                   or kcmd restart <ws> (CLI in a kcmd pane);
+//	                                   or agcmd restart <ws> (CLI in a agcmd pane);
 //	                                   interactive/foreign sessions are refused
 //
 // The on/off switch and the token live in the CLI, not on this listener.

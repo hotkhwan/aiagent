@@ -14,19 +14,19 @@ import (
 )
 
 // Collector builds snapshots of AI agent activity on this host and performs
-// the kcmd-backed actions. It is safe for concurrent use.
+// the agcmd-backed actions. It is safe for concurrent use.
 type Collector struct {
 	// Homes lists home directories to scan. Empty → /root plus every
 	// /home/* that contains .claude or .codex.
-	Homes       []string
-	ProcRoot    string
-	KcmdRunsDir string
-	KcmdPath    string
-	TmuxPath    string
-	Runner      Runner
-	Now         func() time.Time
-	CacheTTL    time.Duration
-	HistoryMax  int
+	Homes      []string
+	ProcRoot   string
+	RunsDir    string
+	AgcmdPath  string
+	TmuxPath   string
+	Runner     Runner
+	Now        func() time.Time
+	CacheTTL   time.Duration
+	HistoryMax int
 	// Workspaces are the named checkouts an agent may be dispatched into,
 	// loaded from the operator's config (workspaces.go). Empty is valid and
 	// means view-only: every dispatch is refused as "unknown workspace".
@@ -50,19 +50,19 @@ type Collector struct {
 }
 
 // NewCollector returns a collector with the packaged defaults, overridable
-// from the environment (AIAGENT_HOMES colon-separated, AIAGENT_KCMD,
-// AIAGENT_KCMD_RUNS, AIAGENT_TMUX).
+// from the environment (AIAGENT_HOMES colon-separated, AGCMD_BIN,
+// AGCMD_RUNS, AIAGENT_TMUX).
 func NewCollector() *Collector {
 	c := &Collector{
-		ProcRoot:    "/proc",
-		KcmdRunsDir: envOr("AIAGENT_KCMD_RUNS", "/var/lib/kcmd/eng/runs"),
-		KcmdPath:    envOr("AIAGENT_KCMD", "/usr/local/bin/kcmd"),
-		TmuxPath:    envOr("AIAGENT_TMUX", "tmux"),
-		ClaudePath:  envOr("AIAGENT_CLAUDE", findClaude()),
-		CodexPath:   envOr("AIAGENT_CODEX", findBin("codex")),
-		Runner:      ExecRunner{},
-		CacheTTL:    3 * time.Second,
-		HistoryMax:  60,
+		ProcRoot:   "/proc",
+		RunsDir:    envOr("AGCMD_RUNS", filepath.Join(DefaultStateDir(), "runs")),
+		AgcmdPath:  envOr("AGCMD_BIN", findBin("agcmd")),
+		TmuxPath:   envOr("AIAGENT_TMUX", "tmux"),
+		ClaudePath: envOr("AIAGENT_CLAUDE", findClaude()),
+		CodexPath:  envOr("AIAGENT_CODEX", findBin("codex")),
+		Runner:     ExecRunner{},
+		CacheTTL:   3 * time.Second,
+		HistoryMax: 60,
 	}
 	if v := os.Getenv("AIAGENT_HOMES"); v != "" {
 		for _, h := range strings.Split(v, ":") {
@@ -201,8 +201,8 @@ func (c *Collector) collectLocked(ctx context.Context) Snapshot {
 	tm := c.readTmux(ctx)
 	snap.Workspaces = c.workspaces(tm)
 	snap.Runs = c.readRuns(tm)
-	if _, err := os.Stat(c.KcmdPath); err != nil {
-		snap.Warnings = append(snap.Warnings, "kcmd not found at "+c.KcmdPath+" — sending work is unavailable")
+	if _, err := os.Stat(c.AgcmdPath); err != nil {
+		snap.Warnings = append(snap.Warnings, "agcmd not found at "+c.AgcmdPath+" — sending work is unavailable")
 	}
 
 	// panes running `claude attach <id>` deliver typed text to that session
@@ -337,7 +337,7 @@ func (c *Collector) decideStop(ss *Session) {
 	}
 	switch {
 	case ss.inPane != "":
-		ss.StopVia = "kcmdRestart"
+		ss.StopVia = "agcmdRestart"
 	case ss.RuntimeType == "claudeCode" && ss.Kind == "bg" && ss.home == c.serviceHome():
 		ss.StopVia = "claudeStop"
 	case ss.RuntimeType == "claudeCode" && ss.Kind == "bg":
@@ -345,7 +345,7 @@ func (c *Collector) decideStop(ss *Session) {
 	case ss.RuntimeType == "claudeCode":
 		ss.StopBlocked = "เปิดอยู่ในเทอร์มินัล/VS Code ของผู้ใช้ (interactive) — ปิดจากที่นั่น เว็บไม่ปิดให้"
 	default:
-		ss.StopBlocked = "ไม่ได้รันใน tmux ของ kcmd — ไม่มีวิธีหยุดที่รองรับและปลอดภัย"
+		ss.StopBlocked = "ไม่ได้รันใน tmux ที่ agcmd ดูแล — ไม่มีวิธีหยุดที่รองรับและปลอดภัย"
 	}
 }
 

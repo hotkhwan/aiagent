@@ -242,7 +242,7 @@ function renderStats () {
     ['running', sm.running, 'กำลังทำงาน', ''],
     ['needsInput', sm.needsInput, 'รอคุณตอบ', sm.needsInput ? 'warn' : ''],
     ['rest', sm.idle + sm.completed, 'ว่าง / เสร็จแล้ว', ''],
-    ['runsDone', sm.runsDoneToday, 'งานเสร็จวันนี้ (kcmd)', ''],
+    ['runsDone', sm.runsDoneToday, 'งานเสร็จวันนี้ (agcmd)', ''],
     ['waitingApproval', sm.waitingApproval, 'รอตัดสินใจ', sm.waitingApproval ? 'warn' : ''],
     ['lost', sm.lost, 'ขาดการเชื่อมต่อ', sm.lost ? 'bad' : '']
   ]
@@ -256,7 +256,7 @@ function openFilter (key) {
   render()
 }
 
-const filterTitle = { running: 'กำลังทำงาน', needsInput: 'รอคุณตอบ', rest: 'ว่าง / เสร็จแล้ว', runsDone: 'งาน kcmd เสร็จวันนี้', waitingApproval: 'รอตัดสินใจ (kcmd)', lost: 'ขาดการเชื่อมต่อ' }
+const filterTitle = { running: 'กำลังทำงาน', needsInput: 'รอคุณตอบ', rest: 'ว่าง / เสร็จแล้ว', runsDone: 'งาน agcmd เสร็จวันนี้', waitingApproval: 'รอตัดสินใจ (agcmd)', lost: 'ขาดการเชื่อมต่อ' }
 
 function houseName (sess) { return (houseByKey[originOf(sess)] || {}).name || '' }
 
@@ -330,7 +330,7 @@ function updateComposerHint () {
   $('askMode').hidden = !!sess
   chip.hidden = !sess
   if (sess) {
-    chip.replaceChildren(h('span', null, 'ส่งถึง: ' + sess.displayName), h('small', null, sess.messageVia === 'relay' ? 'relay' : 'kcmd ' + sess.dispatchVia), h('button', { type: 'button', class: 'ghost', title: 'เปลี่ยนเป็นส่งตาม workspace', onclick: () => { back() } }, '×'))
+    chip.replaceChildren(h('span', null, 'ส่งถึง: ' + sess.displayName), h('small', null, sess.messageVia === 'relay' ? 'relay' : 'agcmd ' + sess.dispatchVia), h('button', { type: 'button', class: 'ghost', title: 'เปลี่ยนเป็นส่งตาม workspace', onclick: () => { back() } }, '×'))
     $('askText').placeholder = 'พิมพ์ถึง ' + sess.displayName + '… (Enter ส่ง · Shift+Enter ขึ้นบรรทัด · วาง/ลากรูปได้)'
     $('askGo').disabled = false
     return
@@ -387,14 +387,14 @@ function box (cls, x, y, w, hgt) {
 }
 
 const houses = [
-  { key: 'kcmd', name: 'บ้าน kcmd', sub: 'tmux · สั่งงานจากเว็บได้', img: 'house-kcmd', x: 250, y: 300, w: 330, icon: 'code', tone: 'green' },
+  { key: 'agcmd', name: 'บ้าน agcmd', sub: 'tmux · สั่งงานจากเว็บได้', img: 'house-kcmd', x: 250, y: 300, w: 330, icon: 'code', tone: 'green' },
   { key: 'daemon', name: 'บ้าน Background', sub: 'Claude daemon · ส่งข้อความผ่าน relay', img: 'house-bg', x: 640, y: 215, w: 380, icon: 'term', tone: 'purple' },
   { key: 'terminal', name: 'บ้าน Terminal · VS Code', sub: 'เปิดในเครื่องของผู้ใช้ · ดูได้อย่างเดียว', img: 'house-term', x: 1080, y: 300, w: 330, icon: 'code', tone: 'orange' }
 ]
 const houseByKey = Object.fromEntries(houses.map(x => [x.key, x]))
 
 function originOf (sess) {
-  if (sess.messageVia === 'kcmd') return 'kcmd'
+  if (sess.messageVia === 'agcmd') return 'agcmd'
   if (sess.kind === 'bg') return 'daemon'
   return 'terminal'
 }
@@ -441,7 +441,7 @@ function actorsFor (houseKey) {
       })
     }
   }
-  if (houseKey === 'kcmd') {
+  if (houseKey === 'agcmd') {
     for (const run of st.snap.runs) {
       if (run.status === 'WAITING_DECISION') out.push({ kind: 'run', id: run.id, room: 'approval', runtime: 'claudeCode', mood: 'ask', label: 'รอคุณตัดสินใจ', name: run.id })
       else if (run.lost) out.push({ kind: 'run', id: run.id, room: 'ops', runtime: 'claudeCode', mood: 'lost', label: 'ขาดการเชื่อมต่อ', name: run.id })
@@ -653,10 +653,10 @@ function drawVillageHouses (b, counts, all) {
     const enter = () => {
       stopFollow()
       if (hs.room) {
-        // go to the house that has most agents in this room (kcmd if none)
+        // go to the house that has most agents in this room (agcmd if none)
         const byHouse = {}
         for (const a of list) byHouse[a.house] = (byHouse[a.house] || 0) + 1
-        st.house = Object.keys(byHouse).sort((x, y) => byHouse[y] - byHouse[x])[0] || 'kcmd'
+        st.house = Object.keys(byHouse).sort((x, y) => byHouse[y] - byHouse[x])[0] || 'agcmd'
         st.sel = null; st.inspKey = ''
         openRoom(hs.room)
         return
@@ -968,7 +968,7 @@ const FW = 1640
 const FH = 990
 
 function flyTo (kind, id) {
-  let houseKey = 'kcmd'
+  let houseKey = 'agcmd'
   if (kind === 'session') {
     const sess = st.snap.sessions.find(x => x.sessionId === id)
     if (!sess || !sess.live) return select(kind, id)
@@ -1444,7 +1444,7 @@ function renderList () {
   box.replaceChildren(
     h('h3', null, 'Agent ที่ออนไลน์ (' + live.length + ')'),
     h('table', null, head('ชื่อ', 'ชนิด', 'สถานะ', 'งาน', 'ล่าสุด'), h('tbody', null, live.map(rowS))),
-    h('h3', null, 'งาน kcmd (' + st.snap.runs.length + ')'),
+    h('h3', null, 'งาน agcmd (' + st.snap.runs.length + ')'),
     h('table', null, head('Run', 'Workspace', 'สถานะ', 'งาน'), h('tbody', null, st.snap.runs.map(rowR))),
     h('h3', null, 'Session ที่จบแล้ววันนี้ (' + ended.length + ')'),
     h('table', null, head('ชื่อ', 'ชนิด', 'สถานะ', 'งาน', 'ล่าสุด'), h('tbody', null, ended.map(rowS)))
@@ -1457,7 +1457,7 @@ function targetFor (kind, id) {
   if (kind === 'session') {
     const sess = st.snap.sessions.find(x => x.sessionId === id)
     if (sess && sess.dispatchVia) return sess.dispatchVia
-    st.blockReason = (sess ? sess.displayName : 'agent นี้') + ' ไม่ได้รันใน tmux ของ kcmd — รับงานจากเว็บไม่ได้ (ดูได้อย่างเดียว)'
+    st.blockReason = (sess ? sess.displayName : 'agent นี้') + ' ไม่ได้รันใน tmux ของ agcmd — รับงานจากเว็บไม่ได้ (ดูได้อย่างเดียว)'
     return ''
   }
   const run = st.snap.runs.find(x => x.id === id)
@@ -1558,7 +1558,7 @@ function sessionHeader (sess) {
   ava.style.background = 'color-mix(in srgb, ' + agentColor(sess) + ' 18%, transparent)'
   const stateDot = h('i')
   stateDot.style.background = !sess.live ? 'var(--line)' : sess.status === 'running' ? 'var(--brand)' : sess.status === 'needsInput' ? 'var(--amber)' : 'var(--muted)'
-  const where = sess.messageVia === 'kcmd' ? 'บ้าน kcmd' : sess.kind === 'bg' ? 'บ้าน Background' : 'บ้าน Terminal · VS Code'
+  const where = sess.messageVia === 'agcmd' ? 'บ้าน agcmd' : sess.kind === 'bg' ? 'บ้าน Background' : 'บ้าน Terminal · VS Code'
   return [
     h('button', { type: 'button', class: 'ghost', onclick: back }, '← ภาพรวม'),
     h('div', { class: 'who' }, ava, h('div', null, h('h2', null, sess.displayName), h('p', null, runtimeName[sess.runtimeType] + ' · ' + where + ' · ' + (sess.repoId || '—')))),
@@ -1582,8 +1582,8 @@ function sessionPanel (sess, tab) {
   let tokens = 'ไม่ได้นับ'
   if (usage.source !== 'notCounted') tokens = num(usage.inputTokens) + ' เข้า · ' + num(usage.outputTokens) + ' ออก · cache ' + num(usage.cachedTokens) + (usage.complete ? '' : ' (กำลังนับ… ยังไม่ครบ)')
   const tl = (st.detail && st.detail.session.sessionId === sess.sessionId) ? st.detail.timeline : null
-  const reach = sess.messageVia === 'kcmd'
-    ? 'ได้ — ผ่าน kcmd workspace ' + sess.dispatchVia + (ws ? ' (tmux ' + ws.tmuxSession + ')' : '')
+  const reach = sess.messageVia === 'agcmd'
+    ? 'ได้ — ผ่าน agcmd workspace ' + sess.dispatchVia + (ws ? ' (tmux ' + ws.tmuxSession + ')' : '')
     : sess.messageVia === 'relay' ? 'ได้ — ผ่าน relay (tmux aiagent-' + sess.sessionId.slice(0, 8) + ' ที่รัน claude attach)' : 'ไม่ได้ — ' + (sess.messageBlocked || 'ไม่มีช่องทางที่ปลอดภัย')
   return [
     ...sessionHeader(sess),
@@ -1602,7 +1602,7 @@ function sessionPanel (sess, tab) {
       h('dt', null, 'เครื่องมือล่าสุด'), h('dd', null, sess.lastTool || '—')
     ),
     sess.live && sess.stopVia
-      ? h('button', { type: 'button', class: 'warn', onclick: () => doStop(sess) }, sess.stopVia === 'claudeStop' ? 'หยุด agent (claude stop)' : 'หยุด agent (kcmd restart)')
+      ? h('button', { type: 'button', class: 'warn', onclick: () => doStop(sess) }, sess.stopVia === 'claudeStop' ? 'หยุด agent (claude stop)' : 'หยุด agent (agcmd restart)')
       : (sess.live && sess.stopBlocked ? h('p', { class: 'note' }, 'หยุดจากเว็บไม่ได้: ' + sess.stopBlocked) : null),
     sess.prs && sess.prs.length ? h('div', { class: 'btns' }, sess.prs.map(pr => h('a', { href: pr.url, target: '_blank', rel: 'noopener noreferrer', class: 'pill' }, 'PR #' + pr.number + ' · ' + pr.repository))) : null,
     subList(sess),
@@ -1611,7 +1611,7 @@ function sessionPanel (sess, tab) {
 }
 
 function localCmd (sess) {
-  const cmd = sess.dispatchVia ? 'kcmd attach ' + sess.dispatchVia : sess.kind === 'bg' ? 'claude attach ' + sess.sessionId.slice(0, 8) : ''
+  const cmd = sess.dispatchVia ? 'agcmd attach ' + sess.dispatchVia : sess.kind === 'bg' ? 'claude attach ' + sess.sessionId.slice(0, 8) : ''
   if (!cmd) return 'เปิดอยู่ในเทอร์มินัล/VS Code ของผู้ใช้'
   return h('span', { class: 'cmd' }, h('code', null, cmd), h('button', { type: 'button', class: 'ghost copy', onclick: e => { copyText(cmd, e.currentTarget) } }, 'คัดลอก'))
 }
@@ -1626,7 +1626,7 @@ function copyText (text, btn) {
 function chatPanel (sess) {
   const log = h('div', { class: 'chatLog', 'aria-live': 'polite' }, h('p', { class: 'note' }, 'กำลังโหลดบทสนทนา…'))
   const parts = [log]
-  parts.push(h('p', { class: 'note' }, sess.messageVia ? 'พิมพ์ตอบที่ช่องยาวด้านล่าง (ส่งถึง agent ตัวนี้) · แนบรูปได้ · ' + (sess.messageVia === 'relay' ? 'ผ่าน relay claude attach ' + sess.sessionId.slice(0, 8) : 'ผ่าน kcmd dispatch ' + sess.dispatchVia) : 'ส่งข้อความจากเว็บไม่ได้: ' + (sess.messageBlocked || 'ไม่มีช่องทางที่ปลอดภัย')))
+  parts.push(h('p', { class: 'note' }, sess.messageVia ? 'พิมพ์ตอบที่ช่องยาวด้านล่าง (ส่งถึง agent ตัวนี้) · แนบรูปได้ · ' + (sess.messageVia === 'relay' ? 'ผ่าน relay claude attach ' + sess.sessionId.slice(0, 8) : 'ผ่าน agcmd dispatch ' + sess.dispatchVia) : 'ส่งข้อความจากเว็บไม่ได้: ' + (sess.messageBlocked || 'ไม่มีช่องทางที่ปลอดภัย')))
   parts.push(h('p', { class: 'note' }, 'แสดงเฉพาะข้อความผู้ใช้และคำตอบของ agent · ข้อมูลลับ (token, key, รหัสผ่าน) ถูกปิดบังก่อนส่งมาที่เว็บ'))
   return h('div', { class: 'chat' }, parts)
 }
@@ -1735,7 +1735,7 @@ async function sendChat (sess, ta, thumbs) {
   if (!text && !files.length) return
   st.confirmedChat = st.confirmedChat || {}
   if (!st.confirmedChat[sess.sessionId]) {
-    const how = sess.messageVia === 'relay' ? 'บริการนี้จะเปิด claude attach ' + sess.sessionId.slice(0, 8) + ' ใน tmux ส่วนตัวแล้วพิมพ์ข้อความนี้ให้ (เหมือนคุณพิมพ์เอง)' : 'ส่งผ่าน kcmd dispatch ' + sess.dispatchVia
+    const how = sess.messageVia === 'relay' ? 'บริการนี้จะเปิด claude attach ' + sess.sessionId.slice(0, 8) + ' ใน tmux ส่วนตัวแล้วพิมพ์ข้อความนี้ให้ (เหมือนคุณพิมพ์เอง)' : 'ส่งผ่าน agcmd dispatch ' + sess.dispatchVia
     if (!await confirmBox('ส่งข้อความถึง ' + sess.displayName, how + ' · ยืนยันครั้งเดียวต่อ agent ในแท็บนี้', text + (files.length ? '\n\n+ รูปแนบ ' + files.length + ' รูป' : ''), 'ส่ง')) return
     st.confirmedChat[sess.sessionId] = true
   }
@@ -1779,7 +1779,7 @@ function runPanel (run) {
       h('dt', null, 'tmux'), h('dd', null, run.tmuxSession + (run.tmuxAlive ? ' · เปิดอยู่' : ' · ไม่พบ session')),
       h('dt', null, 'สร้าง'), h('dd', null, fmtTime(run.createdAt) + ' · ' + ago(run.createdAt)),
       h('dt', null, 'อัปเดต'), h('dd', null, ago(run.updatedAt)),
-      h('dt', null, 'ที่มาของสถานะ'), h('dd', null, 'agent/ผู้ใช้รายงานผ่าน kcmd (ไม่ได้วัดจาก process)')
+      h('dt', null, 'ที่มาของสถานะ'), h('dd', null, 'agent/ผู้ใช้รายงานผ่าน agcmd (ไม่ได้วัดจาก process)')
     ),
     waiting && run.decision ? h('div', { class: 'card warn' },
       h('b', null, run.decision.question),
@@ -1790,7 +1790,7 @@ function runPanel (run) {
       h('button', { type: 'button', class: 'pri', onclick: () => doRunStatus(run, 'approve') }, 'อนุมัติ (ตั้งเป็น READY)'),
       h('button', { type: 'button', class: 'warn', onclick: () => doRunStatus(run, 'abort') }, 'ยกเลิกงาน')
     ),
-    h('p', { class: 'note' }, 'อนุมัติ/ยกเลิก เปลี่ยนสถานะใน kcmd เท่านั้น — ไม่ merge, ไม่ deploy และไม่ปิด process'),
+    h('p', { class: 'note' }, 'อนุมัติ/ยกเลิก เปลี่ยนสถานะใน agcmd เท่านั้น — ไม่ merge, ไม่ deploy และไม่ปิด process'),
     h('h3', null, 'บันทึกของงาน'),
     h('div', { class: 'log mono' }, st.runLog ? (st.runLog.join('\n') || '(ว่าง)') : 'กำลังโหลด…')
   ]
@@ -1831,7 +1831,7 @@ function overviewPanel () {
     policySlot(),
     h('p', { class: 'note' }, 'ตัวเลข quota มาจากผู้ให้บริการเท่านั้น ถ้าไม่มีข้อมูลจะแสดง “ไม่ทราบ” ไม่ประมาณเอง'),
     h('h3', null, 'วิธีใช้'),
-    h('p', { class: 'note' }, 'คลิกตัวละครหรือแถวในมุมมองรายการเพื่อดูรายละเอียด · ช่องด้านล่างใช้สั่งงานไปยัง agent ใน workspace ของ kcmd')
+    h('p', { class: 'note' }, 'คลิกตัวละครหรือแถวในมุมมองรายการเพื่อดูรายละเอียด · ช่องด้านล่างใช้สั่งงานไปยัง agent ใน workspace ของ agcmd')
   ]
 }
 
@@ -1862,7 +1862,7 @@ function modelName (id) {
 }
 
 async function switchModel (sess, alias) {
-  const ok = await confirmBox('เปลี่ยน model', 'จะพิมพ์ /model ' + alias + ' เข้า ' + sess.displayName + ' (' + (sess.messageVia === 'kcmd' ? 'kcmd ' + sess.dispatchVia : 'relay') + ') — มีผลกับข้อความถัดไปของ agent ตัวนี้', 'ปัจจุบัน: ' + modelName(sess.model) + ' → ' + modelName(alias), 'เปลี่ยนเลย')
+  const ok = await confirmBox('เปลี่ยน model', 'จะพิมพ์ /model ' + alias + ' เข้า ' + sess.displayName + ' (' + (sess.messageVia === 'agcmd' ? 'agcmd ' + sess.dispatchVia : 'relay') + ') — มีผลกับข้อความถัดไปของ agent ตัวนี้', 'ปัจจุบัน: ' + modelName(sess.model) + ' → ' + modelName(alias), 'เปลี่ยนเลย')
   if (!ok) return
   await act('/sessions/' + encodeURIComponent(sess.sessionId) + '/model', { model: alias }, () => 'เปลี่ยน ' + sess.displayName + ' เป็น ' + modelName(alias) + ' แล้ว')
 }
@@ -2179,7 +2179,7 @@ $('ask').addEventListener('submit', async e => {
   const where = ws + (w ? ' (tmux ' + w.tmuxSession + ', ' + w.agentCommand + ')' : '')
   const ok = await confirmBox(
     mode === 'mission' ? 'สร้างงานใหม่' : 'ส่งข้อความถึง agent',
-    'ข้อความนี้จะถูกพิมพ์เข้า agent ใน ' + where + (mode === 'mission' ? ' และติดตามเป็นงาน kcmd eng' : ''),
+    'ข้อความนี้จะถูกพิมพ์เข้า agent ใน ' + where + (mode === 'mission' ? ' และติดตามเป็นงาน agcmd eng' : ''),
     text + (files.length ? '\n\n+ รูปแนบ ' + files.length + ' รูป' : ''),
     'ส่งเลย'
   )
@@ -2284,7 +2284,7 @@ async function doStop (sess) {
   const short = sess.sessionId.slice(0, 8)
   const how = sess.stopVia === 'claudeStop'
     ? 'จะรัน claude stop ' + short + ' — หยุด background session นี้ บทสนทนายังเก็บไว้ เปิดต่อได้ด้วย claude attach ' + short
-    : 'จะรัน kcmd restart ' + sess.dispatchVia + ' — ปิดโปรแกรม agent ในหน้าต่าง tmux ของ workspace นี้ทันที งานที่ทำค้างจะหยุด'
+    : 'จะรัน agcmd restart ' + sess.dispatchVia + ' — ปิดโปรแกรม agent ในหน้าต่าง tmux ของ workspace นี้ทันที งานที่ทำค้างจะหยุด'
   const self = sess.dispatchVia ? '\nหมายเหตุ: agent นี้คือตัวที่รับงานจากเว็บผ่าน ' + sess.dispatchVia + ' หยุดแล้วจะสั่งงานจากเว็บไม่ได้จนกว่าจะเปิดใหม่' : ''
   if (!await confirmBox('หยุด ' + sess.displayName + '?', how + self, sess.title || '', 'หยุด agent')) return
   act('/sessions/' + encodeURIComponent(sess.sessionId) + '/stop', null, r => 'หยุด ' + sess.displayName + ' แล้ว (' + (r.via || '') + ')')
@@ -2292,7 +2292,7 @@ async function doStop (sess) {
 
 async function doRunStatus (run, action) {
   const label = action === 'approve' ? 'อนุมัติ' : 'ยกเลิก'
-  if (!await confirmBox(label + ' ' + run.id, 'เปลี่ยนสถานะงานใน kcmd เป็น ' + (action === 'approve' ? 'READY' : 'ABORTED') + ' (ไม่ปิด process ของ agent)', run.task.slice(0, 300), label)) return
+  if (!await confirmBox(label + ' ' + run.id, 'เปลี่ยนสถานะงานใน agcmd เป็น ' + (action === 'approve' ? 'READY' : 'ABORTED') + ' (ไม่ปิด process ของ agent)', run.task.slice(0, 300), label)) return
   act('/runs/' + encodeURIComponent(run.id) + '/' + action, null, () => label + ' ' + run.id + ' แล้ว')
 }
 

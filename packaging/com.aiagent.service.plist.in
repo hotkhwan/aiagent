@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  packaging/com.aiagent.service.plist.in — macOS LaunchAgent template.
+  install.sh substitutes @HOME@ and @BIN@.
+
+  Note the login shell. launchd hands a service a stripped environment, and
+  the identical binary behaves differently because of it: started from a
+  terminal it finds the tmux server, started bare by launchd it reports every
+  workspace as dead, with no error anywhere. Running through `zsh -lc` gives
+  the service the same environment the agents themselves were started in,
+  which is the only configuration this has been seen to work in.
+
+  Measured on macOS 26: PATH, TMPDIR and TMUX_TMPDIR pinned explicitly were
+  all NOT enough on their own — `claude` ran fine while `tmux` found nothing.
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.aiagent.service</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/zsh</string>
+    <string>-lc</string>
+    <string>exec @BIN@ serve --listen 127.0.0.1:8890</string>
+  </array>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>StandardOutPath</key><string>@HOME@/Library/Logs/aiagent.log</string>
+  <key>StandardErrorPath</key><string>@HOME@/Library/Logs/aiagent.log</string>
+</dict>
+</plist>

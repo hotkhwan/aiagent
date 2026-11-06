@@ -1,10 +1,10 @@
 // internal/aiagent/relay.go
 //
-// Messaging a session directly (not a kcmd workspace):
+// Messaging a session directly (not a agcmd workspace):
 //
-//	kcmd    — the session is the CLI in a kcmd tmux agent pane, or attached
-//	          there with `claude attach`: `kcmd dispatch <workspace>`.
-//	relay   — an own background Claude session (kind=bg) that no kcmd pane
+//	agcmd   — the session is the CLI in an agcmd tmux agent pane, or attached
+//	          there with `claude attach`: `agcmd dispatch <workspace>`.
+//	relay   — an own background Claude session (kind=bg) that no agcmd pane
 //	          attaches: this service keeps a private tmux session `aiagent-<id>` whose
 //	          ONLY process is `claude attach <id>` (no shell; if attach exits,
 //	          the tmux session ends), and types into it. Verified on a dev box:
@@ -29,7 +29,7 @@ func (c *Collector) decideMessage(ss *Session) {
 	}
 	switch {
 	case ss.DispatchVia != "":
-		ss.MessageVia = "kcmd"
+		ss.MessageVia = "agcmd"
 	case ss.RuntimeType == "claudeCode" && ss.Kind == "bg" && ss.home == c.serviceHome() && shortIDPattern.MatchString(shortID(ss.SessionID)):
 		ss.MessageVia = "relay"
 	case ss.RuntimeType == "claudeCode" && ss.Kind == "bg":
@@ -72,8 +72,8 @@ func (c *Collector) SendToSession(ctx context.Context, id, message string) (stri
 		return "", ErrNotFound("no live session with that id")
 	}
 	switch target.MessageVia {
-	case "kcmd":
-		return "kcmd dispatch " + target.DispatchVia, c.Message(ctx, target.DispatchVia, message)
+	case "agcmd":
+		return "agcmd dispatch " + target.DispatchVia, c.Message(ctx, target.DispatchVia, message)
 	case "relay":
 		short := shortID(target.SessionID)
 		for _, o := range snap.Sessions {
@@ -97,7 +97,7 @@ var ClaudeModels = [][2]string{
 }
 
 // SetModel switches a Claude Code session's model by typing the /model
-// command through the session's normal channel (kcmd or relay). Only the
+// command through the session's normal channel (agcmd or relay). Only the
 // fixed aliases are accepted, so this cannot carry any other command.
 func (c *Collector) SetModel(ctx context.Context, id, alias string) (string, error) {
 	if !claudeModelRE.MatchString(alias) {

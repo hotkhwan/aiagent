@@ -17,6 +17,7 @@ browser ──HTTP(loopback)──▶ cmd/aiagent ──▶ internal/world
 | Path | Role |
 |---|---|
 | `cmd/aiagent` | CLI and service entry point: `serve`, `enable`, `disable`, `rotate-token`, `status`, `statusline`, `review` |
+| `cmd/agcmd` | The write path, as a binary of its own: resolves a workspace, checks the pane is an agent, pastes the message, keeps run records. The service shells out to it; a human can run the same commands |
 | `internal/world` | Everything else; the package is deliberately flat |
 | `internal/audit` | Append-only JSONL log: intent before an action, result after |
 | `web` | The UI, `//go:embed`-ed. It is its own package because `//go:embed` cannot reach a parent directory, so the declaration must sit beside the files. Its tests check the art against `docs/ASSET_SPEC.md` |
@@ -40,8 +41,8 @@ browser ──HTTP(loopback)──▶ cmd/aiagent ──▶ internal/world
 
 **Writing (the narrow channel)**
 
-- `kcmd.go` — the dispatch driver. Fixed argv, never a shell; confirms the
-  target pane is running an agent CLI before typing into it
+- `agcmd.go` — the service half of dispatch: validates, then runs `agcmd`
+  with a fixed argv, never a shell
 - `relay.go` — a private tmux session for this service's own background
   sessions
 - `workspaces.go` — the configurable workspace table and its two lookups

@@ -28,7 +28,7 @@ type fakeRunner struct {
 	mu         sync.Mutex
 	sessions   string
 	panes      string
-	kcmdOut    string
+	agcmdOut   string
 	calls      [][]string
 	relayUp    bool
 	agentsJSON string
@@ -63,7 +63,7 @@ func (f *fakeRunner) Run(_ context.Context, name string, args ...string) ([]byte
 	if name == "claude" && len(args) > 0 && args[0] == "agents" {
 		return []byte(f.agentsJSON), nil
 	}
-	return []byte(f.kcmdOut), nil
+	return []byte(f.agcmdOut), nil
 }
 
 func (f *fakeRunner) callsTo(name string) [][]string {
@@ -78,12 +78,12 @@ func (f *fakeRunner) callsTo(name string) [][]string {
 	return out
 }
 
-func (f *fakeRunner) kcmdCalls() [][]string {
+func (f *fakeRunner) agcmdCalls() [][]string {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	var out [][]string
 	for _, c := range f.calls {
-		if c[0] == "kcmd" {
+		if c[0] == "agcmd" {
 			out = append(out, c[1:])
 		}
 	}
@@ -147,7 +147,7 @@ func newEnv(t *testing.T) *env {
 			t.Fatal(err)
 		}
 	}
-	e.col = &Collector{Homes: []string{e.home}, ProcRoot: e.proc, KcmdRunsDir: e.runs, KcmdPath: "kcmd", TmuxPath: "tmux", Runner: e.runner, Now: func() time.Time { return e.now }, CacheTTL: 0, HistoryMax: 50, ClaudePath: "claude", ServiceHome: e.home, Sleep: func(time.Duration) {}, Workspaces: testWorkspaces()}
+	e.col = &Collector{Homes: []string{e.home}, ProcRoot: e.proc, RunsDir: e.runs, AgcmdPath: "agcmd", TmuxPath: "tmux", Runner: e.runner, Now: func() time.Time { return e.now }, CacheTTL: 0, HistoryMax: 50, ClaudePath: "claude", ServiceHome: e.home, Sleep: func(time.Duration) {}, Workspaces: testWorkspaces()}
 	e.store = NewStore(filepath.Join(dir, "state"))
 	e.auditFP = filepath.Join(dir, "audit.log")
 	auditor, err := audit.Open(e.auditFP)
@@ -275,21 +275,21 @@ func TestMissionRefusesShellAndSendsExactArgv(t *testing.T) {
 	e.runner.panes = "web\tagent\t1\tbash\n"
 
 	code, m, _ := e.do(t, "POST", "/aiagent/api/missions", tok, `{"workspace":"web","task":"แก้ test หน้า login"}`)
-	if code != 409 || len(e.runner.kcmdCalls()) != 0 {
-		t.Fatalf("a shell in the agent window must be refused before kcmd runs: %d %v %v", code, m, e.runner.kcmdCalls())
+	if code != 409 || len(e.runner.agcmdCalls()) != 0 {
+		t.Fatalf("a shell in the agent window must be refused before agcmd runs: %d %v %v", code, m, e.runner.agcmdCalls())
 	}
 
 	e.runner.panes = "web\tagent\t1\tclaude\n"
-	e.runner.kcmdOut = "ENG-20261104-001  RUNNING  web  แก้ test"
+	e.runner.agcmdOut = "ENG-20261104-001  RUNNING  web  แก้ test"
 	time.Sleep(writeSpacing)
 	code, m, _ = e.do(t, "POST", "/aiagent/api/missions", tok, `{"workspace":"web","task":"  แก้ test\u0007 หน้า login\r\nบรรทัดสอง  "}`)
 	if code != 200 {
 		t.Fatalf("mission: %d %v", code, m)
 	}
-	calls := e.runner.kcmdCalls()
+	calls := e.runner.agcmdCalls()
 	want := []string{"eng", "แก้ test หน้า login\nบรรทัดสอง", "web"}
 	if len(calls) != 1 || strings.Join(calls[0], "|") != strings.Join(want, "|") {
-		t.Fatalf("kcmd argv = %q, want %q", calls, want)
+		t.Fatalf("agcmd argv = %q, want %q", calls, want)
 	}
 	if d, _ := m["details"].(map[string]any); d["runId"] != "ENG-20261104-001" {
 		t.Fatalf("run id not returned: %v", m)
@@ -330,8 +330,8 @@ func TestInputValidation(t *testing.T) {
 			t.Fatalf("%s → %d %v, want 400", body[:min(60, len(body))], code, m)
 		}
 	}
-	if n := len(e.runner.kcmdCalls()); n != 0 {
-		t.Fatalf("invalid input reached kcmd %d times", n)
+	if n := len(e.runner.agcmdCalls()); n != 0 {
+		t.Fatalf("invalid input reached agcmd %d times", n)
 	}
 	time.Sleep(writeSpacing)
 	if code, _, _ := e.do(t, "POST", "/aiagent/api/runs/..%2Fx/approve", tok, ""); code != 400 && code != 404 {
@@ -353,9 +353,9 @@ func TestAnswerOnlyWhenWaiting(t *testing.T) {
 	if code, m, _ := e.do(t, "POST", "/aiagent/api/runs/ENG-20261104-002/answer", tok, `{"answer":"yes"}`); code != 200 {
 		t.Fatalf("answer: %d %v", code, m)
 	}
-	calls := e.runner.kcmdCalls()
+	calls := e.runner.agcmdCalls()
 	if len(calls) != 1 || strings.Join(calls[0], "|") != "eng|answer|ENG-20261104-002|yes" {
-		t.Fatalf("kcmd argv = %q", calls)
+		t.Fatalf("agcmd argv = %q", calls)
 	}
 }
 
@@ -547,8 +547,8 @@ func TestStopUsesOnlySupportedPaths(t *testing.T) {
 	if got := stops; len(got) != 1 || strings.Join(got[0], " ") != "stop aaaa1111" {
 		t.Fatalf("claude calls = %q", got)
 	}
-	if got := e.runner.kcmdCalls(); len(got) != 1 || strings.Join(got[0], " ") != "restart docs" {
-		t.Fatalf("kcmd calls = %q", got)
+	if got := e.runner.agcmdCalls(); len(got) != 1 || strings.Join(got[0], " ") != "restart docs" {
+		t.Fatalf("agcmd calls = %q", got)
 	}
 }
 
@@ -785,7 +785,7 @@ func TestClassify(t *testing.T) {
 	}
 }
 
-// The old TestWorkspaceTableMatchesKcmd read ../../tools/kcmd/kcmd and kept a
+// The old lock-step test read a private dispatch script and kept a
 // compiled-in table in lock-step with one company's private script. Both the
 // table and that script are gone; what replaces it is the config loader and
 // the lookups below.
@@ -1040,7 +1040,7 @@ func TestReviewFlow(t *testing.T) {
 func TestAccountsFlow(t *testing.T) {
 	e := newEnv(t)
 	e.col.CodexPath = "codex"
-	e.runner.kcmdOut = `{"loggedIn":true,"authMethod":"claude.ai","email":"a@b.co","orgName":"Org"}`
+	e.runner.agcmdOut = `{"loggedIn":true,"authMethod":"claude.ai","email":"a@b.co","orgName":"Org"}`
 	acc := e.col.claudeAccount(context.Background())
 	if !acc.LoggedIn || acc.Email != "a@b.co" || acc.Method != "claude.ai" {
 		t.Fatalf("claude account = %+v", acc)
@@ -1184,7 +1184,7 @@ func TestIdleIdeas(t *testing.T) {
 	}
 	sent := func() int {
 		n := 0
-		for _, c := range e.runner.kcmdCalls() {
+		for _, c := range e.runner.agcmdCalls() {
 			if strings.Contains(strings.Join(c, " "), "อัตโนมัติจาก AI Agent World") {
 				n++
 			}

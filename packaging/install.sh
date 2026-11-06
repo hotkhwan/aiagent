@@ -1,24 +1,24 @@
 #!/bin/sh
-# packaging/install.sh — build aiagent and install it to /usr/local/bin.
+# packaging/install.sh — build aiagent and agcmd, install them, and print the
+# two commands that turn the service on.
 #
-#   ./packaging/install.sh                 build + install the binary
-#   ./packaging/install.sh --with-systemd  also install the template unit
+#   ./packaging/install.sh                 build + install both binaries
+#   ./packaging/install.sh --with-service  also install the service unit
+#                                          (systemd on Linux, LaunchAgent on macOS)
 #
-# This script does NOT enable the service and does NOT create a token: turning
-# AI Agent World on is a deliberate act, so you run `aiagent enable` yourself
-# and keep the token it prints once.
+# It does NOT enable AI Agent World and does NOT create a token: turning it on
+# is a deliberate act, so you run `aiagent enable` yourself and keep the token
+# it prints once.
 set -eu
 
-prefix="${PREFIX:-/usr/local}"
-bindir="$prefix/bin"
-unitdir="${UNITDIR:-/etc/systemd/system}"
-with_systemd=no
+prefix="${PREFIX:-}"
+with_service=no
 
 for arg in "$@"; do
 	case "$arg" in
-	--with-systemd) with_systemd=yes ;;
+	--with-service | --with-systemd) with_service=yes ;;
 	-h | --help)
-		sed -n '2,10p' "$0" | sed 's/^# \{0,1\}//'
+		sed -n '2,12p' "$0" | sed 's/^# \{0,1\}//'
 		exit 0
 		;;
 	*)
@@ -32,40 +32,92 @@ command -v go >/dev/null 2>&1 || {
 	echo "go is required to build aiagent" >&2
 	exit 1
 }
+command -v tmux >/dev/null 2>&1 || echo "note: tmux is not installed — agcmd needs it to reach an agent" >&2
+
+# Default to a per-user install so nothing needs root. Fall back to the
+# system prefix only if the caller asks for it.
+if [ -z "$prefix" ]; then
+	bindir="$HOME/.local/bin"
+else
+	bindir="$prefix/bin"
+fi
+mkdir -p "$bindir"
 
 root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 
-echo "building aiagent..."
+echo "building..."
 (cd "$root" && go build -trimpath -o "$tmp/aiagent" ./cmd/aiagent)
+(cd "$root" && go build -trimpath -o "$tmp/agcmd" ./cmd/agcmd)
 
-# A plain `install` keeps ownership and mode explicit rather than inheriting
-# whatever umask the caller happened to have.
-echo "installing to $bindir/aiagent"
-if [ -w "$bindir" ]; then
-	install -m 0755 "$tmp/aiagent" "$bindir/aiagent"
-else
-	sudo install -m 0755 "$tmp/aiagent" "$bindir/aiagent"
-fi
-
-if [ "$with_systemd" = yes ]; then
-	echo "installing $unitdir/aiagent@.service"
-	if [ -w "$unitdir" ]; then
-		install -m 0644 "$root/packaging/aiagent@.service" "$unitdir/aiagent@.service"
+for b in aiagent agcmd; do
+	echo "installing $bindir/$b"
+	if [ -w "$bindir" ]; then
+		install -m 0755 "$tmp/$b" "$bindir/$b"
 	else
-		sudo install -m 0644 "$root/packaging/aiagent@.service" "$unitdir/aiagent@.service"
+		sudo install -m 0755 "$tmp/$b" "$bindir/$b"
 	fi
-	echo "  systemctl daemon-reload && systemctl enable --now aiagent@\$USER"
+done
+
+stateDir="${XDG_STATE_HOME:-$HOME/.local/state}/aiagent"
+mkdir -p "$stateDir"
+if [ ! -e "$stateDir/workspaces.json" ]; then
+	cat > "$stateDir/workspaces.json" <<'EOF_WS'
+{
+  "workspaces": []
+}
+EOF_WS
+	chmod 600 "$stateDir/workspaces.json"
+	echo "wrote an empty $stateDir/workspaces.json (view-only until you fill it in)"
 fi
 
-cat <<'EOF'
+if [ "$with_service" = yes ]; then
+	case "$(uname -s)" in
+	Linux)
+		unitdir="${UNITDIR:-/etc/systemd/system}"
+		echo "installing $unitdir/aiagent@.service"
+		if [ -w "$unitdir" ]; then
+			install -m 0644 "$root/packaging/aiagent@.service" "$unitdir/aiagent@.service"
+		else
+			sudo install -m 0644 "$root/packaging/aiagent@.service" "$unitdir/aiagent@.service"
+		fi
+		echo "  systemctl daemon-reload && systemctl enable --now aiagent@\$USER"
+		;;
+	Darwin)
+		plist="$HOME/Library/LaunchAgents/com.aiagent.service.plist"
+		mkdir -p "$HOME/Library/LaunchAgents" "$HOME/Library/Logs"
+		sed -e "s|@HOME@|$HOME|g" -e "s|@BIN@|$bindir/aiagent|g" \
+			"$root/packaging/com.aiagent.service.plist.in" > "$plist"
+		plutil -lint "$plist" >/dev/null
+		echo "wrote $plist"
+		echo "  launchctl bootstrap gui/\$(id -u) $plist"
+		;;
+	*)
+		echo "no service unit for $(uname -s); run 'aiagent serve' yourself" >&2
+		;;
+	esac
+fi
 
-Installed. Next:
+cat <<EOF
+
+Installed to $bindir. Next:
 
   aiagent enable          turn it on; keep the token it prints (shown once)
   aiagent serve           run it on 127.0.0.1:8890
 
-Reach it from another device over a private network (Tailscale Serve, an SSH
-tunnel, or a reverse proxy that terminates TLS). Do not publish the port.
+To send work to an agent, list your checkouts in
+$stateDir/workspaces.json and check them with:
+
+  agcmd ws list
+
+Reach the service from another device over a private network (Tailscale
+Serve, a Cloudflare Tunnel, an SSH tunnel, or a reverse proxy that terminates
+TLS). Do not publish the port directly.
 EOF
+
+case ":$PATH:" in
+*":$bindir:"*) ;;
+*) echo "
+note: $bindir is not on your PATH." ;;
+esac

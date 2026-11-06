@@ -38,8 +38,12 @@ Needs Go 1.26+ to build, and `tmux` only if you want to send messages.
 ```sh
 git clone https://github.com/hotkhwan/aiagent.git
 cd aiagent
-./packaging/install.sh            # add --with-systemd for the unit file
+./packaging/install.sh            # add --with-service for a systemd unit or LaunchAgent
 ```
+
+This installs two binaries into `~/.local/bin`: **`aiagent`**, the service and
+its switch, and **`agcmd`**, the small tool that actually talks to the agents
+through tmux. A clone is usable immediately — there is nothing else to fetch.
 
 ```sh
 aiagent enable        # prints a token ONCE; only its SHA-256 is stored
@@ -91,6 +95,26 @@ configured the village is **view-only** and every dispatch is refused. Create
 `name` is what the UI shows, `tmuxSession` must be a session whose `agent`
 window is running a real agent CLI, and `dir` must be absolute. Bad entries
 fail at startup, not at dispatch time.
+
+Check what is actually reachable:
+
+```sh
+agcmd ws list        # NAME, TMUX SESSION, what that pane is running, DIR
+```
+
+`agcmd` is also how you drive an agent from a terminal, and the quickest way
+to tell whether a problem is in the service or in tmux:
+
+```sh
+agcmd dispatch web "run the tests"       # send a message
+agcmd eng "fix the login tests" web      # send it as a tracked run
+agcmd eng status                         # the run board
+agcmd restart web                        # interrupt what it is doing
+```
+
+It refuses the same things the service refuses: an unconfigured workspace
+name, and a pane that is running a shell rather than an agent — typing into a
+shell would execute your text as a command.
 
 State lives in `$AIAGENT_STATE_DIR`, else `$XDG_STATE_HOME/aiagent`, else
 `~/.local/state/aiagent`.

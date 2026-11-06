@@ -3,7 +3,7 @@
 // Auto model downgrade. When the operator turns it on, a background check
 // (every minute) compares the provider-reported plan usage with a threshold:
 //
-//   - Claude: every live Claude Code session the web can reach (kcmd/relay)
+//   - Claude: every live Claude Code session the web can reach (agcmd/relay)
 //     that is not already on the economy model gets `/model <economy>`; the
 //     model it had is remembered and put back once usage falls below the
 //     restore level (threshold − 15 points) or the window resets.
@@ -48,7 +48,7 @@ type Policy struct {
 	IdleIdeas    bool       `json:"idleIdeas"`
 	IdleMinutes  int        `json:"idleMinutes"`
 	IdleMaxQuota float64    `json:"idleMaxQuota"`
-	IdleTarget   string     `json:"idleTarget"` // kcmd workspace name
+	IdleTarget   string     `json:"idleTarget"` // agcmd workspace name
 	LastIdeaAt   *time.Time `json:"lastIdeaAt,omitempty"`
 }
 
