@@ -118,6 +118,22 @@ EOF
 
 case ":$PATH:" in
 *":$bindir:"*) ;;
-*) echo "
-note: $bindir is not on your PATH." ;;
+*)
+	# .zprofile / .profile rather than .zshrc or .bashrc: login shells do not
+	# read the interactive files, and the macOS LaunchAgent runs the service
+	# through `zsh -lc`. Putting it only in .zshrc leaves the service unable
+	# to find agcmd while your own terminal finds it fine.
+	case "$(basename "${SHELL:-sh}")" in
+	zsh) rc="$HOME/.zprofile" ;;
+	*) rc="$HOME/.profile" ;;
+	esac
+	cat <<EOF_PATH
+
+$bindir is not on your PATH. Add it:
+
+  echo 'export PATH="$bindir:\$PATH"' >> $rc
+
+then open a new terminal.
+EOF_PATH
+	;;
 esac
