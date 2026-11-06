@@ -1289,3 +1289,66 @@ func TestRootServesTheApp(t *testing.T) {
 		t.Error("page does not reference /aiagent/app.js; its assets would 404 when served from /")
 	}
 }
+
+// TestRenameSession covers the operator-chosen name. `claude agents` has no
+// rename, so this is a local alias: it must change what the snapshot calls the
+// session, keep the CLI's own name available to put back, and survive being
+// cleared.
+func TestRenameSession(t *testing.T) {
+	e := newEnv(t)
+	tok, _ := e.store.Enable("test")
+	fakeProc(t, e.proc, "4242", "777")
+	writeFile(t, filepath.Join(e.home, ".claude", "sessions", "4242.json"),
+		`{"pid":4242,"sessionId":"s-named","cwd":"/home/dev/web","startedAt":1793750000000,"procStart":"777","name":"first prompt text","status":"idle"}`)
+
+	nameOf := func() (string, string) {
+		t.Helper()
+		snap := e.svc.applyNames(e.col.Snapshot(context.Background()).Sessions)
+		for _, s := range snap {
+			if s.SessionID == "s-named" {
+				return s.DisplayName, s.OriginalName
+			}
+		}
+		t.Fatal("session s-named not in the snapshot")
+		return "", ""
+	}
+
+	if got, orig := nameOf(); got != "first prompt text" || orig != "" {
+		t.Fatalf("before renaming: %q / %q", got, orig)
+	}
+
+	code, m, _ := e.do(t, "POST", "/aiagent/api/sessions/s-named/name", tok, `{"name":"  ตรวจ repo   LittleDays  "}`)
+	if code != 200 {
+		t.Fatalf("rename: %d %v", code, m)
+	}
+	// Whitespace is collapsed: the name lands in a heading.
+	got, orig := nameOf()
+	if got != "ตรวจ repo LittleDays" {
+		t.Errorf("renamed to %q", got)
+	}
+	if orig != "first prompt text" {
+		t.Errorf("originalName = %q, want the CLI's own name so the UI can offer it back", orig)
+	}
+
+	time.Sleep(writeSpacing)
+	if code, m, _ := e.do(t, "POST", "/aiagent/api/sessions/s-named/name", tok, `{"name":""}`); code != 200 {
+		t.Fatalf("clearing: %d %v", code, m)
+	}
+	if got, orig := nameOf(); got != "first prompt text" || orig != "" {
+		t.Errorf("after clearing: %q / %q — the CLI's name must come back", got, orig)
+	}
+
+	time.Sleep(writeSpacing)
+	long := strings.Repeat("ก", maxNameRunes+1)
+	if code, _, _ := e.do(t, "POST", "/aiagent/api/sessions/s-named/name", tok, `{"name":"`+long+`"}`); code == 200 {
+		t.Error("an over-long name was accepted")
+	}
+
+	time.Sleep(writeSpacing)
+	if code, _, _ := e.do(t, "POST", "/aiagent/api/sessions/s-named/name", tok, `{"name":"two\nlines"}`); code != 200 {
+		t.Error("a newline should be folded to a space, not refused")
+	}
+	if got, _ := nameOf(); got != "two lines" {
+		t.Errorf("newline not folded: %q", got)
+	}
+}

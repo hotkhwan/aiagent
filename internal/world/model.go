@@ -62,10 +62,13 @@ type Session struct {
 	RuntimeType string `json:"runtimeType"` // claudeCode | codexCli
 	ProviderID  string `json:"providerId"`  // anthropic | openai
 	DisplayName string `json:"displayName"`
-	Owner       string `json:"owner"`
-	Cwd         string `json:"cwd"`
-	RepoID      string `json:"repoId"`
-	Workspace   string `json:"workspace,omitempty"`
+	// OriginalName is the name the agent CLI gave this session, present only
+	// when the operator has renamed it (names.go), so the UI can offer it back.
+	OriginalName string `json:"originalName,omitempty"`
+	Owner        string `json:"owner"`
+	Cwd          string `json:"cwd"`
+	RepoID       string `json:"repoId"`
+	Workspace    string `json:"workspace,omitempty"`
 	// DispatchVia names the agcmd workspace whose tmux agent pane IS this
 	// session's process (pid descends from the pane). Only then does sending
 	// work from the web reach this exact session.

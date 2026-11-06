@@ -1250,7 +1250,7 @@ function monitorCards (want, msgsById, big) {
     h('div', { class: 'scrTop' }, h('b', null, a.name), h('em', null, a.kind === 'sub' ? 'sub-agent' : a.label)),
     ...(big && a.kind === 'session' ? openReviewsOf(a.id).map(r => h('button', { type: 'button', class: 'pri revOpen', onclick: e => { e.stopPropagation(); $('screenPop').close(); openReview(r.id) } }, '🧪 เปิดตรวจงาน: ' + r.title)) : []),
     ...((a.watches || []).filter(w => w.ci).slice(0, big ? 6 : 2).map(w => h('div', { class: 'scrJob' }, h('i'), h('b', null, w.label), h('span', null, (w.event || 'รอผล…') + (w.eventAt && !w.eventAt.startsWith('0001') ? ' · ' + fmtTime(w.eventAt) : ''))))),
-    ...((msgsById[a.id] || []).slice(big ? -3 : -1).map(m => h('div', { class: 'scrMsg ' + m.role }, h('span', null, (m.role === 'user' ? 'ผู้ใช้' : 'agent') + ' · ' + fmtTime(m.at)), h('p', null, big ? m.text : m.text.slice(0, 160)))))))
+    ...((msgsById[a.id] || []).slice(big ? -3 : -1).map(m => h('div', { class: 'scrMsg ' + m.role }, h('span', null, (m.role === 'user' ? 'ผู้ใช้' : 'agent') + ' · ' + fmtTime(m.at)), big ? mdBody(m.text) : h('p', null, m.text.slice(0, 160)))))))
 }
 
 async function updateMonitor (want) {
@@ -1561,7 +1561,10 @@ function sessionHeader (sess) {
   const where = sess.messageVia === 'agcmd' ? 'บ้าน agcmd' : sess.kind === 'bg' ? 'บ้าน Background' : 'บ้าน Terminal · VS Code'
   return [
     h('button', { type: 'button', class: 'ghost', onclick: back }, '← ภาพรวม'),
-    h('div', { class: 'who' }, ava, h('div', null, h('h2', null, sess.displayName), h('p', null, runtimeName[sess.runtimeType] + ' · ' + where + ' · ' + (sess.repoId || '—')))),
+    h('div', { class: 'who' }, ava, h('div', null,
+      h('h2', { class: 'nameRow' }, h('span', null, sess.displayName),
+        h('button', { type: 'button', class: 'ghost renameBtn', title: 'เปลี่ยนชื่อที่แสดงในเว็บ', 'aria-label': 'เปลี่ยนชื่อ', onclick: () => renameSession(sess) }, '✎')),
+      h('p', null, runtimeName[sess.runtimeType] + ' · ' + where + ' · ' + (sess.repoId || '—')))),
     h('div', { class: 'state' }, stateDot, stateText(sess), (sess.subAgents || []).length
       ? h('button', { type: 'button', class: 'pill work subToggle' + (st.subsOpen ? ' on' : ''), 'aria-expanded': String(!!st.subsOpen), onclick: () => { st.subsOpen = !st.subsOpen; st.inspKey = ''; renderInspector() } }, '+' + sess.subAgents.length + ' sub-agent ' + (st.subsOpen ? '▴' : '▾'))
       : null),
@@ -1646,7 +1649,7 @@ async function updateChat (force) {
     const nearBottom = log.scrollHeight - log.scrollTop - log.clientHeight < 80
     log.replaceChildren(...(msgs.length ? msgs.map(m => h('div', { class: 'msg ' + m.role },
       h('div', { class: 'who2' }, (m.role === 'user' ? 'ผู้ใช้' : 'agent') + ' · ' + fmtTime(m.at)),
-      h('div', { class: 'body' }, m.text), msgImages(m.text))) : [h('p', { class: 'note' }, 'ยังไม่มีข้อความ')]))
+      mdBody(m.text, 'body'), msgImages(m.text))) : [h('p', { class: 'note' }, 'ยังไม่มีข้อความ')]))
     if (force || nearBottom) log.scrollTop = log.scrollHeight
     const lastAgent = [...msgs].reverse().find(m => m.role === 'assistant')
     st.suggest = suggestFrom(lastAgent ? lastAgent.text : '')
@@ -2397,6 +2400,10 @@ function setPanel (open) {
   setTimeout(applyZoom, 60)
 }
 $('togglePanel').addEventListener('click', () => setPanel(!st.panelOpen))
+$('panelPopBtn').addEventListener('click', openPanelSheet)
+// The panel element itself lives in the sheet while it is open, so it has to
+// be put back when the sheet closes — including on Esc and on the backdrop.
+$('panelPop').addEventListener('close', closePanelSheet)
 let panelPref = '1'
 try { panelPref = localStorage.getItem('aiagentPanel') || '1' } catch (e) { panelPref = '1' }
 setPanel(panelPref === '1')
@@ -2410,3 +2417,347 @@ document.addEventListener('keydown', e => {
 setInterval(renderConn, 2000)
 if (window.matchMedia('(max-width: 900px)').matches) setView('list')
 poll()
+
+// ---------- markdown ----------
+//
+// Agents write markdown; the terminal renders it and the web used to show the
+// raw characters. This turns it into DOM nodes.
+//
+// Built with createElement/createTextNode only — never innerHTML. The text is
+// written by an agent, which may be relaying something it read on the
+// internet, so it is untrusted input; building nodes means a stray "<script>"
+// is characters on the screen and can never be anything else. It also keeps
+// the strict CSP intact.
+
+const MD_LINK = /\[([^\]\n]+)\]\(([^)\s]+)\)/g
+const MD_CODE = /`([^`\n]+)`/g
+const MD_BOLD = /\*\*([^*\n]+)\*\*/g
+const MD_ITAL = /(^|[\s(])[*_]([^*_\n]+)[*_](?=[\s).,!?:;]|$)/g
+const MD_STRIKE = /~~([^~\n]+)~~/g
+
+// A private-use character as the placeholder: it cannot occur in text an
+// agent writes, so a message containing the literal digits of a slot index
+// can never be mistaken for one.
+const MD_SLOT = '\uE000'
+
+// mdInline renders one line's inline marks into a fragment.
+function mdInline (text) {
+  const frag = document.createDocumentFragment()
+  const slots = []
+  const hold = node => {
+    slots.push(node)
+    return MD_SLOT + (slots.length - 1) + MD_SLOT
+  }
+  // Code spans come out first and go back as nodes, so markers inside them —
+  // a ** in a shell command, say — are never treated as formatting.
+  let s = String(text).replace(MD_CODE, (_, code) => hold(h('code', null, code)))
+  s = s.replace(MD_LINK, (whole, label, url) =>
+    // Only real web links become links. Anything else (javascript:, data:, a
+    // bare path) stays as the characters the agent wrote.
+    /^https?:\/\//i.test(url) ? hold(h('a', { href: url, target: '_blank', rel: 'noopener noreferrer' }, label)) : whole)
+  s = s.replace(MD_BOLD, (_, t) => hold(h('strong', null, t)))
+  s = s.replace(MD_STRIKE, (_, t) => hold(h('del', null, t)))
+  s = s.replace(MD_ITAL, (_, lead, t) => lead + hold(h('em', null, t)))
+
+  for (const piece of s.split(MD_SLOT)) {
+    if (piece === '') continue
+    if (/^\d+$/.test(piece) && slots[Number(piece)]) frag.append(slots[Number(piece)])
+    else frag.append(document.createTextNode(piece))
+  }
+  return frag
+}
+
+function mdTableRow (line) {
+  return line.replace(/^\s*\|/, '').replace(/\|\s*$/, '').split('|').map(c => c.trim())
+}
+
+// renderMd turns markdown into a fragment of block elements.
+function renderMd (text) {
+  const frag = document.createDocumentFragment()
+  const lines = String(text == null ? '' : text).replace(/\r\n/g, '\n').split('\n')
+  let i = 0
+  let para = []
+  const flush = () => {
+    if (!para.length) return
+    const p = h('p', { class: 'mdP' })
+    para.forEach((l, n) => { if (n) p.append(h('br')); p.append(mdInline(l)) })
+    frag.append(p)
+    para = []
+  }
+
+  while (i < lines.length) {
+    const line = lines[i]
+
+    // Fenced code is kept verbatim: no inline parsing inside, because the
+    // whole point of a code block is that the characters are the content.
+    const fence = /^\s*```(\S*)\s*$/.exec(line)
+    if (fence) {
+      flush()
+      const lang = fence[1]
+      const body = []
+      i++
+      while (i < lines.length && !/^\s*```\s*$/.test(lines[i])) body.push(lines[i++])
+      i++ // closing fence
+      const pre = h('pre', { class: 'mdPre' }, h('code', null, body.join('\n')))
+      if (lang) pre.setAttribute('data-lang', lang)
+      frag.append(pre)
+      continue
+    }
+
+    if (/^\s*(---+|\*\*\*+|___+)\s*$/.test(line)) { flush(); frag.append(h('hr', { class: 'mdHr' })); i++; continue }
+
+    const head = /^(#{1,6})\s+(.*)$/.exec(line)
+    if (head) {
+      flush()
+      // Never above h3: these land inside a side panel, and an agent's "#"
+      // should not outrank the panel's own heading.
+      const tag = 'h' + Math.min(6, head[1].length + 2)
+      frag.append(h(tag, { class: 'mdH' }, mdInline(head[2])))
+      i++
+      continue
+    }
+
+    // Table: a header row followed by a |---|---| separator.
+    if (/^\s*\|.*\|\s*$/.test(line) && i + 1 < lines.length && /^\s*\|[\s:|-]+\|\s*$/.test(lines[i + 1])) {
+      flush()
+      const table = h('table', { class: 'mdTable' })
+      table.append(h('thead', null, h('tr', null, ...mdTableRow(line).map(c => h('th', null, mdInline(c))))))
+      i += 2
+      const tbody = h('tbody')
+      while (i < lines.length && /^\s*\|.*\|\s*$/.test(lines[i])) {
+        tbody.append(h('tr', null, ...mdTableRow(lines[i]).map(c => h('td', null, mdInline(c)))))
+        i++
+      }
+      table.append(tbody)
+      frag.append(table)
+      continue
+    }
+
+    const bullet = /^\s*[-*+]\s+(.*)$/.exec(line)
+    const numbered = /^\s*\d+[.)]\s+(.*)$/.exec(line)
+    if (bullet || numbered) {
+      flush()
+      const ordered = !!numbered
+      const list = h(ordered ? 'ol' : 'ul', { class: 'mdList' })
+      while (i < lines.length) {
+        const m = ordered ? /^\s*\d+[.)]\s+(.*)$/.exec(lines[i]) : /^\s*[-*+]\s+(.*)$/.exec(lines[i])
+        if (!m) break
+        list.append(h('li', null, mdInline(m[1])))
+        i++
+      }
+      frag.append(list)
+      continue
+    }
+
+    const quote = /^\s*>\s?(.*)$/.exec(line)
+    if (quote) {
+      flush()
+      const box = h('blockquote', { class: 'mdQuote' })
+      while (i < lines.length) {
+        const m = /^\s*>\s?(.*)$/.exec(lines[i])
+        if (!m) break
+        if (box.childNodes.length) box.append(h('br'))
+        box.append(mdInline(m[1]))
+        i++
+      }
+      frag.append(box)
+      continue
+    }
+
+    if (line.trim() === '') { flush(); i++; continue }
+    para.push(line)
+    i++
+  }
+  flush()
+  return frag
+}
+
+// mdBody is the element a message's text goes in.
+function mdBody (text, cls) {
+  const box = h('div', { class: 'md' + (cls ? ' ' + cls : '') })
+  box.append(renderMd(text))
+  return box
+}
+
+// ---------- reading room: bigger, wider, resizable ----------
+//
+// Agent output is long. The terminal gives it the whole width; the web used to
+// give it a fixed 380px column and a small dialog. These let the reader take
+// the space the text needs: a full-screen toggle and a drag corner on every
+// dialog, a drag edge on the side panel, and a way to throw the panel up as a
+// full-size sheet.
+//
+// Sizes are remembered in localStorage, per browser, because a reading width
+// is a preference and re-dragging it on every visit is the annoyance this is
+// meant to remove.
+
+const UI_PREF = 'aiagentUi'
+
+function uiPrefs () {
+  try { return JSON.parse(localStorage.getItem(UI_PREF) || '{}') } catch (e) { return {} }
+}
+function uiPref (key, value) {
+  const p = uiPrefs()
+  if (value === undefined) return p[key]
+  p[key] = value
+  try { localStorage.setItem(UI_PREF, JSON.stringify(p)) } catch (e) { /* private mode: live without it */ }
+}
+
+// enhanceDialogs adds a full-screen toggle to every dialog that has a header.
+// Done once, in JS, rather than repeated in the markup, so a new dialog gets
+// it for free.
+function enhanceDialogs () {
+  for (const dlg of document.querySelectorAll('dialog.screenPop')) {
+    const head = dlg.querySelector('.spHead')
+    if (!head || head.querySelector('.fullToggle')) continue
+    const btn = h('button', {
+      type: 'button',
+      class: 'ghost fullToggle',
+      'aria-pressed': 'false',
+      title: 'เต็มจอ (F)',
+      'aria-label': 'สลับเต็มจอ',
+      onclick: () => toggleDialogFull(dlg)
+    }, '⤢')
+    head.insertBefore(btn, head.querySelector('form'))
+    if (uiPref('dlgFull')) toggleDialogFull(dlg, true)
+  }
+}
+
+function toggleDialogFull (dlg, force) {
+  const on = force === undefined ? !dlg.classList.contains('full') : force
+  dlg.classList.toggle('full', on)
+  const btn = dlg.querySelector('.fullToggle')
+  if (btn) {
+    btn.setAttribute('aria-pressed', String(on))
+    btn.textContent = on ? '⤡' : '⤢'
+  }
+  // A size dragged by hand would otherwise fight the full-screen rule.
+  if (on) { dlg.style.width = ''; dlg.style.height = '' }
+  uiPref('dlgFull', on)
+}
+
+// F toggles full screen while a dialog is open — but never while the operator
+// is typing, or "f" would stop reaching the message box.
+document.addEventListener('keydown', e => {
+  if (e.key !== 'f' && e.key !== 'F') return
+  if (e.metaKey || e.ctrlKey || e.altKey) return
+  const t = e.target
+  if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return
+  const open = document.querySelector('dialog.screenPop[open]')
+  if (!open) return
+  e.preventDefault()
+  toggleDialogFull(open)
+})
+
+// ---------- side panel width ----------
+
+const INSP_MIN = 320
+const INSP_MAX_FRAC = 0.8
+
+function applyInspWidth (px) {
+  const max = Math.round(window.innerWidth * INSP_MAX_FRAC)
+  const w = Math.max(INSP_MIN, Math.min(max, Math.round(px)))
+  document.documentElement.style.setProperty('--inspW', w + 'px')
+  return w
+}
+
+function initPanelResize () {
+  const insp = $('insp')
+  if (!insp || insp.querySelector('.inspGrip')) return
+  const saved = uiPref('inspW')
+  if (saved) applyInspWidth(saved)
+
+  const grip = h('div', {
+    class: 'inspGrip',
+    role: 'separator',
+    'aria-orientation': 'vertical',
+    'aria-label': 'ลากเพื่อปรับความกว้างแผงขวา',
+    tabindex: 0,
+    title: 'ลากเพื่อปรับความกว้าง · ดับเบิลคลิกเพื่อรีเซ็ต'
+  })
+
+  let dragging = false
+  const widthFrom = clientX => window.innerWidth - clientX
+
+  grip.addEventListener('pointerdown', e => {
+    dragging = true
+    grip.setPointerCapture(e.pointerId)
+    document.body.classList.add('resizing')
+    e.preventDefault()
+  })
+  grip.addEventListener('pointermove', e => {
+    if (!dragging) return
+    applyInspWidth(widthFrom(e.clientX))
+  })
+  const stop = e => {
+    if (!dragging) return
+    dragging = false
+    document.body.classList.remove('resizing')
+    try { grip.releasePointerCapture(e.pointerId) } catch (err) { /* already gone */ }
+    uiPref('inspW', applyInspWidth(widthFrom(e.clientX)))
+  }
+  grip.addEventListener('pointerup', stop)
+  grip.addEventListener('pointercancel', stop)
+  grip.addEventListener('dblclick', () => { uiPref('inspW', applyInspWidth(380)) })
+  // Keyboard: the same control, for anyone not using a pointer.
+  grip.addEventListener('keydown', e => {
+    const step = e.shiftKey ? 48 : 16
+    const cur = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--inspW')) || 380
+    if (e.key === 'ArrowLeft') uiPref('inspW', applyInspWidth(cur + step))
+    else if (e.key === 'ArrowRight') uiPref('inspW', applyInspWidth(cur - step))
+    else return
+    e.preventDefault()
+  })
+  insp.prepend(grip)
+}
+
+// ---------- panel as a sheet ----------
+//
+// Moves the live panel element into a dialog rather than copying its contents,
+// so everything inside keeps working: the chat keeps updating, buttons keep
+// their handlers, and no state is duplicated.
+
+function openPanelSheet () {
+  const dlg = $('panelPop')
+  const insp = $('insp')
+  if (!dlg || !insp) return
+  const body = $('panelPopBody')
+  body.replaceChildren(insp)
+  insp.classList.add('inSheet')
+  dlg.showModal()
+}
+
+function closePanelSheet () {
+  const insp = $('insp')
+  const main = document.querySelector('.main')
+  if (!insp || !main || !insp.classList.contains('inSheet')) return
+  insp.classList.remove('inSheet')
+  main.append(insp)
+}
+
+// renameSession sets a name for this UI only. The agent CLI keeps its own —
+// `claude agents` has no rename — so the prompt says so, and an empty answer
+// puts the CLI's name back rather than leaving a blank heading.
+async function renameSession (sess) {
+  const current = sess.displayName || ''
+  const cli = sess.originalName || sess.displayName || ''
+  const next = window.prompt(
+    'ชื่อที่จะแสดงในเว็บสำหรับ session นี้\n' +
+    '(เปลี่ยนเฉพาะในหน้านี้ — ชื่อใน CLI ยังเป็น "' + cli + '")\n' +
+    'เว้นว่างเพื่อกลับไปใช้ชื่อเดิม',
+    current)
+  if (next === null) return
+  try {
+    await api('/sessions/' + encodeURIComponent(sess.sessionId) + '/name', { method: 'POST', body: { name: next } })
+    st.inspKey = ''
+    await poll()
+  } catch (e) {
+    if (e.message !== 'auth') toast('เปลี่ยนชื่อไม่ได้: ' + e.message)
+  }
+}
+
+// Run last: these use the const bindings declared above them, which are in the
+// temporal dead zone until this point in the script. Calling them earlier
+// threw a ReferenceError before the page had drawn anything.
+enhanceDialogs()
+initPanelResize()

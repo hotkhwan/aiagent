@@ -18,6 +18,7 @@
   <div class="energy" id="energy" aria-live="polite"></div>
   <div class="conn" id="conn" aria-live="polite">กำลังเชื่อมต่อ…</div>
   <button type="button" class="ghost" id="accountsBtn" title="บัญชี Claude / Codex บนเครื่องนี้">👤 บัญชี</button>
+  <button type="button" class="ghost" id="panelPopBtn" title="เปิดแผงขวาเป็นหน้าต่างใหญ่">⤢ ขยายแผง</button>
   <button type="button" class="ghost" id="togglePanel" aria-expanded="true">ซ่อนแผงขวา ⟩</button>
   <button type="button" class="ghost" id="logout" title="ออกจากระบบในแท็บนี้">ออก</button>
 </header>
@@ -79,6 +80,11 @@
 <dialog id="screenPop" class="screenPop">
   <div class="spHead"><h2 id="screenPopTitle">จอ</h2><form method="dialog"><button class="ghost" aria-label="ปิด">✕</button></form></div>
   <div class="spBody" id="screenPopBody"></div>
+</dialog>
+
+<dialog id="panelPop" class="screenPop panelPop">
+  <div class="spHead"><h2>รายละเอียด</h2><form method="dialog"><button class="ghost" aria-label="ปิด">✕</button></form></div>
+  <div class="spBody" id="panelPopBody"></div>
 </dialog>
 
 <dialog id="accountsDlg" class="screenPop">

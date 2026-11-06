@@ -24,6 +24,11 @@ for work that is not happening.
 - **In a room**: a TV with the latest message (click to enlarge), an NPC that
   explains the room, draggable characters, a sky that follows the time of day,
   and a warm or green glow around Claude and Codex agents respectively.
+- **Markdown is rendered**, not shown raw — headings, lists, tables, code
+  blocks and links, in the conversation and on the room monitor.
+- **Room to read**: every dialog has a full-screen toggle (or press **F**) and
+  a drag corner; the side panel has a drag edge and can be thrown up as a
+  full-size sheet. Widths are remembered.
 - **Right panel**: the session's conversation with secrets stripped out,
   sub-agents and what each was given, the model in use with a menu to change
   it, and a stop button.

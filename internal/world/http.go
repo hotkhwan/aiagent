@@ -196,6 +196,7 @@ func (s *Service) Mount(app *fiber.App) {
 	api.Get("/uploads/:name", s.handleUploadGet)
 	api.Post("/sessions/:id/message", s.handleSessionMessage)
 	api.Post("/sessions/:id/model", s.handleSessionModel)
+	api.Post("/sessions/:id/name", s.handleSessionName)
 	api.Post("/messages", s.handleMessage)
 	api.Post("/runs/:id/answer", s.handleAnswer)
 	api.Post("/runs/:id/approve", s.handleRunStatus("approve"))
@@ -242,7 +243,9 @@ func (s *Service) handleAsset(c fiber.Ctx) error {
 }
 
 func (s *Service) handleSnapshot(c fiber.Ctx) error {
-	return c.JSON(okEnv(s.Collector.Snapshot(c.Context())))
+	snap := s.Collector.Snapshot(c.Context())
+	snap.Sessions = s.applyNames(snap.Sessions)
+	return c.JSON(okEnv(snap))
 }
 
 func (s *Service) handleSession(c fiber.Ctx) error {
@@ -447,6 +450,23 @@ func (s *Service) handleStop(c fiber.Ctx) error {
 	return s.mutate(c, "aiagent.stop", []string{id}, func() (any, error) {
 		how, err := s.Collector.Stop(c.Context(), id)
 		return fiber.Map{"sessionId": id, "via": how}, err
+	})
+}
+
+// handleSessionName sets or clears an operator-chosen name. It is a write, so
+// it goes through mutate() for the audit record and the write rate limit like
+// every other write.
+func (s *Service) handleSessionName(c fiber.Ctx) error {
+	id := c.Params("id")
+	var body struct {
+		Name string `json:"name"`
+	}
+	if err := c.Bind().Body(&body); err != nil {
+		return s.fail(c, ErrBadRequest(`expected {"name": "..."}`))
+	}
+	return s.mutate(c, "aiagent.renameSession", []string{id}, func() (any, error) {
+		name, err := s.SetSessionName(id, body.Name)
+		return fiber.Map{"sessionId": id, "name": name}, err
 	})
 }
 
