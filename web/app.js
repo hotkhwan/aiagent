@@ -1640,7 +1640,7 @@ function sessionHeader (sess) {
     h('button', { type: 'button', class: 'ghost', onclick: back }, tr('← ภาพรวม')),
     h('div', { class: 'who' }, ava, h('div', null,
       h('h2', { class: 'nameRow' }, h('span', null, sess.displayName),
-        h('button', { type: 'button', class: 'ghost renameBtn', title: tr('เปลี่ยนชื่อที่แสดงในเว็บ'), 'aria-label': tr('เปลี่ยนชื่อ'), onclick: () => renameSession(sess) }, '✎')),
+        h('button', { type: 'button', class: 'ghost renameBtn', title: tr('เปลี่ยนชื่อ (ส่ง /rename ไปที่ CLI)'), 'aria-label': tr('เปลี่ยนชื่อ'), onclick: () => renameSession(sess) }, '✎')),
       h('p', null, runtimeName[sess.runtimeType] + ' · ' + where + ' · ' + (sess.repoId || '—')))),
     h('div', { class: 'state' }, stateDot, stateText(sess), (sess.subAgents || []).length
       ? h('button', { type: 'button', class: 'pill work subToggle' + (st.subsOpen ? ' on' : ''), 'aria-expanded': String(!!st.subsOpen), onclick: () => { st.subsOpen = !st.subsOpen; st.inspKey = ''; renderInspector() } }, '+' + sess.subAgents.length + ' sub-agent ' + (st.subsOpen ? '▴' : '▾'))
@@ -2833,18 +2833,16 @@ function closePanelSheet () {
   main.append(insp)
 }
 
-// renameSession sets a name for this UI only. The agent CLI keeps its own —
-// `claude agents` has no rename — so the prompt says so, and an empty answer
-// puts the CLI's name back rather than leaving a blank heading.
+// renameSession sends /rename to the session's CLI. The web keeps no name of
+// its own: the snapshot shows whatever Claude Code reports, so the two match.
 async function renameSession (sess) {
   const current = sess.displayName || ''
-  const cli = sess.originalName || sess.displayName || ''
   const next = window.prompt(
-    tr('ชื่อที่จะแสดงในเว็บสำหรับ session นี้\n') +
-    tr('(เปลี่ยนเฉพาะในหน้านี้ — ชื่อใน CLI ยังเป็น "') + cli + '")\n' +
-    tr('เว้นว่างเพื่อกลับไปใช้ชื่อเดิม'),
+    tr('ชื่อใหม่ของ session นี้\n') +
+    tr('(ส่ง /rename ไปที่ CLI ด้วย ชื่อจะตรงกันทั้งสองที่)'),
     current)
   if (next === null) return
+  if (!next.trim()) { toast(tr('ต้องใส่ชื่อ')); return }
   try {
     await api('/sessions/' + encodeURIComponent(sess.sessionId) + '/name', { method: 'POST', body: { name: next } })
     st.inspKey = ''

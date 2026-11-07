@@ -407,7 +407,8 @@ var EN = {
   'ล่าสุด: ': 'Latest: ',
   'Sub-agents ที่ช่วยอยู่ (': 'Sub-agents helping (',
   ') · ดูได้อย่างเดียว': ') · read only',
-  'เปลี่ยนชื่อที่แสดงในเว็บ': 'Rename it for the web',
+  'เปลี่ยนชื่อ (ส่ง /rename ไปที่ CLI)': 'Rename (sends /rename to the CLI)',
+  'ต้องใส่ชื่อ': 'A name is required',
   'เปลี่ยนชื่อ': 'Rename',
   '🧪 รอคุณตรวจงาน': '🧪 Awaiting your review',
   'เปิดตรวจ →': 'Open the review →',
@@ -551,9 +552,8 @@ var EN = {
   'ส่งล่าสุด ': 'Last sent ',
 
   // renaming a session
-  'ชื่อที่จะแสดงในเว็บสำหรับ session นี้\n': 'The name to show on the web for this session\n',
-  '(เปลี่ยนเฉพาะในหน้านี้ — ชื่อใน CLI ยังเป็น "': '(changes here only — the CLI name stays "',
-  'เว้นว่างเพื่อกลับไปใช้ชื่อเดิม': 'Leave it blank to go back to the original name',
+  'ชื่อใหม่ของ session นี้\n': 'New name for this session\n',
+  '(ส่ง /rename ไปที่ CLI ด้วย ชื่อจะตรงกันทั้งสองที่)': '(sends /rename to the CLI too, so both names match)',
   'เปลี่ยนชื่อไม่ได้: ': 'Cannot rename: '
 }
 
