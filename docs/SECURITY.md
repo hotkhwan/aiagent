@@ -140,11 +140,23 @@ one **is** behind Cloudflare Access; the setup is in
 The two gates are deliberately different. The web UI is a home-screen PWA with
 no interactive login, so it carries a token. A shell is not that.
 
-The order matters and the runbook says so: the Access application has to exist
-before Remote Login is switched on. In between, the hostname is a plain TCP
-path to port 22 and the host key is all that is left. Routing to a port with
-nothing listening on it is safe; routing to a live sshd with no Access
-application is not.
+The order matters: the Access application has to exist before the tunnel
+carries the route. Between the two, the hostname is a public SSH prompt, and
+on a default macOS that prompt accepts passwords.
+
+That happened for a few minutes on 2026-11-07. The route went live first,
+because `lsof -nP -iTCP:22 -sTCP:LISTEN` printed nothing and was read as
+"Remote Login is off" — but macOS socket-activates `sshd`, so launchd holds
+the socket and a process listing shows nothing either way. The ingress is
+commented out again and `ssh.joinanny.com` answers 404 until the Access
+application exists.
+
+Two lessons worth keeping:
+
+- **Ask a service whether it is up by connecting to it.** `ssh -o BatchMode=yes
+  hotkhwan@127.0.0.1 true` answers in one line; a process listing does not.
+- **Keys only, before the route goes live.** With `PasswordAuthentication no`
+  the same mistake is an annoyance, not an incident.
 
 ## Before you expose it
 
