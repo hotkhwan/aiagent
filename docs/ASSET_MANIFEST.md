@@ -42,3 +42,45 @@ Asking again with a stronger prompt is possible, and so is the alternative
 that has worked better every time so far: the owner generates the set
 externally and sends the files, which `tools/propprep` then prepares. Each
 attempt here spends the owner's Canva credits, so this one stops at one.
+
+## 2026-11-07 — `house-kcmd`, attempt 2
+
+| | |
+|---|---|
+| Target | `house-kcmd.png`, the agcmd house on the village map |
+| Needed | 660px wide, cut out, per `VILLAGE_BRIEF.md` |
+| Tool | Canva `generate-image`, then Canva `remove-background` |
+| Output | Canva media `MAHaP74gfBY`; cut out as `MAHaP48jqHI` |
+| Status | **awaiting the owner's look** — not installed |
+
+Prompt, verbatim:
+
+> One small isometric glass pavilion building, alone on a plain flat mid-grey
+> background, nothing else in the picture. It is a single-room futuristic
+> garden pavilion you could walk into: large floor-to-ceiling glass walls on
+> every visible side, an open doorway in the front with a short step up to it,
+> and a blank glowing teal sign panel mounted above that doorway. Through the
+> glass you clearly see the warmly lit room inside — a desk with two glowing
+> monitors, a chair, shelves and a potted plant. Slim dark metal frame,
+> glowing teal and mint neon piping along the roof edge and around the door, a
+> low hexagonal stone base, small cherry-blossom branches at the two back
+> corners. Night scene, rich painted game illustration, soft shading, clear
+> light direction, chunky stylised proportions, clean heavy edges, cosy and
+> inviting. Plenty of empty grey margin all around the building. No text, no
+> lettering, no logos, no people, no ground beyond the small base, no sky, no
+> city.
+
+What changed from attempt 1, and why it worked: the first prompt said
+"pavilion" but described a structure, so it produced a sealed object. This one
+describes **the room you can see into** — glass walls, an open doorway, a desk
+with monitors, a chair, a plant — and the building follows from that. The
+blank sign panel is there because the code draws the house name itself; art
+with text baked in would be wrong in the other language.
+
+### Getting the file out of Canva
+
+Canva only hands an agent a 200px thumbnail; the signed URL refuses any larger
+size, and `export-design` needs a design rather than a media item. So the
+full-resolution cut-out is downloaded by the owner from the Canva link, into
+`~/Downloads`, and `tools/propprep` takes it from there — the same path every
+other batch has taken.
