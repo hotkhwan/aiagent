@@ -1,13 +1,22 @@
 # Prop brief — the furniture, and why the rooms still look old
 
-> **Status, 2026-11-07.** Ten of the 39 are done and shipped — `plant-big`,
-> `desk-blue2`, `desk-pink2`, `desk-white2`, `cactus`, `filing-blue`,
-> `printer2`, `hydrangea`, `shelf-big`, `shelf-tall`. See
-> [audit/propsBatch02Report.md](audit/propsBatch02Report.md), including the
-> two things that still need fixing in them. **29 to go.**
+> **Status, 2026-11-07.** **29 of the 39 are done and shipped.**
+>
+> Ten remain, all rejected from one delivery for being cut out of a shared
+> contact sheet — four of them 2x to 3.4x under size, and the six that fit
+> carrying slivers of the neighbouring object along their right edge:
+>
+> `rug-pink2` · `sofa-pink2` · `rug-cloud` · `servers2` · `rocket` ·
+> `bean-pink` · `bean-yellow` · `box-pallet` · `handtruck` · `pillow-bunny`
+>
+> Ask for them **rendered one at a time**, the way the batches that worked
+> were. Sizes and the rest in
+> [audit/propsBatch03Report.md](audit/propsBatch03Report.md); earlier rounds in
+> [batch 02](audit/propsBatch02Report.md) and [batch 01](audit/propsBatch01Report.md).
 >
 > Raw art does not need to arrive trimmed or sized: `tools/propprep` does
-> that, reading the widths out of `roomDefs`. What it cannot do is draw.
+> that, reading the widths out of `roomDefs`. What it cannot do is draw, and
+> it cannot separate two objects that were generated touching.
 
 The character cast and the room plaques are in the new design. The **props are
 not**: every desk, sofa, rug and plant in the eight rooms is still the pastel
