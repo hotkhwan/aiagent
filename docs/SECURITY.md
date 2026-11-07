@@ -130,6 +130,22 @@ token, so guessing is not the realistic risk; losing or pasting it is. Rotate
 with `aiagent rotate-token` the moment you suspect it has leaked — the old one
 stops working immediately.
 
+### SSH on the same tunnel (owner, 2026-11-07)
+
+The tunnel now carries a second hostname, `ssh.joinanny.com`, routed to
+`ssh://localhost:22` so the owner can reach the shell from the MacBook. That
+one **is** behind Cloudflare Access; the setup is in
+[REMOTE_ACCESS.md](REMOTE_ACCESS.md).
+
+The two gates are deliberately different. The web UI is a home-screen PWA with
+no interactive login, so it carries a token. A shell is not that.
+
+The order matters and the runbook says so: the Access application has to exist
+before Remote Login is switched on. In between, the hostname is a plain TCP
+path to port 22 and the host key is all that is left. Routing to a port with
+nothing listening on it is safe; routing to a live sshd with no Access
+application is not.
+
 ## Before you expose it
 
 - [ ] `aiagent status` shows enabled, and you hold the token privately.
