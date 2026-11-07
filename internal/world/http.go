@@ -510,7 +510,10 @@ func (s *Service) handleSessionName(c fiber.Ctx) error {
 		return s.fail(c, ErrBadRequest(`expected {"name": "..."}`))
 	}
 	return s.mutate(c, "aiagent.renameSession", []string{id}, func() (any, error) {
-		name, err := s.SetSessionName(id, body.Name)
+		// The CLI's own name is recorded with the alias, so that a later
+		// rename in the CLI takes the name back instead of being ignored.
+		over := s.cliName(s.Collector.Snapshot(c.Context()).Sessions, id)
+		name, err := s.SetSessionName(id, body.Name, over)
 		return fiber.Map{"sessionId": id, "name": name}, err
 	})
 }

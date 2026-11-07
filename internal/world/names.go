@@ -4,9 +4,14 @@
 //
 // A session's name comes from the agent CLI — Claude Code derives one from the
 // first prompt, so you end up with "audit littledays repo" on something that
-// has long since moved on. `claude agents` has no rename, so this is a local
-// alias: it changes what this service calls the session, and nothing else. The
-// CLI keeps its own name, and clearing the alias shows that name again.
+// has long since moved on. This is a local alias: it changes what this service
+// calls the session, and nothing else.
+//
+// The alias is not permanent. It records the CLI name it was chosen over, and
+// steps aside the moment the CLI name changes — because a later `/rename` in
+// the CLI is a newer statement of what the session is called, and having the
+// web silently ignore it is worse than losing an alias nobody is attached to.
+// Clearing the alias by hand also works, and shows the CLI name again.
 package world
 
 import (
@@ -25,8 +30,41 @@ const (
 
 var namesMu sync.Mutex
 
-// nameAliases maps sessionId → operator-chosen name.
-type nameAliases map[string]string
+// nameAlias is what the operator typed, plus the CLI name it replaced.
+type nameAlias struct {
+	Alias string `json:"alias"`
+	// Over is the CLI's own name when the alias was set. Empty means the
+	// entry predates this field, and such an alias keeps overriding — there
+	// is nothing to compare against, and dropping it would throw away a name
+	// the operator chose on no evidence at all.
+	Over string `json:"over,omitempty"`
+}
+
+// nameAliases maps sessionId → alias.
+type nameAliases map[string]nameAlias
+
+// UnmarshalJSON reads both shapes: the current object, and the bare string
+// this file used to hold.
+func (n *nameAliases) UnmarshalJSON(b []byte) error {
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(b, &raw); err != nil {
+		return err
+	}
+	out := nameAliases{}
+	for k, v := range raw {
+		var obj nameAlias
+		if err := json.Unmarshal(v, &obj); err == nil && obj.Alias != "" {
+			out[k] = obj
+			continue
+		}
+		var str string
+		if err := json.Unmarshal(v, &str); err == nil && str != "" {
+			out[k] = nameAlias{Alias: str}
+		}
+	}
+	*n = out
+	return nil
+}
 
 func (s *Service) namesPath() string { return filepath.Join(s.Store.dir, namesFile) }
 
@@ -40,13 +78,14 @@ func (s *Service) loadNames() nameAliases {
 	return out
 }
 
-// SetSessionName records (or, with an empty name, clears) an alias. It returns
-// the name now in effect for that session.
+// SetSessionName records (or, with an empty name, clears) an alias. `over` is
+// the CLI's own name for that session right now; it is what lets a later CLI
+// rename take the name back. It returns the name now in effect.
 //
 // The id is not validated against live sessions on purpose: an alias set on a
 // session that later comes back should still apply, and a stale entry costs a
 // few bytes and shows up nowhere.
-func (s *Service) SetSessionName(sessionID, name string) (string, error) {
+func (s *Service) SetSessionName(sessionID, name, over string) (string, error) {
 	if strings.TrimSpace(sessionID) == "" {
 		return "", ErrBadRequest("session id is required")
 	}
@@ -71,7 +110,7 @@ func (s *Service) SetSessionName(sessionID, name string) (string, error) {
 	if name == "" {
 		delete(names, sessionID)
 	} else {
-		names[sessionID] = name
+		names[sessionID] = nameAlias{Alias: name, Over: over}
 	}
 	if err := os.MkdirAll(s.Store.dir, 0o700); err != nil {
 		return "", err
@@ -91,18 +130,36 @@ func (s *Service) SetSessionName(sessionID, name string) (string, error) {
 	return name, nil
 }
 
+// cliName is the CLI's own name for a session, ignoring any alias.
+func (s *Service) cliName(sessions []Session, id string) string {
+	for i := range sessions {
+		if sessions[i].SessionID == id {
+			return sessions[i].DisplayName
+		}
+	}
+	return ""
+}
+
 // applyNames overwrites DisplayName where the operator has chosen one, and
 // records the CLI's own name so the UI can offer to put it back.
+//
+// An alias whose Over no longer matches the CLI name is skipped: the session
+// has been renamed in the CLI since, and that is the more recent intent.
 func (s *Service) applyNames(sessions []Session) []Session {
 	names := s.loadNames()
 	if len(names) == 0 {
 		return sessions
 	}
 	for i := range sessions {
-		if alias, ok := names[sessions[i].SessionID]; ok && alias != "" {
-			sessions[i].OriginalName = sessions[i].DisplayName
-			sessions[i].DisplayName = alias
+		a, ok := names[sessions[i].SessionID]
+		if !ok || a.Alias == "" {
+			continue
 		}
+		if a.Over != "" && a.Over != sessions[i].DisplayName {
+			continue // renamed in the CLI since; the CLI name wins
+		}
+		sessions[i].OriginalName = sessions[i].DisplayName
+		sessions[i].DisplayName = a.Alias
 	}
 	return sessions
 }

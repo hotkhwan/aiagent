@@ -1407,3 +1407,45 @@ func TestSnapshotNeverSendsNullArrays(t *testing.T) {
 		}
 	}
 }
+
+// TestCliRenameBeatsAStaleWebAlias pins which of the two renames wins.
+//
+// The web alias used to override the CLI name forever, so after `/rename` in
+// the CLI the web kept showing the old alias and there was nothing on screen
+// to say why. An alias now records the CLI name it replaced and steps aside
+// when that changes, because the later rename is the more recent intent.
+func TestCliRenameBeatsAStaleWebAlias(t *testing.T) {
+	dir := t.TempDir()
+	svc := &Service{Store: &Store{dir: dir}, Collector: &Collector{}}
+
+	const id = "s1"
+	if _, err := svc.SetSessionName(id, "my name", "CLI original"); err != nil {
+		t.Fatalf("set: %v", err)
+	}
+
+	// While the CLI name is unchanged, the alias is what shows.
+	got := svc.applyNames([]Session{{SessionID: id, DisplayName: "CLI original"}})
+	if got[0].DisplayName != "my name" {
+		t.Errorf("alias should apply while the CLI name is unchanged; got %q", got[0].DisplayName)
+	}
+	if got[0].OriginalName != "CLI original" {
+		t.Errorf("the CLI name should be kept so the UI can offer it back; got %q", got[0].OriginalName)
+	}
+
+	// The CLI is renamed. That is newer, so it wins.
+	got = svc.applyNames([]Session{{SessionID: id, DisplayName: "renamed in the CLI"}})
+	if got[0].DisplayName != "renamed in the CLI" {
+		t.Errorf("a CLI rename must take the name back; got %q — the web alias swallowed it, "+
+			"which is the bug this test exists for", got[0].DisplayName)
+	}
+
+	// An entry written by the old code has no "over" and cannot be compared,
+	// so it keeps overriding rather than being thrown away on a guess.
+	if err := os.WriteFile(filepath.Join(dir, namesFile), []byte(`{"s2":"legacy alias"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	got = svc.applyNames([]Session{{SessionID: "s2", DisplayName: "whatever the CLI says"}})
+	if got[0].DisplayName != "legacy alias" {
+		t.Errorf("a legacy alias has nothing to compare against and must still apply; got %q", got[0].DisplayName)
+	}
+}
