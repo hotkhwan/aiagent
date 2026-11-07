@@ -2341,12 +2341,20 @@ function growText () {
   const atEnd = ta.selectionEnd >= ta.value.length - 1
   ta.style.height = 'auto'
   ta.style.height = Math.min(240, ta.scrollHeight + 2) + 'px'
+  // The textarea is absolute and anchored to the bottom of a 44px wrapper, so
+  // growing it used to send it up over the scene. Grow the wrapper with it:
+  // the bar gets taller, the stage gets shorter, and nothing is covered.
+  ta.parentElement.style.height = ta.style.height
   ta.scrollTop = atEnd ? ta.scrollHeight : keep
   const multi = ta.value.includes('\n') || ta.scrollHeight > 52
   ta.classList.toggle('multi', multi)
   const n = ta.value ? ta.value.split('\n').length : 0
   if (multi) ta.parentElement.dataset.lines = (n > 1 ? n + tr(' บรรทัด') : tr('ยาว')) + ' ↕'
   else delete ta.parentElement.dataset.lines
+  // The bar just changed height, so the scene has less room than it had.
+  // Refit it, or the board keeps its old scale and its bottom edge sits
+  // under the composer.
+  applyZoom()
 }
 $('askText').addEventListener('focus', growText)
 $('askText').addEventListener('input', growText)
@@ -2521,10 +2529,13 @@ function goBack () {
 $('zoomIn').addEventListener('click', () => { st.zoom = Math.min(2, (st.zoom || 1) + 0.2); applyZoom() })
 $('zoomOut').addEventListener('click', () => { st.zoom = Math.max(0.6, (st.zoom || 1) - 0.2); applyZoom() })
 $('fullBtn').addEventListener('click', () => {
-  const el = $('stage')
+  // The body, not the stage: fullscreening the stage alone left the composer
+  // outside it, so there was no way to answer without leaving fullscreen
+  // first. The header hides itself in fullscreen (see styles.css) so the
+  // scene still gets nearly all of the extra room.
   try {
     if (document.fullscreenElement) document.exitFullscreen()
-    else el.requestFullscreen()
+    else document.body.requestFullscreen()
   } catch (e) { /* fullscreen not allowed */ }
 })
 window.addEventListener('resize', () => applyZoom())

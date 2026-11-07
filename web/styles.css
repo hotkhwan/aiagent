@@ -1161,3 +1161,10 @@ body[data-phase="night"] .stage:has(.board.focus) { background: linear-gradient(
 /* With art on the ground the sky behind it is only visible at the edges, and
    the daytime gradient fought it. */
 body[data-phase] .stage:has(.board.village.painted) { background: #0A0E24 }
+
+/* Fullscreen takes the whole app so the composer comes with it. The header is
+   the one part worth giving up for scene height — Esc brings it back. */
+body:fullscreen .top { display: none }
+body:fullscreen .banner { padding: 6px 18px; font-size: 13px }
+/* The wrapper's height is set by growText now; the collapsed state resets it. */
+.taWrap:has(textarea:not(:focus)) { height: 44px !important }
