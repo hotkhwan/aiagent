@@ -166,10 +166,15 @@ function renderConn () {
   const fresh = st.lastOk && Date.now() - st.lastOk < staleMs
   $('stage').classList.toggle('stale', !fresh)
   if (fresh) {
-    c.className = 'conn ok'
-    c.textContent = tr('สด · ') + fmtTime(st.snap && st.snap.generatedAt)
+    // Connected is the uninteresting case, and the clock next to it repeated
+    // the one on the phase chip just below. A green dot is the whole message;
+    // the exact time stays in the title for anyone who wants it.
+    c.className = 'conn ok live'
+    c.textContent = ''
+    c.title = tr('สด · ') + fmtTime(st.snap && st.snap.generatedAt)
   } else {
     c.className = 'conn bad'
+    c.title = ''
     c.textContent = st.lastOk ? tr('ขาดการเชื่อมต่อ · ข้อมูลล่าสุด ') + fmtTime(new Date(st.lastOk).toISOString()) : tr('ยังเชื่อมต่อไม่ได้')
   }
   const b = $('banner')
