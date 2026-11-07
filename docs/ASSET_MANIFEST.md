@@ -84,3 +84,23 @@ size, and `export-design` needs a design rather than a media item. So the
 full-resolution cut-out is downloaded by the owner from the Canva link, into
 `~/Downloads`, and `tools/propprep` takes it from there — the same path every
 other batch has taken.
+
+## 2026-11-07 — the other four village houses
+
+All four use the attempt 2 prompt for `house-kcmd`, with the room contents and
+neon colour changed per house. Canva `generate-image`, then `remove-background`.
+None is installed; each waits for the owner's full-resolution download.
+
+| House | Colour | Inside | Generated | Cut out |
+|---|---|---|---|---|
+| `house-bg` (760) | violet | terminal monitors, glowing code | `MAHaQFkRPP4` | `MAHaQH5WRoo` |
+| `house-term` (660) | amber | a single code-editor screen | `MAHaQDIB9Wo` | `MAHaQJCJ8ws` |
+| `house2-pink` (600) | rose-pink | rocket on a launch pad, parcel boxes | `MAHaQKCS6wA` | `MAHaQF0xsBY` |
+| `house2-blue` (580) | sky-blue | blinking server racks | `MAHaQFWq44Q` | `MAHaQN2YY5M` |
+
+The `house-term` job was regenerated once: the first job id could not be
+polled, so its image was never seen. That is one extra generation, not a
+change of prompt.
+
+Each house prompt keeps the sign panel blank, for the same reason as
+`house-kcmd`: the name is drawn by the code.
