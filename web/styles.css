@@ -962,3 +962,130 @@ body.listView .stageHead, body.listView .sceneTools { display: none }
 
 .remember { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; cursor: pointer }
 .remember input { width: 16px; height: 16px; accent-color: var(--brand) }
+
+/* ---------- interior shell, neon ----------
+   The eight rooms were repainted; the house around them was not, so a navy
+   neon room sat in a cream house under a lavender roof and the join was the
+   first thing you saw. This re-skins the shell — all of it is CSS boxes, no
+   art — against the rooms rather than against the old village.
+
+   Appended rather than edited in place so the old pastel values stay
+   readable above: this block is the whole of the change. */
+.board.interior {
+  --iNight: #0B1026;      /* the wall behind everything */
+  --iPanel: #141A3A;      /* the house body */
+  --iEdge: #2A3570;       /* structural lines */
+  --iCyan: #22D3EE;
+  --iMagenta: #F0329B;
+  --iViolet: #8B5CF6;
+  --iAmber: #F5B84B;
+}
+
+/* Roof: the same silhouette, lit from the ridge instead of flat lavender. */
+.board.interior .houseRoof {
+  background: linear-gradient(#1B2250 0%, #141A3A 60%, #0E1430 100%);
+  filter: drop-shadow(0 4px 0 var(--iViolet)) drop-shadow(0 0 18px rgba(139, 92, 246, .45));
+}
+.board.interior .houseBody {
+  background: linear-gradient(#131934, #0D1128);
+  box-shadow: 0 18px 44px rgba(0, 0, 0, .55), inset 0 0 0 5px var(--iEdge),
+              inset 0 0 40px rgba(34, 211, 238, .06);
+}
+
+/* Banner: dark glass with a lit title, so it reads as signage in the house
+   rather than a paper sign stuck on it. */
+.board.interior .wfBanner {
+  background: linear-gradient(rgba(20, 26, 58, .92), rgba(11, 16, 38, .92));
+  border: 3px solid var(--iCyan);
+  box-shadow: 0 0 24px rgba(34, 211, 238, .35), inset 0 0 30px rgba(34, 211, 238, .08);
+}
+.board.interior .wfBanner b { color: #EAF4FF; text-shadow: 0 0 14px rgba(34, 211, 238, .75) }
+.board.interior .wfBanner span { color: #9FB2D8 }
+/* The banner mascot is the old pastel bunny and the only art in the shell.
+   Hidden until there is one in the new cast — a single pastel character on a
+   neon sign is worse than none. */
+.board.interior .wfBanner .wfBunny { display: none }
+
+/* Hall: a lit floor strip, not beige planking. */
+.board.interior .hall {
+  background:
+    repeating-linear-gradient(90deg, rgba(34, 211, 238, .14) 0 2px, transparent 2px 64px),
+    linear-gradient(#171E42, #10152F);
+  box-shadow: inset 0 0 0 2px var(--iEdge), inset 0 0 26px rgba(34, 211, 238, .07);
+}
+.board.interior .flowLine { border-top-color: rgba(34, 211, 238, .55) }
+.board.interior .sideDoor {
+  background: linear-gradient(#2A1740, #1B0E2C);
+  box-shadow: inset 0 0 0 3px var(--iMagenta), 0 0 18px rgba(240, 50, 155, .45);
+}
+.board.interior .sideDoor.open { background: #0B1026 }
+
+/* Room frames and their doors. */
+.board.interior .roomCard {
+  background: #0C1128;
+  box-shadow: 0 10px 26px rgba(0, 0, 0, .55), inset 0 0 0 3px var(--iEdge);
+}
+.board.interior .roomCard.zoomable:hover {
+  box-shadow: 0 12px 30px rgba(0, 0, 0, .6), inset 0 0 0 3px var(--brand),
+              0 0 22px rgba(0, 220, 130, .35);
+}
+.board.interior .doorGap { background: #10152F; box-shadow: inset 0 0 0 2px var(--iEdge) }
+.board.interior .doorGap .leaf { background: linear-gradient(#2B3566, #1C2347); border-color: #3C4A8C }
+.board.interior .doorGap .leaf.l::after, .board.interior .doorGap .leaf.r::after { background: var(--iCyan) }
+
+/* The caption pill under each room: dark glass, so it sits on the art rather
+   than punching a white hole in it. */
+.board.interior .roomCaption {
+  background: rgba(10, 15, 36, .82);
+  color: #CFE0FF;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, .5), inset 0 0 0 1px rgba(34, 211, 238, .25);
+  backdrop-filter: blur(3px);
+}
+
+/* The step badge on each plaque keeps its per-room colour but loses the
+   lavender it was ringed with. */
+.board.interior .plqStep { box-shadow: 0 0 0 2px #0B1026, 0 0 12px rgba(0, 0, 0, .6) }
+
+/* The workflow strip along the bottom. */
+.board.interior .flowStrip {
+  background: linear-gradient(rgba(20, 26, 58, .95), rgba(11, 16, 38, .95));
+  box-shadow: 0 6px 20px rgba(0, 0, 0, .5), inset 0 0 0 2px var(--iEdge);
+}
+.board.interior .fsTitle { color: #AFC2E8 }
+.board.interior .fsStep { background: #1A2147; color: #D6E4FF }
+.board.interior .fsStep:hover { background: #243063 }
+.board.interior .fsArr { color: #4C5C9E }
+
+/* The stage behind the house carries the time-of-day sky, which is painted
+   for the outdoor village. Indoors it showed as a pastel sunset around a navy
+   house, so in here the hour tints a dark room instead of a daytime sky. */
+body[data-phase] .stage:has(.board.interior) { background: #070A1A }
+body[data-phase="morning"] .stage:has(.board.interior) { background: linear-gradient(#141A3A, #070A1A) }
+body[data-phase="late"] .stage:has(.board.interior),
+body[data-phase="afternoon"] .stage:has(.board.interior) { background: linear-gradient(#111A3E, #070A1A) }
+body[data-phase="evening"] .stage:has(.board.interior) { background: linear-gradient(#24143C, #0A0718) }
+body[data-phase="night"] .stage:has(.board.interior) { background: linear-gradient(#0A0E28, #04060F) }
+
+/* The between-rooms arrow, drawn. Two bars make the chevron and the bar
+   behind it makes the shaft, so it reads at the map scale where a thin
+   outline would disappear. */
+/* box() only sets left/top; position comes from the class, and the list
+   that grants it is explicit. Without this the arrows were laid out in
+   normal flow at the board's edge and the chevron escaped to the board. */
+.board.interior .cssArrow { position: absolute; display: grid; place-items: center }
+.board.interior .cssArrow::before {
+  content: ''; width: 22px; height: 4px; border-radius: 2px;
+  background: var(--iCyan); box-shadow: 0 0 10px rgba(34, 211, 238, .9);
+}
+.board.interior .cssArrow::after {
+  content: ''; position: absolute; right: 7px;
+  width: 11px; height: 11px; border-top: 4px solid var(--iCyan); border-right: 4px solid var(--iCyan);
+  border-radius: 2px; transform: rotate(45deg); filter: drop-shadow(0 0 7px rgba(34, 211, 238, .9));
+}
+/* arr-turn is a near-white dashed arrow. brightness(0) flattens it to black,
+   then the invert/sepia/hue chain tints the whole shape one colour — the
+   usual way to recolour a monochrome PNG without shipping a second file. */
+.board.interior .flowTurn {
+  filter: brightness(0) saturate(100%) invert(74%) sepia(64%) saturate(2500%) hue-rotate(140deg) brightness(95%);
+  opacity: .85;
+}

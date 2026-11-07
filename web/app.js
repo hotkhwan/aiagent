@@ -935,7 +935,10 @@ function drawInterior () {
     const stepEl = box('plqStep', r.x - 4, r.y - 30, 34, 34)
     stepEl.textContent = String(r.step)
     b.append(plq, stepEl)
-    if (r.col < 3) b.append(img('arr-pill', r.x + CW + 6, r.y + CH / 2 - 20, 40, { cls: 'flowArrow2' }))
+    // A drawn chevron rather than arr-pill.png: that asset is a pale lilac
+    // pill from the pastel set and was the last thing in the house still
+    // wearing it. Drawn here, it takes the room's own neon.
+    if (r.col < 3) b.append(box('flowArrow2 cssArrow', r.x + CW + 6, r.y + CH / 2 - 20, 40, 40))
   }
   // overview strip: click a step to open that room
   const strip = box('flowStrip', 92, IH - 110, IW - 184, 70)
