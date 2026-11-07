@@ -2833,22 +2833,30 @@ function closePanelSheet () {
   main.append(insp)
 }
 
-// renameSession sets a name for this UI only. The agent CLI keeps its own —
-// `claude agents` has no rename — so the prompt says so, and an empty answer
-// puts the CLI's name back rather than leaving a blank heading.
+// renameSession renames in the CLI when it can reach the session, and keeps a
+// local alias only when it cannot. There is no `claude rename` on the command
+// line, so /rename typed into the session is the only way the two can agree —
+// an alias always disagrees with one side or the other. Either way an empty
+// answer clears the alias and shows the CLI's own name again.
 async function renameSession (sess) {
   const current = sess.displayName || ''
-  const cli = sess.originalName || sess.displayName || ''
   const next = window.prompt(
-    tr('ชื่อที่จะแสดงในเว็บสำหรับ session นี้\n') +
-    tr('(เปลี่ยนเฉพาะในหน้านี้ — ชื่อใน CLI ยังเป็น "') + cli + '")\n' +
+    tr('ตั้งชื่อ session นี้\n') +
+    tr('ถ้า agent รับข้อความจากเว็บได้ จะส่ง /rename เข้าไปให้ ชื่อใน CLI เปลี่ยนตามด้วย\n') +
     tr('เว้นว่างเพื่อกลับไปใช้ชื่อเดิม'),
     current)
   if (next === null) return
   try {
-    await api('/sessions/' + encodeURIComponent(sess.sessionId) + '/name', { method: 'POST', body: { name: next } })
+    const r = await api('/sessions/' + encodeURIComponent(sess.sessionId) + '/name', { method: 'POST', body: { name: next } })
     st.inspKey = ''
     await poll()
+    // Say which of the two happened. Saying nothing is what made the old
+    // behaviour confusing: the name changed on screen and nowhere else.
+    if (next.trim()) {
+      toast(r && r.syncedToCli
+        ? tr('เปลี่ยนชื่อใน CLI แล้ว — ถ้า agent กำลังทำงานอยู่ จะมีผลเมื่อรอบนี้จบ')
+        : tr('เปลี่ยนเฉพาะในเว็บ — ส่งเข้า CLI ไม่ได้ (agent รับข้อความจากเว็บไม่ได้)'))
+    }
   } catch (e) {
     if (e.message !== 'auth') toast(tr('เปลี่ยนชื่อไม่ได้: ') + e.message)
   }

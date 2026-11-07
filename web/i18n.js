@@ -551,8 +551,13 @@ var EN = {
   'ส่งล่าสุด ': 'Last sent ',
 
   // renaming a session
-  'ชื่อที่จะแสดงในเว็บสำหรับ session นี้\n': 'The name to show on the web for this session\n',
-  '(เปลี่ยนเฉพาะในหน้านี้ — ชื่อใน CLI ยังเป็น "': '(changes here only — the CLI name stays "',
+  'ตั้งชื่อ session นี้\n': 'Name this session\n',
+  'ถ้า agent รับข้อความจากเว็บได้ จะส่ง /rename เข้าไปให้ ชื่อใน CLI เปลี่ยนตามด้วย\n':
+    'If the agent takes messages from the web, /rename is sent to it and the CLI name changes too\n',
+  'เปลี่ยนชื่อใน CLI แล้ว — ถ้า agent กำลังทำงานอยู่ จะมีผลเมื่อรอบนี้จบ':
+    'Renamed in the CLI — if the agent is mid-task it takes effect when that finishes',
+  'เปลี่ยนเฉพาะในเว็บ — ส่งเข้า CLI ไม่ได้ (agent รับข้อความจากเว็บไม่ได้)':
+    'Changed on the web only — it could not be sent to the CLI (this agent cannot take messages from the web)',
   'เว้นว่างเพื่อกลับไปใช้ชื่อเดิม': 'Leave it blank to go back to the original name',
   'เปลี่ยนชื่อไม่ได้: ': 'Cannot rename: '
 }

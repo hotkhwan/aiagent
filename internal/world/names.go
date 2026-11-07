@@ -4,14 +4,19 @@
 //
 // A session's name comes from the agent CLI — Claude Code derives one from the
 // first prompt, so you end up with "audit littledays repo" on something that
-// has long since moved on. This is a local alias: it changes what this service
-// calls the session, and nothing else.
+// has long since moved on.
 //
-// The alias is not permanent. It records the CLI name it was chosen over, and
-// steps aside the moment the CLI name changes — because a later `/rename` in
-// the CLI is a newer statement of what the session is called, and having the
-// web silently ignore it is worse than losing an alias nobody is attached to.
-// Clearing the alias by hand also works, and shows the CLI name again.
+// Renaming from the web asks the CLI to rename itself first, by typing
+// /rename into the session (Collector.RenameInCLI). That is the only outcome
+// where the two agree, and when it works no alias is stored at all.
+//
+// What is here is the fallback, for a session the web cannot type into: a
+// local alias that changes what this service calls the session and nothing
+// else. It records the CLI name it was chosen over and steps aside the moment
+// that changes, because a later `/rename` in the CLI is a newer statement of
+// what the session is called, and having the web silently ignore it is worse
+// than losing an alias nobody is attached to. Clearing the alias by hand also
+// works, and shows the CLI name again.
 package world
 
 import (
@@ -78,19 +83,11 @@ func (s *Service) loadNames() nameAliases {
 	return out
 }
 
-// SetSessionName records (or, with an empty name, clears) an alias. `over` is
-// the CLI's own name for that session right now; it is what lets a later CLI
-// rename take the name back. It returns the name now in effect.
-//
-// The id is not validated against live sessions on purpose: an alias set on a
-// session that later comes back should still apply, and a stale entry costs a
-// few bytes and shows up nowhere.
-func (s *Service) SetSessionName(sessionID, name, over string) (string, error) {
-	if strings.TrimSpace(sessionID) == "" {
-		return "", ErrBadRequest("session id is required")
-	}
+// cleanSessionName makes a name safe to put in a heading and to type after
+// "/rename " — one line, no control characters, so it cannot carry a second
+// command.
+func cleanSessionName(name string) (string, error) {
 	name = strings.TrimSpace(strings.Map(func(r rune) rune {
-		// One line, no control characters: this lands in a heading.
 		if r == '\n' || r == '\t' || r < 0x20 {
 			return ' '
 		}
@@ -102,6 +99,24 @@ func (s *Service) SetSessionName(sessionID, name, over string) (string, error) {
 	}
 	if !utf8.ValidString(name) {
 		return "", ErrBadRequest("name must be valid UTF-8")
+	}
+	return name, nil
+}
+
+// SetSessionName records (or, with an empty name, clears) an alias. `over` is
+// the CLI's own name for that session right now; it is what lets a later CLI
+// rename take the name back. It returns the name now in effect.
+//
+// The id is not validated against live sessions on purpose: an alias set on a
+// session that later comes back should still apply, and a stale entry costs a
+// few bytes and shows up nowhere.
+func (s *Service) SetSessionName(sessionID, name, over string) (string, error) {
+	if strings.TrimSpace(sessionID) == "" {
+		return "", ErrBadRequest("session id is required")
+	}
+	name, err := cleanSessionName(name)
+	if err != nil {
+		return "", err
 	}
 
 	namesMu.Lock()

@@ -1449,3 +1449,60 @@ func TestCliRenameBeatsAStaleWebAlias(t *testing.T) {
 		t.Errorf("a legacy alias has nothing to compare against and must still apply; got %q", got[0].DisplayName)
 	}
 }
+
+// TestWebRenameGoesToTheCLI pins the rule that makes the two names agree.
+//
+// There is no `claude rename` on the command line, so a web rename that only
+// writes a local alias guarantees the CLI disagrees with the web forever —
+// which is exactly what the owner hit. The web now types /rename into the
+// session, and keeps no alias when that works, because an alias left behind
+// would override the rename it just made.
+func TestWebRenameGoesToTheCLI(t *testing.T) {
+	e := newEnv(t)
+	tok, _ := e.store.Enable("test")
+	fakeProcPPID(t, e.proc, "5001", "51", "1")
+	writeFile(t, filepath.Join(e.home, ".claude", "sessions", "5001.json"),
+		`{"pid":5001,"sessionId":"aaaa1111-0000-0000-0000-000000000000","cwd":"/root","procStart":"51","kind":"bg","status":"idle","name":"old cli name"}`)
+
+	const id = "aaaa1111-0000-0000-0000-000000000000"
+	code, m, _ := e.do(t, "POST", "/aiagent/api/sessions/"+id+"/name", tok, `{"name":"aiagent repo"}`)
+	if code != 200 {
+		t.Fatalf("rename: %d %v", code, m)
+	}
+	d := m["details"].(map[string]any)
+	if d["syncedToCli"] != true {
+		t.Errorf("a reachable session must be renamed in the CLI, not just aliased; got %v", d)
+	}
+
+	var typed string
+	for _, c := range e.runner.callsTo("tmux") {
+		if len(c) > 4 && c[0] == "send-keys" && c[3] == "-l" {
+			typed = c[len(c)-1]
+		}
+	}
+	if typed != "/rename aiagent repo" {
+		t.Errorf("typed into the session = %q, want %q", typed, "/rename aiagent repo")
+	}
+
+	// No alias may survive a successful CLI rename: applyNames would put the
+	// old name straight back over the new one.
+	if n := (&Service{Store: e.store}).loadNames(); len(n) != 0 {
+		t.Errorf("alias kept after a CLI rename: %v — it would override the rename", n)
+	}
+}
+
+// TestRenameFallsBackToAnAliasWhenUnreachable: a session the web cannot type
+// into still gets a name, and the response says the CLI did not get it.
+func TestRenameFallsBackToAnAliasWhenUnreachable(t *testing.T) {
+	e := newEnv(t)
+	tok, _ := e.store.Enable("test")
+
+	code, m, _ := e.do(t, "POST", "/aiagent/api/sessions/dead0000-0000-0000-0000-000000000000/name", tok, `{"name":"ตั้งชื่อเอง"}`)
+	if code != 200 {
+		t.Fatalf("rename: %d %v", code, m)
+	}
+	d := m["details"].(map[string]any)
+	if d["syncedToCli"] != false || d["name"] != "ตั้งชื่อเอง" {
+		t.Errorf("want a local alias and syncedToCli=false; got %v", d)
+	}
+}

@@ -112,6 +112,29 @@ func (c *Collector) SetModel(ctx context.Context, id, alias string) (string, err
 	return c.SendToSession(ctx, id, "/model "+alias)
 }
 
+// RenameInCLI asks the session to rename itself, by typing /rename down the
+// same channel a message goes down.
+//
+// There is no `claude rename` on the command line — `/rename` inside a running
+// session is the only supported way to change the name Claude Code holds — so
+// this is the only route that leaves the CLI and the web agreeing. A local
+// alias can only ever disagree with one of them.
+//
+// The name is sanitised by cleanSessionName before it arrives: one line, no
+// control characters, so it cannot carry a second command after the first.
+func (c *Collector) RenameInCLI(ctx context.Context, id, name string) (string, error) {
+	if name == "" {
+		return "", ErrBadRequest("a name is required to rename in the CLI")
+	}
+	snap := c.Snapshot(ctx)
+	for _, s := range snap.Sessions {
+		if s.SessionID == id && s.RuntimeType != "claudeCode" {
+			return "", ErrConflict("renaming through the CLI is supported for Claude Code sessions only")
+		}
+	}
+	return c.SendToSession(ctx, id, "/rename "+name)
+}
+
 func (c *Collector) tmux(ctx context.Context, args ...string) (string, error) {
 	cctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()

@@ -510,11 +510,32 @@ func (s *Service) handleSessionName(c fiber.Ctx) error {
 		return s.fail(c, ErrBadRequest(`expected {"name": "..."}`))
 	}
 	return s.mutate(c, "aiagent.renameSession", []string{id}, func() (any, error) {
-		// The CLI's own name is recorded with the alias, so that a later
-		// rename in the CLI takes the name back instead of being ignored.
+		name, err := cleanSessionName(body.Name)
+		if err != nil {
+			return nil, err
+		}
+
+		// Ask the CLI to rename itself first. `/rename` inside the session is
+		// the only supported way to change the name Claude Code holds, and it
+		// is the only outcome where the two agree: a local alias always
+		// disagrees with one side or the other.
+		if name != "" {
+			if via, err := s.Collector.RenameInCLI(c.Context(), id, name); err == nil {
+				// The CLI owns the name now, so no alias is needed — and a
+				// leftover one would override the very rename just made.
+				if _, err := s.SetSessionName(id, "", ""); err != nil {
+					return nil, err
+				}
+				return fiber.Map{"sessionId": id, "name": name, "via": via, "syncedToCli": true}, nil
+			}
+		}
+
+		// Not reachable, not Claude Code, or clearing the name: keep a local
+		// alias. The CLI's own name goes with it, so a later /rename there
+		// takes the name back rather than being ignored.
 		over := s.cliName(s.Collector.Snapshot(c.Context()).Sessions, id)
-		name, err := s.SetSessionName(id, body.Name, over)
-		return fiber.Map{"sessionId": id, "name": name}, err
+		name, err = s.SetSessionName(id, name, over)
+		return fiber.Map{"sessionId": id, "name": name, "via": "local", "syncedToCli": false}, err
 	})
 }
 
