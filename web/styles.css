@@ -1155,3 +1155,9 @@ body[data-phase="night"] .stage:has(.board.focus) { background: linear-gradient(
 .stage:has(.board.focus) .stageHead h1 { color: var(--ink) }
 .stage:has(.board.interior) .stageHead p,
 .stage:has(.board.focus) .stageHead p { color: #9FB2D8 }
+
+/* The painted village floor, under everything the code still draws itself. */
+.villageBg { position: absolute; left: 0; top: 0; width: 1660px; height: 940px; pointer-events: none; z-index: 0 }
+/* With art on the ground the sky behind it is only visible at the edges, and
+   the daytime gradient fought it. */
+body[data-phase] .stage:has(.board.village.painted) { background: #0A0E24 }

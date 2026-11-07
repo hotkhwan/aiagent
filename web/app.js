@@ -565,6 +565,16 @@ function renderVillage () {
 
 function drawVillageScenery (b) {
   let seed = 11
+  // The painted village floor. It replaces the SVG island and the CSS sky —
+  // both are still drawn below for the pieces that move (stars, clouds,
+  // petals, fireflies, the weather tint), but the ground is art now, so the
+  // island and its pastel grass are skipped when the background is present.
+  const bg = document.createElement('img')
+  bg.src = A2('bg-village.jpg')
+  bg.alt = ''
+  bg.className = 'villageBg'
+  b.append(bg)
+  b.classList.add('painted')
   b.append(box('weatherFx', 0, 0, VW, VH))
   const fx = box('ambient', 0, 0, VW, VH)
   for (let i = 0; i < 16; i++) {
@@ -589,7 +599,10 @@ function drawVillageScenery (b) {
     b.append(s)
   }
   b.append(h('div', { class: 'sunmoon' }))
-  b.append(img('cloud1', 40, 120, 170, { cls: 'drift' }), img('cloud2', 1440, 90, 150, { cls: 'drift slow' }), img('cloud1', 980, 40, 120, { cls: 'drift slow' }), img('cloud2', 330, 60, 110, { cls: 'drift' }))
+  // Daytime cartoon clouds over a painted night skyline read as grey smudges.
+  if (!b.classList.contains('painted')) {
+    b.append(img('cloud1', 40, 120, 170, { cls: 'drift' }), img('cloud2', 1440, 90, 150, { cls: 'drift slow' }), img('cloud1', 980, 40, 120, { cls: 'drift slow' }), img('cloud2', 330, 60, 110, { cls: 'drift' }))
+  }
   // terraced island: shadow, two stone tiers with brick lines, grass top, plaza and paths
   const isl = document.createElementNS(ns2, 'svg')
   isl.setAttribute('viewBox', '0 0 ' + VW + ' ' + VH)
@@ -613,7 +626,9 @@ function drawVillageScenery (b) {
     '<path d="M790 480 L 870 480 L 880 540 L 780 540 Z"/>' +
     '<path d="M780 760 L 880 760 L 930 900 L 730 900 Z"/></g>' +
     '<ellipse cx="830" cy="650" rx="250" ry="118" fill="url(#plaza)" stroke="#E2CDB4" stroke-width="4"/>'
-  b.append(isl)
+  // The island is the pastel ground. With a painted floor it is redundant,
+  // and drawing it over the art would put a green hill on a neon plaza.
+  if (!b.classList.contains('painted')) b.append(isl)
   const deco = [
     ['sakura', 20, 330, 170], ['tree1', 440, 160, 120], ['tree2', 1160, 170, 120], ['sakura', 1490, 310, 160], ['tree1', 1560, 520, 110], ['tree2', -10, 560, 120],
     ['tree2', 600, 170, 90], ['tree1', 960, 160, 95], ['sakura2', 700, 420, 230],
@@ -621,7 +636,15 @@ function drawVillageScenery (b) {
     ['lamppost2', 490, 560, 44], ['lamppost2', 1130, 560, 44], ['lamppost2', 690, 760, 40], ['lamppost2', 930, 760, 40],
     ['bench2', 600, 650, 120], ['board-cork', 990, 610, 110], ['fence', 430, 820, 130], ['fence', 1100, 820, 130], ['fountain', 750, 590, 160], ['gate', 640, 800, 380]
   ]
+  // With a painted floor the art already has its own foliage, railings and
+  // night sky, so these would be a second set on top of the first — and they
+  // are the pastel originals, which is the clash twice over. The ones left
+  // are either redrawn for the new design (sakura2, bench2, flowerbox3,
+  // bush2b) or carry meaning rather than decoration (the gate sign, the
+  // notice board, the fountain, the lamps that light when an agent works).
+  const paintedOver = new Set(['sakura', 'tree1', 'tree2', 'bush1', 'bush2', 'bush3', 'fence'])
   for (const [n, x, y, w] of deco) {
+    if (b.classList.contains('painted') && paintedOver.has(n)) continue
     const el = img(n, x, y, w, { z: Math.round(y) })
     if (n.startsWith('lamppost')) el.classList.add('lampGlow')
     b.append(el)

@@ -1,5 +1,25 @@
 # Village brief — the map outside the house
 
+> **Status, 2026-11-07.** The **ground is done**: `bg-village.jpg` is a
+> painted neon plaza under a night city skyline, and the SVG island, the
+> pastel sky, the cartoon clouds and the duplicated pastel trees, bushes and
+> fences are no longer drawn over it. See
+> [audit/village-painted.jpg](audit/village-painted.jpg).
+>
+> What is left on the map is **the five houses**, which are still the pastel
+> cottages. Everything else either got redrawn for the entrance scene or is
+> now part of the painting.
+>
+> Three other base images arrived and were not used, kept in `docs/incoming`:
+> `village-base-1-terrace` is a terrace, not a map; `-3-town` and `-4-island`
+> have the buildings painted into them, so the houses could not be separate
+> images that the code positions, labels and makes clickable. Using one of
+> those means moving the village to a flat painting with hit boxes over the
+> painted buildings — a different design, and a bigger change than swapping a
+> background. It is a real option and `-4-island` matches the mockup most
+> closely; it just is not this change.
+
+
 The eight rooms and the house around them are in the new design. The **village
 map**, which is the first screen you see every time, is not: a pastel sky over
 a green hill with cottage houses on it.
