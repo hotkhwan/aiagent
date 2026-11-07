@@ -288,8 +288,7 @@ func (s *Service) handleAsset(c fiber.Ctx) error {
 
 func (s *Service) handleSnapshot(c fiber.Ctx) error {
 	snap := s.Collector.Snapshot(c.Context())
-	snap.Sessions = s.applyNames(snap.Sessions)
-	snap.nonNil() // applyNames can hand back nil for an empty list
+	snap.nonNil()
 	return c.JSON(okEnv(snap))
 }
 
@@ -498,9 +497,9 @@ func (s *Service) handleStop(c fiber.Ctx) error {
 	})
 }
 
-// handleSessionName sets or clears an operator-chosen name. It is a write, so
-// it goes through mutate() for the audit record and the write rate limit like
-// every other write.
+// handleSessionName renames a Claude Code session by typing /rename into it, so
+// the CLI and the web end up with the same name. It is a write, so it goes
+// through mutate() for the audit record and the write rate limit.
 func (s *Service) handleSessionName(c fiber.Ctx) error {
 	id := c.Params("id")
 	var body struct {
@@ -509,9 +508,9 @@ func (s *Service) handleSessionName(c fiber.Ctx) error {
 	if err := c.Bind().Body(&body); err != nil {
 		return s.fail(c, ErrBadRequest(`expected {"name": "..."}`))
 	}
-	return s.mutate(c, "aiagent.renameSession", []string{id}, func() (any, error) {
-		name, err := s.SetSessionName(id, body.Name)
-		return fiber.Map{"sessionId": id, "name": name}, err
+	return s.mutate(c, "aiagent.renameSession", []string{id, body.Name}, func() (any, error) {
+		name, how, err := s.Collector.RenameSession(c.Context(), id, body.Name)
+		return fiber.Map{"sessionId": id, "name": name, "via": how}, err
 	})
 }
 
