@@ -332,6 +332,9 @@ var EN = {
   'ส่งถึง ': 'To ',
   ' ใน tmux ': ' in tmux ',
   'เลือกปลายทางก่อน หรือคลิกตัวละครที่รับงานได้': 'Choose a destination first, or click an agent that can take work',
+  // short forms, used on a phone where the composer is one line tall
+  'เลือกปลายทางก่อน': 'Choose a destination',
+  'ส่งจากเว็บไม่ได้': 'Cannot send from the web',
 
   // the houses on the map
   'บ้าน agcmd': 'The agcmd house',

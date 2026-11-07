@@ -359,6 +359,12 @@ function composerSession () {
   return sess && sess.live && sess.messageVia ? sess : null
 }
 
+// Placeholders are written for a desktop composer. On a phone the textarea is
+// one line tall, so a 44-character hint wraps and the second line is cut off
+// inside the box — which is what "the chat box overflows" looks like. Each
+// hint gets a short form for narrow screens.
+const hint = (long, short) => (isPhone() ? short : long)
+
 function updateComposerHint () {
   const sess = composerSession()
   if (!sess) st.suggest = []
@@ -369,7 +375,8 @@ function updateComposerHint () {
   chip.hidden = !sess
   if (sess) {
     chip.replaceChildren(h('span', null, tr('ส่งถึง: ') + sess.displayName), h('small', null, sess.messageVia === 'relay' ? 'relay' : 'agcmd ' + sess.dispatchVia), h('button', { type: 'button', class: 'ghost', title: tr('เปลี่ยนเป็นส่งตาม workspace'), onclick: () => { back() } }, '×'))
-    $('askText').placeholder = tr('พิมพ์ถึง ') + sess.displayName + tr('… (Enter ส่ง · Shift+Enter ขึ้นบรรทัด · วาง/ลากรูปได้)')
+    $('askText').placeholder = tr('พิมพ์ถึง ') + sess.displayName +
+      hint(tr('… (Enter ส่ง · Shift+Enter ขึ้นบรรทัด · วาง/ลากรูปได้)'), '…')
     $('askGo').disabled = false
     return
   }
@@ -378,13 +385,15 @@ function updateComposerHint () {
   const w = ws && st.snap && st.snap.workspaces.find(x => x.name === ws)
   const input = $('askText')
   if (st.blockReason) {
-    input.placeholder = st.blockReason
+    input.placeholder = hint(st.blockReason, tr('ส่งจากเว็บไม่ได้'))
   } else if (picked) {
-    input.placeholder = tr('พิมพ์ถึง ') + picked.displayName + tr('… (Enter ส่ง · Shift+Enter ขึ้นบรรทัด)')
+    input.placeholder = tr('พิมพ์ถึง ') + picked.displayName +
+      hint(tr('… (Enter ส่ง · Shift+Enter ขึ้นบรรทัด)'), '…')
   } else if (w) {
-    input.placeholder = tr('ส่งถึง ') + w.name + ' (' + w.agentCommand + tr(' ใน tmux ') + w.tmuxSession + ')…'
+    input.placeholder = tr('ส่งถึง ') + w.name +
+      hint(' (' + w.agentCommand + tr(' ใน tmux ') + w.tmuxSession + ')…', '…')
   } else {
-    input.placeholder = tr('เลือกปลายทางก่อน หรือคลิกตัวละครที่รับงานได้')
+    input.placeholder = hint(tr('เลือกปลายทางก่อน หรือคลิกตัวละครที่รับงานได้'), tr('เลือกปลายทางก่อน'))
   }
   // A mission is an agcmd run and needs a workspace; a session can only be
   // messaged, so hide the mode picker rather than offer a choice that fails.
