@@ -1373,3 +1373,37 @@ func TestRenameSession(t *testing.T) {
 		t.Errorf("newline not folded: %q", got)
 	}
 }
+
+// TestSnapshotNeverSendsNullArrays guards a failure with no symptoms.
+//
+// A nil Go slice marshals to `null`. The browser reads `st.snap.runs.length`
+// in the list view, which throws on null, and poll() caught that along with
+// network errors and moved on — so on a machine with no agcmd runs the list
+// view drew nothing, reported nothing, and logged nothing. The map view never
+// touched runs.length, which is why it went unnoticed.
+//
+// Every array the UI iterates has to arrive as an array.
+func TestSnapshotNeverSendsNullArrays(t *testing.T) {
+	var snap Snapshot // every slice nil, as on a machine with nothing running
+	snap.nonNil()
+
+	b, err := json.Marshal(snap)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	var got map[string]any
+	if err := json.Unmarshal(b, &got); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	for _, k := range []string{"sessions", "runs", "workspaces", "quotas", "warnings"} {
+		v, ok := got[k]
+		if !ok {
+			t.Errorf("snapshot has no %q field at all", k)
+			continue
+		}
+		if v == nil {
+			t.Errorf("snapshot.%s is null; the UI calls .length on it and the list view "+
+				"renders nothing, silently. It must marshal as []", k)
+		}
+	}
+}

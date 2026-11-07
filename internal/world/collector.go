@@ -149,8 +149,35 @@ func (c *Collector) Snapshot(ctx context.Context) Snapshot {
 		return *c.cached
 	}
 	snap := c.collectLocked(ctx)
+	snap.nonNil()
 	c.cached, c.cachedAt = &snap, c.now()
 	return snap
+}
+
+// nonNil replaces nil slices with empty ones before the snapshot is sent.
+//
+// A nil slice marshals to `null`, not `[]`, and the browser then reads
+// `st.snap.runs.length` off null. That threw inside render(); poll() caught it
+// along with everything else, and the list view drew nothing at all — no
+// error, no empty state, a blank screen on any machine that happened to have
+// no agcmd runs. Only the list view touched runs.length, so it survived every
+// session that stayed on the map.
+func (s *Snapshot) nonNil() {
+	if s.Sessions == nil {
+		s.Sessions = []Session{}
+	}
+	if s.Runs == nil {
+		s.Runs = []Run{}
+	}
+	if s.Workspaces == nil {
+		s.Workspaces = []Workspace{}
+	}
+	if s.Quotas == nil {
+		s.Quotas = []Quota{}
+	}
+	if s.Warnings == nil {
+		s.Warnings = []string{}
+	}
 }
 
 func startOfDay(t time.Time) time.Time {

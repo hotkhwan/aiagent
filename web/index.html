@@ -127,6 +127,10 @@
     <h2>เข้าสู่ AI Agent World</h2>
     <p>ใส่ token ของ AI Agent World (ขึ้นต้นด้วย <code>kaw_</code>) — ได้จาก <code>aiagent enable</code> หรือ <code>aiagent rotate-token</code> บนเครื่องนี้ · เก็บไว้เฉพาะแท็บนี้</p>
     <input id="loginToken" type="password" autocomplete="off" spellcheck="false" aria-label="token">
+    <!-- Off by default: the token is forgotten when the tab closes. Ticking it
+         keeps it on this device, which is what makes the home-screen app on a
+         phone usable — otherwise every cold start asks for the token again. -->
+    <label class="remember"><input type="checkbox" id="loginRemember"> จำไว้ในเครื่องนี้ (สำหรับมือถือ / แอปหน้าจอหลัก)</label>
     <p class="err" id="loginErr"></p>
     <div class="dlgBtns"><button type="submit" class="pri">เข้าใช้งาน</button></div>
   </form>

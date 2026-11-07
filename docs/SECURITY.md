@@ -130,6 +130,22 @@ token, so guessing is not the realistic risk; losing or pasting it is. Rotate
 with `aiagent rotate-token` the moment you suspect it has leaked — the old one
 stops working immediately.
 
+### "Remember on this device" (2026-11-07)
+
+The token lives in `sessionStorage`, so closing the tab forgets it. That is
+still the default and still the right one on a shared machine.
+
+A home-screen PWA gets a fresh session on every cold start, which meant
+pasting the token in each time you glanced at your phone — enough friction to
+defeat the point of having it there. The login now offers a checkbox that puts
+the token in `localStorage` instead. It is **off unless ticked**, "Sign out"
+clears both stores, and `aiagent rotate-token` still kills a remembered token
+everywhere at once.
+
+What ticking it means: anyone with the unlocked device has the service. On a
+phone with a passcode that is the same bar as the phone itself; on a shared
+desktop, leave it off.
+
 ### SSH on the same tunnel (owner, 2026-11-07)
 
 The tunnel now carries a second hostname, `ssh.joinanny.com`, routed to

@@ -19,13 +19,20 @@ const st = {
   timer: null
 }
 
+// The token lives in sessionStorage by default, so closing the tab forgets
+// it. That is the right default on a shared desktop and the wrong one for a
+// home-screen PWA, which gets a fresh session on every cold start and would
+// ask for the token every time you glanced at your phone. So "remember on
+// this device" is offered at login and, when ticked, uses localStorage.
+// Reading checks both; logging out clears both.
 function safeGet (k) {
-  try { return sessionStorage.getItem(k) || '' } catch (e) { return '' }
+  try { return sessionStorage.getItem(k) || localStorage.getItem(k) || '' } catch (e) { return '' }
 }
-function safeSet (k, v) {
+function safeSet (k, v, persist) {
   try {
-    if (v) sessionStorage.setItem(k, v)
-    else sessionStorage.removeItem(k)
+    sessionStorage.removeItem(k)
+    localStorage.removeItem(k)
+    if (v) (persist ? localStorage : sessionStorage).setItem(k, v)
   } catch (e) { /* storage unavailable: token lives in memory only */ }
 }
 
@@ -140,6 +147,13 @@ async function poll () {
     render()
   } catch (e) {
     if (e.message === 'auth') return
+    // Anything that is not an auth failure is a bug in here, not a network
+    // problem, and swallowing it is how a null `runs` turned into a blank
+    // list view that reported nothing for weeks. A broken render must still
+    // say so, and must not stop the next poll.
+    if (!(e instanceof Error) || !/HTTP \d|fetch|NetworkError|Failed to fetch/i.test(e.message)) {
+      console.error('render failed:', e)
+    }
   }
   renderConn()
   // a hidden tab polls slowly (less work for the box and the browser)
@@ -1500,11 +1514,11 @@ function renderList () {
   const ended = st.snap.sessions.filter(x => !x.live)
   box.replaceChildren(
     h('h3', null, tr('Agent ที่ออนไลน์ (') + live.length + ')'),
-    h('table', null, head(tr('ชื่อ'), tr('ชนิด'), tr('สถานะ'), tr('งาน'), tr('ล่าสุด')), h('tbody', null, live.map(rowS))),
+    h('table', { class: 'sessions' }, head(tr('ชื่อ'), tr('ชนิด'), tr('สถานะ'), tr('งาน'), tr('ล่าสุด')), h('tbody', null, live.map(rowS))),
     h('h3', null, tr('งาน agcmd (') + st.snap.runs.length + ')'),
-    h('table', null, head('Run', 'Workspace', tr('สถานะ'), tr('งาน')), h('tbody', null, st.snap.runs.map(rowR))),
+    h('table', { class: 'runs' }, head('Run', 'Workspace', tr('สถานะ'), tr('งาน')), h('tbody', null, st.snap.runs.map(rowR))),
     h('h3', null, tr('Session ที่จบแล้ววันนี้ (') + ended.length + ')'),
-    h('table', null, head(tr('ชื่อ'), tr('ชนิด'), tr('สถานะ'), tr('งาน'), tr('ล่าสุด')), h('tbody', null, ended.map(rowS)))
+    h('table', { class: 'sessions' }, head(tr('ชื่อ'), tr('ชนิด'), tr('สถานะ'), tr('งาน'), tr('ล่าสุด')), h('tbody', null, ended.map(rowS)))
   )
 }
 
@@ -1522,8 +1536,14 @@ function targetFor (kind, id) {
   return w && w.agentReady ? w.name : ''
 }
 
+// A phone has no room for a 380px column beside the stage, so the detail
+// opens as a sheet there instead. It is the same panel element either way —
+// openPanelSheet moves it rather than building a second one.
+const isPhone = () => window.matchMedia('(max-width: 700px)').matches
+
 async function select (kind, id) {
-  if (!st.panelOpen) setPanel(true)
+  if (isPhone()) openPanelSheet()
+  else if (!st.panelOpen) setPanel(true)
   st.target = targetFor(kind, id)
   setTimeout(updateComposerHint, 0)
   if (!st.sel || st.sel.id !== id) { st.chatSig = ''; st.inspKey = ''; st.attach = [] }
@@ -2371,7 +2391,7 @@ $('loginForm').addEventListener('submit', e => {
   const t = $('loginToken').value.trim()
   if (!t) return
   st.token = t
-  safeSet(tokenKey, t)
+  safeSet(tokenKey, t, $('loginRemember') && $('loginRemember').checked)
   $('loginToken').value = ''
   $('login').close()
   poll()
@@ -2392,10 +2412,29 @@ function setView (view) {
   $('village').classList.toggle('off', view !== 'map')
   $('sceneTools').hidden = view !== 'map'
   $('list').hidden = view !== 'list'
+  // The stage carries the time-of-day sky and the village heading. Neither
+  // belongs behind a table, so the list view says so on the body and the
+  // stylesheet turns them off from there.
+  document.body.classList.toggle('listView', view === 'list')
   if (st.snap) render()
 }
 $('viewMap').addEventListener('click', () => setView('map'))
 $('stageBack').addEventListener('click', () => goBack())
+
+// On a phone the village opens as the list, not the map. The board is 2060px
+// wide and lands near 19% on a 390px screen — a picture of a village rather
+// than something you can read. The map is still one tap away; this only
+// chooses what you land on, and only the first time, so a deliberate switch
+// sticks.
+try {
+  if (isPhone() && !localStorage.getItem('aiagentView')) setView('list')
+  else if (localStorage.getItem('aiagentView') === 'list') setView('list')
+} catch (e) { /* storage unavailable: the map stays the default */ }
+for (const [el, v] of [[$('viewMap'), 'map'], [$('viewList'), 'list']]) {
+  el.addEventListener('click', () => {
+    try { localStorage.setItem('aiagentView', v) } catch (e) { /* see above */ }
+  })
+}
 // ----- follow the selected agent from room to room -----
 function followActor () {
   const id = st.follow

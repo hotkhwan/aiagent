@@ -320,6 +320,7 @@ var EN = {
   ' หรือ ': ' or ',
   ' บนเครื่องนี้ · เก็บไว้เฉพาะแท็บนี้': ' on this machine · it is kept to this tab only',
   'เข้าใช้งาน': 'Sign in',
+  'จำไว้ในเครื่องนี้ (สำหรับมือถือ / แอปหน้าจอหลัก)': 'Remember on this device (for a phone or a home-screen app)',
 
   // composer target
   'ส่งถึง: ': 'To: ',

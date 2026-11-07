@@ -32,6 +32,11 @@
   --font: 'Mali', 'IBM Plex Sans Thai', 'Noto Sans Thai', system-ui, sans-serif;
 }
 * { box-sizing: border-box; margin: 0 }
+/* [hidden] is only a `display: none` in the UA sheet, so any author rule that
+   sets display on the same element beats it — `.sceneTools { display: flex }`
+   kept the zoom control on screen in list view for exactly that reason. Make
+   the attribute mean what it says. */
+[hidden] { display: none !important }
 html, body { height: 100% }
 body { min-height: 100%; display: flex; flex-direction: column; background: radial-gradient(1200px 700px at 40% 30%, #1A2342 0%, var(--sky) 60%) var(--sky); color: var(--ink); font: 14px/1.5 var(--font) }
 button, input, select { font: inherit; color: inherit }
@@ -889,3 +894,71 @@ dialog.screenPop.full { width: 100vw; height: 100vh; max-width: 100vw; max-heigh
 @media (display-mode: standalone) {
   html, body { overscroll-behavior: none }
 }
+
+/* ---------- phone (<=700px) ----------
+   Not the desktop layout shrunk. On a phone this is a monitoring tool: what
+   needs me, what is running, and a way to answer. The village board is 2060px
+   wide, which lands at 19% on a 390px screen — a picture of a village rather
+   than a thing you can use — so the list is the default view there and the
+   board is something you choose to open.
+
+   The 900px block above turns the page into one long scroll (height: auto).
+   That is right for a tablet in portrait and wrong for a phone, where the
+   composer has to stay reachable, so this block puts the fixed height back. */
+@media (max-width: 700px) {
+  html, body { height: 100% }
+  body { font-size: 13px }
+
+  .top { padding: 7px 10px; gap: 7px; row-gap: 5px }
+  .brand { font-size: 15px }
+  .brand .logo { width: 22px; height: 22px }
+  /* Gone on a phone: the host name is the same machine every time, and the
+     two panel buttons control a panel that is a sheet here. */
+  .host, #panelPopBtn, #togglePanel { display: none }
+  .views button { padding: 5px 10px }
+  .energy { margin-left: 0; gap: 5px; font-size: 11px; width: 100%; order: 5 }
+  .conn { font-size: 11px }
+  .top .ghost { padding: 5px 9px; font-size: 12px }
+
+  .main { grid-template-columns: 1fr; flex: 1; min-height: 0 }
+  /* The panel is a sheet here (select() opens it), so the column is gone. */
+  .insp { display: none }
+  .stage { min-height: 0; overflow: hidden }
+  .stageHead { padding: 10px 12px 0 }
+  .stageHead h1 { font-size: 18px }
+  .stageHead p, .stageHead .phase { font-size: 11px }
+  .sceneTools { transform: scale(.85); transform-origin: top right }
+
+  .list { position: absolute; inset: 0; padding: 8px 10px 12px; overflow: auto }
+  .list th, .list td { padding: 7px 6px; font-size: 12px }
+  /* Five columns do not fit. Keep who, what state, and how long ago. */
+  .list table.sessions th:nth-child(2), .list table.sessions td:nth-child(2),
+  .list table.sessions th:nth-child(4), .list table.sessions td:nth-child(4) { display: none }
+  .list table.runs th:nth-child(2), .list table.runs td:nth-child(2) { display: none }
+
+  .bar { padding: 8px 10px; gap: 8px; padding-bottom: calc(8px + env(safe-area-inset-bottom)) }
+  /* The counters are a desktop luxury; the badge in the header carries the
+     one number that matters on a phone. */
+  .stats { display: none }
+  .ask { padding: 5px; gap: 6px }
+  .ask select { max-width: 42vw; font-size: 12px; padding: 6px }
+  .askRow { gap: 6px }
+  #askText { font-size: 16px }  /* under 16px iOS zooms the page on focus */
+
+  /* Sheets go full-bleed: a 32px inset wastes a tenth of the screen. */
+  dialog.screenPop:not(.reviewDlg) { width: 100vw; max-width: 100vw }
+  dialog.screenPop { max-height: 92dvh; border-radius: 18px 18px 0 0; resize: none }
+  dialog.panelPop .spBody { padding: 12px }
+  .insp.inSheet { padding: 0 }
+}
+
+
+/* ---------- list view ----------
+   Set by setView(). The stage is the village's canvas: it carries the
+   time-of-day sky and the heading sits on top of it. Behind a table both are
+   noise, and on a phone the sky showed through an empty table as a sunset. */
+body.listView[data-phase] .stage { background: var(--sky) }
+body.listView .stageHead, body.listView .sceneTools { display: none }
+
+.remember { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; cursor: pointer }
+.remember input { width: 16px; height: 16px; accent-color: var(--brand) }

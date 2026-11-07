@@ -289,6 +289,7 @@ func (s *Service) handleAsset(c fiber.Ctx) error {
 func (s *Service) handleSnapshot(c fiber.Ctx) error {
 	snap := s.Collector.Snapshot(c.Context())
 	snap.Sessions = s.applyNames(snap.Sessions)
+	snap.nonNil() // applyNames can hand back nil for an empty list
 	return c.JSON(okEnv(snap))
 }
 
