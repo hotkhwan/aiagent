@@ -19,17 +19,29 @@ not that, and gets a real identity check.
 
 ## State right now
 
+Everything on the Mac mini is done. What is left is on the MacBook.
+
 | | |
 |---|---|
 | DNS `ssh.joinanny.com` | **created**, CNAME to the tunnel |
-| Tunnel ingress for it | **commented out in `~/.cloudflared/config.yml`** |
-| Cloudflare Access application | **not created** — needs the dashboard |
-| Remote Login on the Mac mini | **already on** |
-| `~/.ssh/authorized_keys` on the Mac mini | **does not exist** |
-| SSH password authentication | **on** (macOS default) |
+| Tunnel ingress for it | **live** in `~/.cloudflared/config.yml` |
+| Cloudflare Access application | **created** (`Mac mini SSH`) |
+| Remote Login on the Mac mini | on |
+| MacBook client | **not set up** — §3 |
+| `~/.ssh/authorized_keys` on the Mac mini | **does not exist** — §4 |
+| SSH password authentication | **on** (macOS default) — §4 |
 
-So `ssh.joinanny.com` resolves but the tunnel has no rule for it and answers
-404. Nothing is reachable. Finish it with §1 and §2 below, in that order.
+Verified end to end on 2026-11-07:
+
+```
+curl -D- https://ssh.joinanny.com/        → 302 to cloudflareaccess.com, auth_status NONE
+ssh over the ProxyCommand, no Access session
+                                          → cloudflared asks for a browser login, then times out
+curl https://aiagent.joinanny.com/        → 200, the web UI is unaffected
+```
+
+An unauthenticated request is stopped at Cloudflare's edge and never reaches
+the tunnel, let alone `sshd`.
 
 ### What went wrong on 2026-11-07, so it is not repeated
 
@@ -56,7 +68,11 @@ ssh -o BatchMode=yes -o ConnectTimeout=6 hotkhwan@127.0.0.1 true
 
 ---
 
-## 1. Create the Access application
+## 1. Create the Access application — done
+
+Kept here because it is what holds the whole thing up: if this application is
+ever deleted, or its policy emptied, comment the `ssh.joinanny.com` rule out
+of `~/.cloudflared/config.yml` in the same breath.
 
 **one.dash.cloudflare.com → Access → Applications → Add an application →
 Self-hosted**
@@ -81,25 +97,21 @@ Browser-rendered SSH — a terminal inside the Cloudflare dashboard — is a
 separate feature and is not what this sets up. This is a real SSH session from
 a real terminal.
 
-## 2. Turn the route back on
-
-Delete the four comment lines in `~/.cloudflared/config.yml` so the rule is
-live again:
+## 2. The tunnel route — done
 
 ```yaml
   - hostname: ssh.joinanny.com
     service: ssh://localhost:22
 ```
 
-Then:
+The tunnel is **locally managed**, so routes live in `~/.cloudflared/config.yml`
+and the dashboard will not let you edit them — it only lists them. After any
+change:
 
 ```sh
-cloudflared tunnel ingress validate          # from ~/.cloudflared
+cd ~/.cloudflared && cloudflared tunnel ingress validate
 launchctl kickstart -k gui/$(id -u)/com.aiagent.cloudflared
 ```
-
-The tunnel is **locally managed**, so routes live in that file and the
-dashboard will not let you edit them — it only lists them.
 
 ## 3. On the MacBook — the client
 
