@@ -8,3 +8,7 @@
 state.json
 audit.jsonl
 workspaces.json
+
+# Claude Code worktrees: separate checkouts that live here but are not
+# part of this repository. git add -A picked them up once as gitlinks.
+.claude/worktrees/
