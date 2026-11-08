@@ -208,10 +208,11 @@ function renderBanner () {
 // ---------- render ----------
 function render () {
   const snap = st.snap
+  bindSlots()
   $('host').textContent = snap.host || ''
   const live = snap.sessions.filter(x => x.live)
   const reach = live.filter(x => x.dispatchVia).length
-  const hs = st.house && houseByKey[st.house]
+  const hs = st.house && houseOf(st.house)
   const rf = hs && st.roomFocus && roomTitle[st.roomFocus]
   $('stageTitle').textContent = rf ? hs.name + ' · ' + rf : hs ? hs.name : tr('หมู่บ้าน Agent')
   applyPhase()
@@ -277,7 +278,10 @@ function openFilter (key) {
 
 const filterTitle = { running: tr('กำลังทำงาน'), needsInput: tr('รอคุณตอบ'), rest: tr('ว่าง / เสร็จแล้ว'), runsDone: tr('งาน agcmd เสร็จวันนี้'), waitingApproval: tr('รอตัดสินใจ (agcmd)'), lost: tr('ขาดการเชื่อมต่อ') }
 
-function houseName (sess) { return (houseByKey[originOf(sess)] || {}).name || '' }
+function houseName (sess) {
+  const i = slotIds.indexOf(sess.sessionId)
+  return i < 0 ? tr('ยังไม่มีบ้าน') : tr('บ้าน') + ' ' + (i + 1)
+}
 
 function filterPanel (key) {
   const snap = st.snap
@@ -447,17 +451,55 @@ function box (cls, x, y, w, hgt) {
   return e
 }
 
-const houses = [
-  { key: 'agcmd', name: tr('บ้าน agcmd'), sub: tr('tmux · สั่งงานจากเว็บได้'), img: 'house-kcmd', x: 250, y: 300, w: 330, icon: 'code', tone: 'green' },
-  { key: 'daemon', name: tr('บ้าน Background'), sub: tr('Claude daemon · ส่งข้อความผ่าน relay'), img: 'house-bg', x: 640, y: 215, w: 380, icon: 'term', tone: 'purple' },
-  { key: 'terminal', name: tr('บ้าน Terminal · VS Code'), sub: tr('เปิดในเครื่องของผู้ใช้ · ดูได้อย่างเดียว'), img: 'house-term', x: 1080, y: 300, w: 330, icon: 'code', tone: 'orange' }
+const SLOTS = [
+  { img: 'house-kcmd', x: 250, y: 300, w: 330, icon: 'code', tone: 'green' },
+  { img: 'house-bg', x: 640, y: 215, w: 380, icon: 'term', tone: 'purple' },
+  { img: 'house-term', x: 1080, y: 300, w: 330, icon: 'code', tone: 'orange' },
+  { img: 'house2-pink', x: 110, y: 560, w: 300, icon: 'rocket', tone: 'pink' },
+  { img: 'house2-blue', x: 1250, y: 560, w: 290, icon: 'layers', tone: 'blue' }
 ]
-const houseByKey = Object.fromEntries(houses.map(x => [x.key, x]))
+const slotKeys = SLOTS.map((_, i) => 'slot' + i)
+let slotIds = SLOTS.map(() => null)
 
-function originOf (sess) {
-  if (sess.messageVia === 'agcmd') return 'agcmd'
-  if (sess.kind === 'bg') return 'daemon'
-  return 'terminal'
+// A house keeps its session while that session is live; a free house takes the next live session.
+function bindSlots () {
+  const live = new Set(st.snap.sessions.filter(x => x.live).map(x => x.sessionId))
+  slotIds = slotIds.map(id => (live.has(id) ? id : null))
+  for (const sess of st.snap.sessions) {
+    if (!sess.live || slotIds.includes(sess.sessionId)) continue
+    const free = slotIds.indexOf(null)
+    if (free < 0) break
+    slotIds[free] = sess.sessionId
+  }
+}
+
+function houseKeyOf (sessionId) {
+  const i = slotIds.indexOf(sessionId)
+  return i < 0 ? null : slotKeys[i]
+}
+
+function runsHouseKey () {
+  const i = slotIds.findIndex(id => {
+    const sess = st.snap.sessions.find(x => x.sessionId === id)
+    return sess && sess.messageVia === 'agcmd'
+  })
+  return i < 0 ? null : slotKeys[i]
+}
+
+function houseSub (sess) {
+  if (!sess) return tr('ยังไม่มี agent ในช่องนี้')
+  const runtime = sess.runtimeType === 'codexCli' ? 'Codex' : 'Claude Code'
+  return runtime + ' · ' + (sess.messageVia ? tr('รับข้อความจากเว็บได้') : tr('ดูได้อย่างเดียว'))
+}
+
+function houseOf (key) {
+  const i = slotKeys.indexOf(key)
+  if (i < 0) return null
+  const sess = st.snap.sessions.find(x => x.sessionId === slotIds[i])
+  return Object.assign({ key, sess }, SLOTS[i], {
+    name: sess ? (sess.displayName || sess.sessionId.slice(0, 8)) : tr('ช่องว่าง'),
+    sub: houseSub(sess)
+  })
 }
 
 const roomOfActivity = {
@@ -467,8 +509,10 @@ const earColors = ['#F26D7D', '#6C8CF5', '#9B7BE0', '#F2A65A', '#3FC1C9', '#F08C
 
 function actorsFor (houseKey) {
   const out = []
+  const sid = slotIds[slotKeys.indexOf(houseKey)]
+  if (!sid) return out
   for (const sess of st.snap.sessions) {
-    if (!sess.live || originOf(sess) !== houseKey) continue
+    if (!sess.live || sess.sessionId !== sid) continue
     const s2 = sess.status
     const waiting = s2 === 'needsInput'
     const resting = s2 === 'idle' || s2 === 'completed'
@@ -502,7 +546,7 @@ function actorsFor (houseKey) {
       })
     }
   }
-  if (houseKey === 'agcmd') {
+  if (houseKey === runsHouseKey()) {
     for (const run of st.snap.runs) {
       if (run.status === 'WAITING_DECISION') out.push({ kind: 'run', id: run.id, room: 'approval', runtime: 'claudeCode', mood: 'ask', label: tr('รอคุณตัดสินใจ'), name: run.id })
       else if (run.lost) out.push({ kind: 'run', id: run.id, room: 'ops', runtime: 'claudeCode', mood: 'lost', label: tr('ขาดการเชื่อมต่อ'), name: run.id })
@@ -544,15 +588,14 @@ function renderMap () {
 
 function renderVillage () {
   const counts = {}
-  for (const hs of houses) counts[hs.key] = actorsFor(hs.key)
-  const all = houses.flatMap(hs => counts[hs.key].map(a => Object.assign({ house: hs.key }, a)))
-  const sig = houses.map(hs => counts[hs.key].map(a => a.mood + a.room).join(',')).join('|')
+  for (const key of slotKeys) counts[key] = actorsFor(key)
+  const sig = slotKeys.map(key => (houseOf(key).name) + '/' + counts[key].map(a => a.mood + a.room).join(',')).join('|')
   if (st.drawn === 'village' && st.villageSig === sig) return
   st.villageSig = sig
   // the scenery is drawn once; a status change only redraws the houses
   if (st.drawn === 'village' && st.vBoard && st.vBoard.isConnected) {
     for (const el of st.vBoard.querySelectorAll('.houseHit')) el.remove()
-    drawVillageHouses(st.vBoard, counts, all)
+    drawVillageHouses(st.vBoard, counts)
     return
   }
   st.drawn = 'village'
@@ -560,7 +603,7 @@ function renderVillage () {
   const b = sceneBoard(VW, VH, 'village')
   st.vBoard = b
   drawVillageScenery(b)
-  drawVillageHouses(b, counts, all)
+  drawVillageHouses(b, counts)
 }
 
 function drawVillageScenery (b) {
@@ -673,7 +716,7 @@ function checkLaunches () {
     if (st.launched[key]) continue
     st.launched[key] = true
     // only events from the last 2 minutes animate (not old ones on page load)
-    if (st.launchReady && Date.now() - new Date(ci.eventAt).getTime() < 120000) fresh.push(Object.assign({ who: sess.displayName }, ci))
+    if (st.launchReady && Date.now() - new Date(ci.eventAt).getTime() < 120000) fresh.push(Object.assign({ who: sess.displayName, sid: sess.sessionId }, ci))
   }
   st.launchReady = true
   for (const ci of fresh) launch(ci)
@@ -686,7 +729,8 @@ function launch (ci) {
     r.classList.add(ci.ok ? 'launch' : 'fizzle')
     setTimeout(() => r.classList.remove('launch', 'fizzle'), 4200)
   }
-  const dep = document.querySelector('.houseHit[data-key="v-deploy"]')
+  const hk = houseKeyOf(ci.sid)
+  const dep = hk && document.querySelector('.houseHit[data-key="' + hk + '"]')
   if (dep && st.board) {
     const x = parseFloat(dep.style.left) + 140
     const y = parseFloat(dep.style.top) + 20
@@ -696,25 +740,17 @@ function launch (ci) {
   }
 }
 
-function drawVillageHouses (b, counts, all) {
-  // activity houses: agents of every origin that are in the Deploy / Infra rooms
-  const virt = [
-    { key: 'v-deploy', room: 'deploy', name: tr('บ้าน Deploy'), sub: tr('กำลัง Build และ Deploy'), img: 'house2-pink', x: 110, y: 560, w: 300, icon: 'rocket', tone: 'pink' },
-    { key: 'v-ops', room: 'ops', name: tr('บ้าน Infra'), sub: tr('ตรวจสอบสถานะระบบ'), img: 'house2-blue', x: 1250, y: 560, w: 290, icon: 'layers', tone: 'blue' }
-  ]
-  const place = [
-    Object.assign({}, houses[0], { img: 'house2-green', x: 160, y: 300, w: 320 }),
-    Object.assign({}, houses[1], { img: 'house2-purple', x: 640, y: 250, w: 390 }),
-    Object.assign({}, houses[2], { img: 'house2-orange', x: 1170, y: 300, w: 320 })
-  ].map(hs => Object.assign(hs, { list: counts[hs.key] })).concat(virt.map(v => Object.assign(v, { list: all.filter(a => a.room === v.room) })))
-  for (const hs of place) {
-    const list = hs.list
+function drawVillageHouses (b, counts) {
+  for (const key of slotKeys) {
+    const hs = houseOf(key)
+    const list = counts[key]
     const busy = list.filter(a => a.mood === 'work').length
     const ask = list.filter(a => a.mood === 'ask').length
-    const g = box('houseHit', hs.x, hs.y, hs.w, 0)
-    g.dataset.key = hs.key
+    const empty = !hs.sess
+    const g = box('houseHit' + (empty ? ' empty' : ''), hs.x, hs.y, hs.w, 0)
+    g.dataset.key = key
     g.style.zIndex = hs.y + 200
-    g.tabIndex = 0
+    g.tabIndex = empty ? -1 : 0
     g.setAttribute('role', 'button')
     g.setAttribute('aria-label', hs.name + ' — ' + list.length + ' agent')
     g.append(img(hs.img, 0, 0, hs.w, { cls: 'house' + (busy ? ' busy' : '') }))
@@ -734,21 +770,14 @@ function drawVillageHouses (b, counts, all) {
     const fill = card.querySelector('.pbar i')
     if (fill) fill.style.width = pctBusy + '%'
     g.append(card)
-    const enter = () => {
-      stopFollow()
-      if (hs.room) {
-        // go to the house that has most agents in this room (agcmd if none)
-        const byHouse = {}
-        for (const a of list) byHouse[a.house] = (byHouse[a.house] || 0) + 1
-        st.house = Object.keys(byHouse).sort((x, y) => byHouse[y] - byHouse[x])[0] || 'agcmd'
-        st.sel = null; st.inspKey = ''
-        openRoom(hs.room)
-        return
+    if (!empty) {
+      const enter = () => {
+        stopFollow()
+        st.house = key; st.sel = null; st.inspKey = ''; render()
       }
-      st.house = hs.key; st.sel = null; st.inspKey = ''; render()
+      g.addEventListener('click', enter)
+      g.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); enter() } })
     }
-    g.addEventListener('click', enter)
-    g.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); enter() } })
     b.append(g)
   }
 }
@@ -1079,12 +1108,8 @@ const FW = 1640
 const FH = 990
 
 function flyTo (kind, id) {
-  let houseKey = 'agcmd'
-  if (kind === 'session') {
-    const sess = st.snap.sessions.find(x => x.sessionId === id)
-    if (!sess || !sess.live) return select(kind, id)
-    houseKey = originOf(sess)
-  }
+  const houseKey = kind === 'session' ? houseKeyOf(id) : runsHouseKey()
+  if (!houseKey) return select(kind, id)
   const a = actorsFor(houseKey).find(x => x.id === id)
   if (st.view !== 'map') setView('map')
   st.house = houseKey
@@ -1675,7 +1700,7 @@ function sessionHeader (sess) {
   ava.style.background = 'color-mix(in srgb, ' + agentColor(sess) + ' 18%, transparent)'
   const stateDot = h('i')
   stateDot.style.background = !sess.live ? 'var(--line)' : sess.status === 'running' ? 'var(--brand)' : sess.status === 'needsInput' ? 'var(--amber)' : 'var(--muted)'
-  const where = sess.messageVia === 'agcmd' ? tr('บ้าน agcmd') : sess.kind === 'bg' ? tr('บ้าน Background') : tr('บ้าน Terminal · VS Code')
+  const where = houseName(sess)
   return [
     h('button', { type: 'button', class: 'ghost', onclick: back }, tr('← ภาพรวม')),
     h('div', { class: 'who' }, ava, h('div', null,
@@ -2489,7 +2514,8 @@ function followActor () {
   if (!id) return null
   const sess = st.snap.sessions.find(x => x.sessionId === id.split(':')[0])
   if (!sess || !sess.live) return null
-  const house = originOf(sess)
+  const house = houseKeyOf(sess.sessionId)
+  if (!house) return null
   const a = actorsFor(house).find(x => x.id === id)
   return a ? Object.assign({ house }, a) : null
 }

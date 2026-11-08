@@ -40,17 +40,28 @@ below, and it trims, scales and quantises.
 
 ## What the village is
 
-A floating island in the sky, reached by a gate, with a plaza and paths. Each
-house is one place agents work from:
+A floating island in the sky, reached by a gate, with a plaza and paths. The
+village is **five houses**, and each house is bound to one session (the owner's
+rule: "we look at it per session"):
 
-| House | What it is |
-|---|---|
-| `house-kcmd` | the agcmd house — tmux, takes work from the web |
-| `house-bg` | the Background house — the Claude daemon, messages go through the relay |
-| `house-term` | the Terminal / VS Code house — read only |
-| `house2-pink` | Deploy — lit while something is building |
-| `house2-blue` | Infra |
-| `house2-green`, `house2-orange`, `house2-purple` | spare colours for further houses |
+| House | Position | Art |
+|---|---|---|
+| house 1 | `house-kcmd` at 250,300 | `house-kcmd` |
+| house 2 | `house-bg` at 640,215 | `house-bg` |
+| house 3 | `house-term` at 1080,300 | `house-term` |
+| house 4 | 110,560 | `house2-pink` |
+| house 5 | 1250,560 | `house2-blue` |
+
+- A house takes the next live session when one is free. It keeps that session
+  while the session is live, so a house does not move while you watch it.
+- The label is the session's name (`displayName`), and the house sign is blank
+  in the art. The text is drawn by the code.
+- A house with no session is shown empty and dimmed, and cannot be clicked. A
+  session that finds all five houses taken is still listed, but has no house.
+- The agcmd runs (the workflow runs, not sessions) are shown in the first house
+  whose session is reached through agcmd.
+- The old per-origin houses and the Deploy / Infra activity houses are gone.
+  Deploy and Infra now show in the house of the session they belong to.
 
 ## Size
 

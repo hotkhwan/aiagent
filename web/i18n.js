@@ -336,17 +336,13 @@ var EN = {
   'เลือกปลายทางก่อน': 'Choose a destination',
   'ส่งจากเว็บไม่ได้': 'Cannot send from the web',
 
-  // the houses on the map
-  'บ้าน agcmd': 'The agcmd house',
-  'tmux · สั่งงานจากเว็บได้': 'tmux · can be given work from the web',
-  'บ้าน Background': 'The Background house',
-  'Claude daemon · ส่งข้อความผ่าน relay': 'Claude daemon · messages go through the relay',
-  'บ้าน Terminal · VS Code': 'The Terminal · VS Code house',
-  'เปิดในเครื่องของผู้ใช้ · ดูได้อย่างเดียว': 'Open on your own machine · read only',
-  'บ้าน Deploy': 'The Deploy house',
-  'กำลัง Build และ Deploy': 'Building and deploying',
-  'บ้าน Infra': 'The Infra house',
-  'ตรวจสอบสถานะระบบ': 'Checking system state',
+  // the houses on the map: each one is bound to a session
+  'บ้าน': 'House',
+  'ช่องว่าง': 'Empty house',
+  'ยังไม่มี agent ในช่องนี้': 'No agent in this house yet',
+  'ยังไม่มีบ้าน': 'Not in a house',
+  'รับข้อความจากเว็บได้': 'can be given work from the web',
+  'ดูได้อย่างเดียว': 'read only',
 
   // weather and CI
   'รอ CI: ': 'Waiting on CI: ',
