@@ -97,6 +97,10 @@
 <dialog id="screenPop" class="screenPop">
   <div class="spHead"><h2 id="screenPopTitle">จอ</h2><form method="dialog"><button class="ghost" aria-label="ปิด">✕</button></form></div>
   <div class="spBody" id="screenPopBody"></div>
+  <!-- The monitor opens with showModal(), which makes the composer in the page
+       footer inert: you could read the room but not answer anyone in it. This
+       is the composer that works from in here. -->
+  <div class="spFoot" id="screenPopFoot"></div>
 </dialog>
 
 <dialog id="panelPop" class="screenPop panelPop">
@@ -123,17 +127,23 @@
 </dialog>
 
 <dialog id="login">
-  <form class="dlg" id="loginForm">
-    <h2>เข้าสู่ AI Agent World</h2>
-    <p>ใส่ token ของ AI Agent World (ขึ้นต้นด้วย <code>kaw_</code>) — ได้จาก <code>aiagent enable</code> หรือ <code>aiagent rotate-token</code> บนเครื่องนี้ · เก็บไว้เฉพาะแท็บนี้</p>
-    <input id="loginToken" type="password" autocomplete="off" spellcheck="false" aria-label="token">
-    <!-- Off by default: the token is forgotten when the tab closes. Ticking it
-         keeps it on this device, which is what makes the home-screen app on a
-         phone usable — otherwise every cold start asks for the token again. -->
-    <label class="remember"><input type="checkbox" id="loginRemember"> จำไว้ในเครื่องนี้ (สำหรับมือถือ / แอปหน้าจอหลัก)</label>
-    <p class="err" id="loginErr"></p>
-    <div class="dlgBtns"><button type="submit" class="pri">เข้าใช้งาน</button></div>
-  </form>
+  <div class="loginScene">
+    <div class="loginPetals" id="loginPetals" aria-hidden="true"></div>
+    <div class="loginRow">
+      <i class="loginChar" aria-hidden="true"></i>
+      <form class="dlg loginCard" id="loginForm">
+        <h2><img src="/aiagent/assets/house-kcmd.png" alt="" class="loginMark">เข้าสู่ AI Agent World</h2>
+        <p>ใส่ token ของ AI Agent World (ขึ้นต้นด้วย <code>kaw_</code>) — ได้จาก <code>aiagent enable</code> หรือ <code>aiagent rotate-token</code> บนเครื่องนี้ · เก็บไว้เฉพาะแท็บนี้</p>
+        <input id="loginToken" type="password" autocomplete="off" spellcheck="false" aria-label="token">
+        <!-- Off by default: the token is forgotten when the tab closes. Ticking it
+             keeps it on this device, which is what makes the home-screen app on a
+             phone usable — otherwise every cold start asks for the token again. -->
+        <label class="remember"><input type="checkbox" id="loginRemember"> จำไว้ในเครื่องนี้ (สำหรับมือถือ / แอปหน้าจอหลัก)</label>
+        <p class="err" id="loginErr"></p>
+        <div class="dlgBtns"><button type="submit" class="pri">เข้าใช้งาน</button></div>
+      </form>
+    </div>
+  </div>
 </dialog>
 
 <!-- i18n.js first: it captures the Thai in the markup above as its own keys,

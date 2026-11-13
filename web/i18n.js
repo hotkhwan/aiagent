@@ -336,12 +336,27 @@ var EN = {
   'เลือกปลายทางก่อน': 'Choose a destination',
   'ส่งจากเว็บไม่ได้': 'Cannot send from the web',
 
-  // the houses on the map: each one is bound to a session
-  'บ้าน': 'House',
-  'ช่องว่าง': 'Empty house',
-  'ยังไม่มี agent ในช่องนี้': 'No agent in this house yet',
-  'ยังไม่มีบ้าน': 'Not in a house',
-  'รับข้อความจากเว็บได้': 'can be given work from the web',
+  // the composer inside the room monitor, and attaching pictures
+  'ไม่มี agent ในห้องนี้ที่รับข้อความจากเว็บได้': 'No agent in this room can be given work from the web',
+  'พิมพ์ถึง agent ในห้องนี้…': 'Write to an agent in this room…',
+  'เลือก agent ที่จะส่งถึง': 'Choose which agent to send to',
+  'เปิดไฟล์รูปไม่ได้': 'That image file could not be opened',
+  'ย่อรูปไม่สำเร็จ — ลองเลือกรูปที่เล็กกว่านี้': 'The picture could not be resized — try a smaller one',
+  'แนบไม่ได้ ': 'Could not attach ',
+  'รูปยังอัปโหลดไม่เสร็จ — รออีกครู่แล้วกดส่งอีกที': 'The picture is still uploading — wait a moment and send again',
+  ' ไฟล์ — รับเฉพาะ PNG, JPEG, GIF, WebP และไม่เกิน 10 รูป': ' file(s) — PNG, JPEG, GIF and WebP only, up to 10',
+
+  // the session list, which is the home screen
+  ' ตัวช่วย': ' helper',
+  ' รอตรวจ': ' to review',
+  'ยังไม่มี agent ที่ออนไลน์': 'No agent is online yet',
+  'ยังไม่มี': 'None',
+
+  // the village is one house, entered from the plaza in the middle of the map
+  'บ้าน Agent': 'The Agent house',
+  ' agent บนเครื่องนี้': ' agent on this box',
+  'เข้าไปในบ้าน Agent': 'Go into the Agent house',
+  'คลิกเพื่อเข้าไปดูทุกห้อง': 'Click to go in and see every room',
   'ดูได้อย่างเดียว': 'read only',
 
   // weather and CI

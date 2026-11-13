@@ -12,7 +12,8 @@ const st = {
   token: safeGet(tokenKey),
   snap: null,
   lastOk: 0,
-  view: 'map',
+  // the list is home: it is the view that holds any number of sessions
+  view: 'list',
   sel: null,
   detail: null,
   runLog: null,
@@ -208,11 +209,10 @@ function renderBanner () {
 // ---------- render ----------
 function render () {
   const snap = st.snap
-  bindSlots()
   $('host').textContent = snap.host || ''
   const live = snap.sessions.filter(x => x.live)
   const reach = live.filter(x => x.dispatchVia).length
-  const hs = st.house && houseOf(st.house)
+  const hs = st.house ? { name: tr('บ้าน Agent'), sub: live.length + tr(' agent บนเครื่องนี้') } : null
   const rf = hs && st.roomFocus && roomTitle[st.roomFocus]
   $('stageTitle').textContent = rf ? hs.name + ' · ' + rf : hs ? hs.name : tr('หมู่บ้าน Agent')
   applyPhase()
@@ -278,10 +278,6 @@ function openFilter (key) {
 
 const filterTitle = { running: tr('กำลังทำงาน'), needsInput: tr('รอคุณตอบ'), rest: tr('ว่าง / เสร็จแล้ว'), runsDone: tr('งาน agcmd เสร็จวันนี้'), waitingApproval: tr('รอตัดสินใจ (agcmd)'), lost: tr('ขาดการเชื่อมต่อ') }
 
-function houseName (sess) {
-  const i = slotIds.indexOf(sess.sessionId)
-  return i < 0 ? tr('ยังไม่มีบ้าน') : tr('บ้าน') + ' ' + (i + 1)
-}
 
 function filterPanel (key) {
   const snap = st.snap
@@ -294,7 +290,7 @@ function filterPanel (key) {
       const ex = h('div', { class: 'excerpt', 'data-sid': sess.sessionId }, key === 'needsInput' ? tr('กำลังโหลดข้อความล่าสุด…') : (sess.title || ''))
       return h('div', { class: 'card ' + (key === 'needsInput' ? 'warn' : ''), tabindex: 0, onclick: () => { st.tab = 'chat'; flyTo('session', sess.sessionId) }, onkeydown: e => { if (e.key === 'Enter') { st.tab = 'chat'; flyTo('session', sess.sessionId) } } },
         h('b', null, sess.displayName),
-        h('small', null, houseName(sess) + ' · ' + stateText(sess) + ' · ' + ago(sess.lastEventAt) + (sess.messageVia ? tr(' · ตอบจากเว็บได้') : tr(' · ดูได้อย่างเดียว'))),
+        h('small', null, (sess.repoId || '—') + ' · ' + stateText(sess) + ' · ' + ago(sess.lastEventAt) + (sess.messageVia ? tr(' · ตอบจากเว็บได้') : tr(' · ดูได้อย่างเดียว'))),
         ex)
     })
   } else {
@@ -451,68 +447,26 @@ function box (cls, x, y, w, hgt) {
   return e
 }
 
-const SLOTS = [
-  { img: 'house-kcmd', x: 250, y: 300, w: 330, icon: 'code', tone: 'green' },
-  { img: 'house-bg', x: 640, y: 215, w: 380, icon: 'term', tone: 'purple' },
-  { img: 'house-term', x: 1080, y: 300, w: 330, icon: 'code', tone: 'orange' },
-  { img: 'house2-pink', x: 110, y: 560, w: 300, icon: 'rocket', tone: 'pink' },
-  { img: 'house2-blue', x: 1250, y: 560, w: 290, icon: 'layers', tone: 'blue' }
-]
-const slotKeys = SLOTS.map((_, i) => 'slot' + i)
-let slotIds = SLOTS.map(() => null)
-
-// A house keeps its session while that session is live; a free house takes the next live session.
-function bindSlots () {
-  const live = new Set(st.snap.sessions.filter(x => x.live).map(x => x.sessionId))
-  slotIds = slotIds.map(id => (live.has(id) ? id : null))
-  for (const sess of st.snap.sessions) {
-    if (!sess.live || slotIds.includes(sess.sessionId)) continue
-    const free = slotIds.indexOf(null)
-    if (free < 0) break
-    slotIds[free] = sess.sessionId
-  }
-}
-
-function houseKeyOf (sessionId) {
-  const i = slotIds.indexOf(sessionId)
-  return i < 0 ? null : slotKeys[i]
-}
-
-function runsHouseKey () {
-  const i = slotIds.findIndex(id => {
-    const sess = st.snap.sessions.find(x => x.sessionId === id)
-    return sess && sess.messageVia === 'agcmd'
-  })
-  return i < 0 ? null : slotKeys[i]
-}
-
-function houseSub (sess) {
-  if (!sess) return tr('ยังไม่มี agent ในช่องนี้')
-  const runtime = sess.runtimeType === 'codexCli' ? 'Codex' : 'Claude Code'
-  return runtime + ' · ' + (sess.messageVia ? tr('รับข้อความจากเว็บได้') : tr('ดูได้อย่างเดียว'))
-}
-
-function houseOf (key) {
-  const i = slotKeys.indexOf(key)
-  if (i < 0) return null
-  const sess = st.snap.sessions.find(x => x.sessionId === slotIds[i])
-  return Object.assign({ key, sess }, SLOTS[i], {
-    name: sess ? (sess.displayName || sess.sessionId.slice(0, 8)) : tr('ช่องว่าง'),
-    sub: houseSub(sess)
-  })
-}
+// The village is one house. Sessions come and go and there is no limit on how
+// many there are, so dividing five painted buildings between them never held —
+// the list view is where you pick one agent out of many. Here the whole place
+// is entered at once and everyone is inside, standing in the room that matches
+// what they are doing.
+const HOUSE = 'village'
+// the lit plaza at the middle of the painting, which is what you click
+const ENTRANCE = { x: 560, y: 300, w: 520, h: 340 }
 
 const roomOfActivity = {
   codeEdit: 'code', testRun: 'test', deploy: 'deploy', command: 'ops', research: 'library', planning: 'plan', unknown: 'plan', idle: 'lounge'
 }
 const earColors = ['#F26D7D', '#6C8CF5', '#9B7BE0', '#F2A65A', '#3FC1C9', '#F08CC0', '#7BC96F', '#E8C547']
 
-function actorsFor (houseKey) {
+// Everyone live on this box, plus the sub-agents they spawned and the agcmd
+// runs waiting on you.
+function actorsFor () {
   const out = []
-  const sid = slotIds[slotKeys.indexOf(houseKey)]
-  if (!sid) return out
   for (const sess of st.snap.sessions) {
-    if (!sess.live || sess.sessionId !== sid) continue
+    if (!sess.live) continue
     const s2 = sess.status
     const waiting = s2 === 'needsInput'
     const resting = s2 === 'idle' || s2 === 'completed'
@@ -546,11 +500,9 @@ function actorsFor (houseKey) {
       })
     }
   }
-  if (houseKey === runsHouseKey()) {
-    for (const run of st.snap.runs) {
-      if (run.status === 'WAITING_DECISION') out.push({ kind: 'run', id: run.id, room: 'approval', runtime: 'claudeCode', mood: 'ask', label: tr('รอคุณตัดสินใจ'), name: run.id })
-      else if (run.lost) out.push({ kind: 'run', id: run.id, room: 'ops', runtime: 'claudeCode', mood: 'lost', label: tr('ขาดการเชื่อมต่อ'), name: run.id })
-    }
+  for (const run of st.snap.runs) {
+    if (run.status === 'WAITING_DECISION') out.push({ kind: 'run', id: run.id, room: 'approval', runtime: 'claudeCode', mood: 'ask', label: tr('รอคุณตัดสินใจ'), name: run.id })
+    else if (run.lost) out.push({ kind: 'run', id: run.id, room: 'ops', runtime: 'claudeCode', mood: 'lost', label: tr('ขาดการเชื่อมต่อ'), name: run.id })
   }
   return out
 }
@@ -587,15 +539,14 @@ function renderMap () {
 }
 
 function renderVillage () {
-  const counts = {}
-  for (const key of slotKeys) counts[key] = actorsFor(key)
-  const sig = slotKeys.map(key => (houseOf(key).name) + '/' + counts[key].map(a => a.mood + a.room).join(',')).join('|')
+  const list = actorsFor()
+  const sig = list.map(a => a.mood + a.room).join(',')
   if (st.drawn === 'village' && st.villageSig === sig) return
   st.villageSig = sig
-  // the scenery is drawn once; a status change only redraws the houses
+  // the scenery is drawn once; a status change only redraws the entrance
   if (st.drawn === 'village' && st.vBoard && st.vBoard.isConnected) {
     for (const el of st.vBoard.querySelectorAll('.houseHit')) el.remove()
-    drawVillageHouses(st.vBoard, counts)
+    drawVillageEntrance(st.vBoard, list)
     return
   }
   st.drawn = 'village'
@@ -603,7 +554,7 @@ function renderVillage () {
   const b = sceneBoard(VW, VH, 'village')
   st.vBoard = b
   drawVillageScenery(b)
-  drawVillageHouses(b, counts)
+  drawVillageEntrance(b, list)
 }
 
 function drawVillageScenery (b) {
@@ -672,26 +623,9 @@ function drawVillageScenery (b) {
   // The island is the pastel ground. With a painted floor it is redundant,
   // and drawing it over the art would put a green hill on a neon plaza.
   if (!b.classList.contains('painted')) b.append(isl)
-  const deco = [
-    ['sakura', 20, 330, 170], ['tree1', 440, 160, 120], ['tree2', 1160, 170, 120], ['sakura', 1490, 310, 160], ['tree1', 1560, 520, 110], ['tree2', -10, 560, 120],
-    ['tree2', 600, 170, 90], ['tree1', 960, 160, 95], ['sakura2', 700, 420, 230],
-    ['bush2', 420, 470, 80], ['bush3', 1170, 470, 80], ['bush1', 560, 560, 60], ['bush2b', 1060, 560, 80], ['flowerbox3', 300, 800, 120], ['flowerbox3', 1240, 800, 120],
-    ['lamppost2', 490, 560, 44], ['lamppost2', 1130, 560, 44], ['lamppost2', 690, 760, 40], ['lamppost2', 930, 760, 40],
-    ['bench2', 600, 650, 120], ['board-cork', 990, 610, 110], ['fence', 430, 820, 130], ['fence', 1100, 820, 130], ['fountain', 750, 590, 160], ['gate', 640, 800, 380]
-  ]
-  // With a painted floor the art already has its own foliage, railings and
-  // night sky, so these would be a second set on top of the first — and they
-  // are the pastel originals, which is the clash twice over. The ones left
-  // are either redrawn for the new design (sakura2, bench2, flowerbox3,
-  // bush2b) or carry meaning rather than decoration (the gate sign, the
-  // notice board, the fountain, the lamps that light when an agent works).
-  const paintedOver = new Set(['sakura', 'tree1', 'tree2', 'bush1', 'bush2', 'bush3', 'fence'])
-  for (const [n, x, y, w] of deco) {
-    if (b.classList.contains('painted') && paintedOver.has(n)) continue
-    const el = img(n, x, y, w, { z: Math.round(y) })
-    if (n.startsWith('lamppost')) el.classList.add('lampGlow')
-    b.append(el)
-  }
+  // No prop sprites are placed on top. The map is a finished painting — its own
+  // trees, lamps, railings, water and fountain — so the pastel set that used to
+  // stand here was a second copy of everything, in the wrong style.
 }
 
 // ----- A1 weather follows the plan usage -----
@@ -716,7 +650,7 @@ function checkLaunches () {
     if (st.launched[key]) continue
     st.launched[key] = true
     // only events from the last 2 minutes animate (not old ones on page load)
-    if (st.launchReady && Date.now() - new Date(ci.eventAt).getTime() < 120000) fresh.push(Object.assign({ who: sess.displayName, sid: sess.sessionId }, ci))
+    if (st.launchReady && Date.now() - new Date(ci.eventAt).getTime() < 120000) fresh.push(Object.assign({ who: sess.displayName }, ci))
   }
   st.launchReady = true
   for (const ci of fresh) launch(ci)
@@ -729,8 +663,7 @@ function launch (ci) {
     r.classList.add(ci.ok ? 'launch' : 'fizzle')
     setTimeout(() => r.classList.remove('launch', 'fizzle'), 4200)
   }
-  const hk = houseKeyOf(ci.sid)
-  const dep = hk && document.querySelector('.houseHit[data-key="' + hk + '"]')
+  const dep = document.querySelector('.houseHit')
   if (dep && st.board) {
     const x = parseFloat(dep.style.left) + 140
     const y = parseFloat(dep.style.top) + 20
@@ -740,46 +673,33 @@ function launch (ci) {
   }
 }
 
-function drawVillageHouses (b, counts) {
-  for (const key of slotKeys) {
-    const hs = houseOf(key)
-    const list = counts[key]
-    const busy = list.filter(a => a.mood === 'work').length
-    const ask = list.filter(a => a.mood === 'ask').length
-    const empty = !hs.sess
-    const g = box('houseHit' + (empty ? ' empty' : ''), hs.x, hs.y, hs.w, 0)
-    g.dataset.key = key
-    g.style.zIndex = hs.y + 200
-    g.tabIndex = empty ? -1 : 0
-    g.setAttribute('role', 'button')
-    g.setAttribute('aria-label', hs.name + ' — ' + list.length + ' agent')
-    g.append(img(hs.img, 0, 0, hs.w, { cls: 'house' + (busy ? ' busy' : '') }))
-    const pctBusy = list.length ? Math.round(busy / list.length * 100) : 0
-    const card = h('div', { class: 'hcard ' + hs.tone },
-      h('div', { class: 'hicon' }, iconSvg(hs.icon)),
-      h('div', { class: 'htext' },
-        h('b', null, h('i', { class: 'dot' }), hs.name + ' · ' + list.length),
-        h('span', null, hs.sub),
-        h('div', { class: 'hrow' },
-          ask ? h('em', { class: 'pill ask' }, '⏸ ' + ask + tr(' รอคุณตอบ')) : '',
-          busy ? h('em', { class: 'pill work' }, '✦ ' + busy + tr(' กำลังทำงาน')) : '',
-          !ask && !busy ? h('em', { class: 'pill idle' }, list.length ? tr('ว่างทั้งหมด') : tr('ไม่มี agent')) : '',
-          list.length ? h('div', { class: 'pbar' }, h('i')) : '',
-          list.length ? h('small', { class: 'ppct' }, pctBusy + '%') : '')),
-      h('span', { class: 'pin' }))
-    const fill = card.querySelector('.pbar i')
-    if (fill) fill.style.width = pctBusy + '%'
-    g.append(card)
-    if (!empty) {
-      const enter = () => {
-        stopFollow()
-        st.house = key; st.sel = null; st.inspKey = ''; render()
-      }
-      g.addEventListener('click', enter)
-      g.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); enter() } })
-    }
-    b.append(g)
+function drawVillageEntrance (b, list) {
+  const busy = list.filter(a => a.mood === 'work').length
+  const ask = list.filter(a => a.mood === 'ask').length
+  const g = box('houseHit', ENTRANCE.x, ENTRANCE.y, ENTRANCE.w, ENTRANCE.h)
+  g.dataset.key = HOUSE
+  g.style.zIndex = ENTRANCE.y + 200
+  g.tabIndex = 0
+  g.setAttribute('role', 'button')
+  g.setAttribute('aria-label', tr('เข้าไปในบ้าน Agent') + ' — ' + list.length + ' agent')
+  g.append(h('i', { class: 'houseLit' + (busy ? ' busy' : '') }))
+  g.append(h('div', { class: 'hcard green' },
+    h('div', { class: 'hicon' }, iconSvg('lounge')),
+    h('div', { class: 'htext' },
+      h('b', null, h('i', { class: 'dot' }), tr('บ้าน Agent') + ' · ' + list.length),
+      h('span', null, tr('คลิกเพื่อเข้าไปดูทุกห้อง')),
+      h('div', { class: 'hrow' },
+        ask ? h('em', { class: 'pill ask' }, '⏸ ' + ask + tr(' รอคุณตอบ')) : '',
+        busy ? h('em', { class: 'pill work' }, '✦ ' + busy + tr(' กำลังทำงาน')) : '',
+        !ask && !busy ? h('em', { class: 'pill idle' }, list.length ? tr('ว่างทั้งหมด') : tr('ไม่มี agent')) : '')),
+    h('span', { class: 'pin' })))
+  const enter = () => {
+    stopFollow()
+    st.house = HOUSE; st.sel = null; st.inspKey = ''; render()
   }
+  g.addEventListener('click', enter)
+  g.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); enter() } })
+  b.append(g)
 }
 
 // One glyph per room key, plus the three house markers on the map. These are
@@ -1108,11 +1028,9 @@ const FW = 1640
 const FH = 990
 
 function flyTo (kind, id) {
-  const houseKey = kind === 'session' ? houseKeyOf(id) : runsHouseKey()
-  if (!houseKey) return select(kind, id)
-  const a = actorsFor(houseKey).find(x => x.id === id)
+  const a = actorsFor().find(x => x.id === id)
   if (st.view !== 'map') setView('map')
-  st.house = houseKey
+  st.house = HOUSE
   st.roomFocus = null
   st.drawn = ''
   render()
@@ -1204,7 +1122,7 @@ function goPoi (act, idx, instant) {
 
 function renderRoomFocus () {
   const key = st.roomFocus
-  const want = actorsFor(st.house).filter(a => a.room === key)
+  const want = actorsFor().filter(a => a.room === key)
   const fresh = st.drawn !== 'focus:' + key || !st.focus || !st.focus.stage.isConnected
   if (fresh) {
     st.drawn = 'focus:' + key
@@ -1409,7 +1327,10 @@ async function updateMonitor (want) {
   }
   const body = document.querySelector('.wallScreen.live .scrBody')
   if (body) body.replaceChildren(...monitorCards(want, st.monMsgs, false))
-  if ($('screenPop').open && st.popRoom === st.roomFocus) $('screenPopBody').replaceChildren(...popContent(st.popRoom, want))
+  if ($('screenPop').open && st.popRoom === st.roomFocus) {
+    $('screenPopBody').replaceChildren(...popContent(st.popRoom, want))
+    drawPopComposer(want)
+  }
 }
 
 // popContent: the Testing room's screen always starts with the reviews
@@ -1417,13 +1338,57 @@ function popContent (key, want) {
   return [...(key === 'test' ? [reviewList(true)] : []), ...monitorCards(want, st.monMsgs || {}, true)]
 }
 
+// The monitor's own composer. It is built into the dialog footer and left alone
+// by the refresh above, so what you are typing survives the room updating under
+// you — only a change of who is in the room rebuilds it.
+function drawPopComposer (want) {
+  const foot = $('screenPopFoot')
+  const targets = want
+    .filter(a => a.kind === 'session' && a.canTake)
+    .map(a => st.snap.sessions.find(s => s.sessionId === a.id))
+    .filter(Boolean)
+  const sig = targets.map(s => s.sessionId).join(',')
+  if (foot.dataset.sig === sig) return
+  foot.dataset.sig = sig
+  if (!targets.length) {
+    foot.replaceChildren(h('p', { class: 'note' }, tr('ไม่มี agent ในห้องนี้ที่รับข้อความจากเว็บได้')))
+    return
+  }
+  const ta = h('textarea', { rows: 1, maxlength: 4000, placeholder: tr('พิมพ์ถึง agent ในห้องนี้…'), 'aria-label': tr('ข้อความ') })
+  const thumbs = h('div', { class: 'thumbs' })
+  const pick = targets.length > 1
+    ? h('select', { 'aria-label': tr('เลือก agent ที่จะส่งถึง') }, targets.map(s => h('option', { value: s.sessionId }, s.displayName)))
+    : null
+  const targetOf = () => (pick ? targets.find(s => s.sessionId === pick.value) : targets[0]) || targets[0]
+  const file = h('input', { type: 'file', accept: 'image/png,image/jpeg,image/gif,image/webp', multiple: true, hidden: true })
+  file.addEventListener('change', () => { addFiles(file.files, thumbs); file.value = '' })
+  const send = () => { sendChat(targetOf(), ta, thumbs); return false }
+  ta.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.shiftKey && !isPhone()) { e.preventDefault(); send() }
+  })
+  const last = [...(st.monMsgs[targets[0].sessionId] || [])].reverse().find(m => m.role === 'assistant')
+  const sugs = suggestFrom(last ? last.text : '').slice(0, 3)
+  foot.replaceChildren(
+    sugs.length ? h('div', { class: 'suggest' }, sugs.map(v => h('button', { type: 'button', class: 'sug', onclick: () => { ta.value = v; ta.focus() } }, v))) : '',
+    h('div', { class: 'spAsk' },
+      pick || '',
+      h('button', { type: 'button', class: 'ghost clip', 'aria-label': tr('แนบรูป'), onclick: () => file.click() }, '📎'),
+      thumbs, file,
+      h('div', { class: 'taWrap' }, ta),
+      h('button', { type: 'button', class: 'pri', onclick: send }, tr('ส่ง')))
+  )
+  drawThumbs(thumbs)
+}
+
 function openScreenPop (key) {
   st.popRoom = key
   const R = roomDefs[key]
   const t = R.screen ? R.screen[4] : ''
   $('screenPopTitle').textContent = t.includes(R.th) ? t : t + ' · ' + R.th
-  const want = actorsFor(st.house).filter(a => a.room === key)
+  const want = actorsFor().filter(a => a.room === key)
   $('screenPopBody').replaceChildren(...popContent(key, want))
+  $('screenPopFoot').dataset.sig = ''
+  drawPopComposer(want)
   $('screenPop').showModal()
 }
 
@@ -1436,7 +1401,7 @@ function renderInterior () {
     st.actorLayer = drawInterior()
   }
   const layer = st.actorLayer
-  const want = actorsFor(st.house)
+  const want = actorsFor()
   const taken = {}
   for (const id in st.actors) {
     const act = st.actors[id]
@@ -1561,14 +1526,43 @@ function reduceMotion () {
 }
 
 // ---------- list view ----------
+// The session list is the home screen: one card per main agent. It is the only
+// view that does not run out of room, which the five-house map did as soon as a
+// sixth session started.
+function sessionCard (sess) {
+  const waiting = sess.status === 'needsInput'
+  const resting = sess.status === 'idle' || sess.status === 'completed'
+  const tone = !sess.live ? 'off' : waiting ? 'ask' : resting ? 'idle' : 'work'
+  const state = !sess.live ? statusLabel.ended
+    : waiting ? tr('รอคุณตอบ')
+      : sess.status === 'completed' ? tr('เสร็จแล้ว')
+        : sess.status === 'idle' ? tr('ว่าง')
+          : activityLabel[sess.activityType]
+  const subs = (sess.subAgents || []).length
+  const revs = openReviewsOf(sess.sessionId).length
+  const ava = h('div', { class: 'ava' }, avatarSvg(agentHex(sess)))
+  ava.style.background = 'color-mix(in srgb, ' + agentColor(sess) + ' 18%, transparent)'
+  return h('button', {
+    type: 'button',
+    class: 'sCard' + (sess.live ? '' : ' off'),
+    onclick: () => select('session', sess.sessionId)
+  },
+  ava,
+  h('div', { class: 'sMain' },
+    h('b', null, sess.displayName),
+    h('span', { class: 'sMeta' }, runtimeName[sess.runtimeType] + ' · ' + (sess.repoId || '—') + (sess.gitBranch ? ' · ' + sess.gitBranch : ''))),
+  h('div', { class: 'sRight' },
+    h('em', { class: 'pill ' + tone }, state),
+    h('span', { class: 'sNums' },
+      subs ? subs + tr(' ตัวช่วย') : '',
+      subs && revs ? ' · ' : '',
+      revs ? revs + tr(' รอตรวจ') : '',
+      (subs || revs) ? ' · ' : '',
+      ago(sess.lastEventAt))))
+}
+
 function renderList () {
   const box = $('list')
-  const rowS = sess => h('tr', { tabindex: 0, onclick: () => select('session', sess.sessionId), onkeydown: e => { if (e.key === 'Enter') select('session', sess.sessionId) } },
-    h('td', null, sess.displayName),
-    h('td', null, runtimeName[sess.runtimeType]),
-    h('td', null, sess.live ? (sess.status === 'idle' ? tr('ว่าง') : activityLabel[sess.activityType]) : statusLabel.ended),
-    h('td', null, sess.title || '—'),
-    h('td', null, ago(sess.lastEventAt)))
   const rowR = run => h('tr', { tabindex: 0, onclick: () => select('run', run.id), onkeydown: e => { if (e.key === 'Enter') select('run', run.id) } },
     h('td', { class: 'mono' }, run.id),
     h('td', null, run.workspace),
@@ -1579,11 +1573,11 @@ function renderList () {
   const ended = st.snap.sessions.filter(x => !x.live)
   box.replaceChildren(
     h('h3', null, tr('Agent ที่ออนไลน์ (') + live.length + ')'),
-    h('table', { class: 'sessions' }, head(tr('ชื่อ'), tr('ชนิด'), tr('สถานะ'), tr('งาน'), tr('ล่าสุด')), h('tbody', null, live.map(rowS))),
+    live.length ? h('div', { class: 'sCards' }, live.map(sessionCard)) : h('p', { class: 'note' }, tr('ยังไม่มี agent ที่ออนไลน์')),
     h('h3', null, tr('งาน agcmd (') + st.snap.runs.length + ')'),
     h('table', { class: 'runs' }, head('Run', 'Workspace', tr('สถานะ'), tr('งาน')), h('tbody', null, st.snap.runs.map(rowR))),
     h('h3', null, tr('Session ที่จบแล้ววันนี้ (') + ended.length + ')'),
-    h('table', { class: 'sessions' }, head(tr('ชื่อ'), tr('ชนิด'), tr('สถานะ'), tr('งาน'), tr('ล่าสุด')), h('tbody', null, ended.map(rowS)))
+    ended.length ? h('div', { class: 'sCards' }, ended.map(sessionCard)) : h('p', { class: 'note' }, tr('ยังไม่มี'))
   )
 }
 
@@ -1700,13 +1694,12 @@ function sessionHeader (sess) {
   ava.style.background = 'color-mix(in srgb, ' + agentColor(sess) + ' 18%, transparent)'
   const stateDot = h('i')
   stateDot.style.background = !sess.live ? 'var(--line)' : sess.status === 'running' ? 'var(--brand)' : sess.status === 'needsInput' ? 'var(--amber)' : 'var(--muted)'
-  const where = houseName(sess)
   return [
     h('button', { type: 'button', class: 'ghost', onclick: back }, tr('← ภาพรวม')),
     h('div', { class: 'who' }, ava, h('div', null,
       h('h2', { class: 'nameRow' }, h('span', null, sess.displayName),
         h('button', { type: 'button', class: 'ghost renameBtn', title: tr('เปลี่ยนชื่อที่แสดงในเว็บ'), 'aria-label': tr('เปลี่ยนชื่อ'), onclick: () => renameSession(sess) }, '✎')),
-      h('p', null, runtimeName[sess.runtimeType] + ' · ' + where + ' · ' + (sess.repoId || '—')))),
+      h('p', null, runtimeName[sess.runtimeType] + ' · ' + (sess.repoId || '—')))),
     h('div', { class: 'state' }, stateDot, stateText(sess), (sess.subAgents || []).length
       ? h('button', { type: 'button', class: 'pill work subToggle' + (st.subsOpen ? ' on' : ''), 'aria-expanded': String(!!st.subsOpen), onclick: () => { st.subsOpen = !st.subsOpen; st.inspKey = ''; renderInspector() } }, '+' + sess.subAgents.length + ' sub-agent ' + (st.subsOpen ? '▴' : '▾'))
       : null),
@@ -1815,6 +1808,9 @@ async function updateChat (force) {
 // attachments take a fixed-size stack in the row; the full list opens as a
 // tray above the composer so the text box never shrinks
 function drawThumbs (thumbs) {
+  // Two composers share one attachment list — the page footer and the monitor
+  // dialog — so the tray has to be redrawn into whichever one is on screen.
+  st.thumbsEl = thumbs
   const list = st.attach || []
   if (!list.length) { st.trayOpen = false; return thumbs.replaceChildren() }
   const stack = h('button', { type: 'button', class: 'attStack', 'aria-expanded': String(!!st.trayOpen), title: tr('ดู/จัดการรูปแนบ'), onclick: () => { st.trayOpen = !st.trayOpen; drawThumbs(thumbs) } },
@@ -1825,22 +1821,54 @@ function drawThumbs (thumbs) {
       h('button', { type: 'button', class: 'ghost', 'aria-label': tr('ปิด'), onclick: () => { st.trayOpen = false; drawThumbs(thumbs) } }, '✕')),
     h('div', { class: 'trayGrid' }, list.map((a, i) => h('div', { class: 'thumb' },
       h('img', { src: a.url, alt: tr('รูปแนบ ') + (i + 1), title: tr('คลิกเพื่อดูภาพใหญ่'), onclick: () => openLightbox(a.url) }),
-      h('button', { type: 'button', 'aria-label': tr('ลบรูป ') + (i + 1), onclick: () => { URL.revokeObjectURL(a.url); st.attach.splice(i, 1); drawThumbs(thumbs) } }, '×'))))) : null
+      h('button', { type: 'button', 'aria-label': tr('ลบรูป ') + (i + 1), onclick: () => { if (a.url) URL.revokeObjectURL(a.url); st.attach.splice(i, 1); drawThumbs(thumbs); saveDraft() } }, '×'))))) : null
   thumbs.replaceChildren(stack, tray || '')
 }
 document.addEventListener('click', e => {
-  if (st.trayOpen && e.target.isConnected && !e.target.closest('#askThumbs') && !e.target.closest('#lightbox') && !e.target.closest('#askClip')) { st.trayOpen = false; drawThumbs($('askThumbs')) }
+  if (st.trayOpen && e.target.isConnected && !e.target.closest('.thumbs') && !e.target.closest('#lightbox') && !e.target.closest('.clip')) { st.trayOpen = false; drawThumbs(st.thumbsEl || $('askThumbs')) }
 })
+// closing the monitor hands the attachments back to the composer in the footer
+$('screenPop').addEventListener('close', () => { $('screenPopFoot').dataset.sig = ''; drawThumbs($('askThumbs')) })
+
+// A photo off an iPad is routinely over the 3.5MB the service accepts, so the
+// browser re-encodes it first. createImageBitmap is the direct way and is what
+// this used to assume — but Safari has shipped versions that reject a Blob
+// there, and on those every photo from the library failed to send. An <img>
+// decodes everywhere, so it is the fallback.
+async function decodeImage (blob) {
+  if (typeof createImageBitmap === 'function') {
+    try { return { src: await createImageBitmap(blob), done: () => {} } } catch (e) { /* fall through */ }
+  }
+  const url = URL.createObjectURL(blob)
+  const im = new Image()
+  try {
+    await new Promise((resolve, reject) => {
+      im.onload = resolve
+      im.onerror = () => reject(new Error(tr('เปิดไฟล์รูปไม่ได้')))
+      im.src = url
+    })
+  } catch (e) {
+    URL.revokeObjectURL(url)
+    throw e
+  }
+  return { src: im, done: () => URL.revokeObjectURL(url) }
+}
 
 async function shrink (blob) {
   if (blob.size <= 3400000) return blob
-  const bmp = await createImageBitmap(blob)
-  const k = Math.sqrt(3000000 / blob.size)
-  const c = document.createElement('canvas')
-  c.width = Math.max(1, Math.round(bmp.width * k))
-  c.height = Math.max(1, Math.round(bmp.height * k))
-  c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height)
-  return new Promise(resolve => c.toBlob(resolve, 'image/jpeg', 0.85))
+  const { src, done } = await decodeImage(blob)
+  try {
+    const k = Math.sqrt(3000000 / blob.size)
+    const c = document.createElement('canvas')
+    c.width = Math.max(1, Math.round(src.width * k))
+    c.height = Math.max(1, Math.round(src.height * k))
+    c.getContext('2d').drawImage(src, 0, 0, c.width, c.height)
+    // toBlob hands back null when the canvas could not be encoded, which on
+    // iOS happens under memory pressure. Uploading null fails far from here.
+    const out = await new Promise(resolve => c.toBlob(resolve, 'image/jpeg', 0.85))
+    if (!out) throw new Error(tr('ย่อรูปไม่สำเร็จ — ลองเลือกรูปที่เล็กกว่านี้'))
+    return out
+  } finally { done() }
 }
 
 async function uploadImage (blob) {
@@ -1884,25 +1912,18 @@ async function sendChat (sess, ta, thumbs) {
     if (!await confirmBox(tr('ส่งข้อความถึง ') + sess.displayName, how + tr(' · ยืนยันครั้งเดียวต่อ agent ในแท็บนี้'), text + (files.length ? tr('\n\n+ รูปแนบ ') + files.length + tr(' รูป') : ''), tr('ส่ง'))) return
     st.confirmedChat[sess.sessionId] = true
   }
+  if (files.some(f => f.busy || !f.path)) { toast(tr('รูปยังอัปโหลดไม่เสร็จ — รออีกครู่แล้วกดส่งอีกที'), true); return }
   ta.disabled = true
   if (files.length) {
-    try {
-      const paths = []
-      for (const f of files) paths.push(await uploadImage(f.blob))
-      text = (text || tr('ดูรูปที่แนบ')) + '\n\n' + paths.map((p, i) => tr('รูปแนบ ') + (i + 1) + ': ' + p).join('\n')
-    } catch (e) {
-      ta.disabled = false
-      toast(tr('อัปโหลดรูปไม่สำเร็จ: ') + e.message, true)
-      return
-    }
+    text = (text || tr('ดูรูปที่แนบ')) + '\n\n' + files.map((f, i) => tr('รูปแนบ ') + (i + 1) + ': ' + f.path).join('\n')
   }
   const ok = await act('/sessions/' + encodeURIComponent(sess.sessionId) + '/message', { message: text }, r => tr('ส่งถึง ') + sess.displayName + tr(' แล้ว (') + (r.via || '') + ')' + (files.length ? tr(' พร้อมรูป ') + files.length + tr(' รูป') : ''))
   ta.disabled = false
   if (ok) {
     ta.value = ''
     clearPastes()
-    st.chatDraft = null
-    for (const f of files) URL.revokeObjectURL(f.url)
+    clearDraft()
+    for (const f of files) { if (f.url) URL.revokeObjectURL(f.url) }
     st.attach = []
     if (thumbs) drawThumbs(thumbs)
     growText()
@@ -2216,15 +2237,44 @@ async function drawAccounts () {
   clearTimeout(st.accTimer)
   if (!$('accountsDlg').open) return
   let accs
-  try { accs = (await api('/accounts')).accounts } catch (e) { $('accountsBody').replaceChildren(h('p', { class: 'note' }, tr('อ่านสถานะบัญชีไม่ได้: ') + e.message)); return }
-  $('accountsBody').replaceChildren(...accs.map(accountCard).filter(Boolean), h('p', { class: 'note' }, tr('สลับบัญชี = เปิดหน้า login ของผู้ให้บริการ (ใช้ขั้นตอนของ CLI เอง ไม่ผ่าน shell) · ทุกขั้นบันทึก audit')))
-  if (accs.some(a => a.login && a.login.running)) st.accTimer = setTimeout(drawAccounts, 2500)
+  try { accs = (await api('/accounts')).accounts } catch (e) { st.accSig = ''; $('accountsBody').replaceChildren(h('p', { class: 'note' }, tr('อ่านสถานะบัญชีไม่ได้: ') + e.message)); return }
+  // The sign-in screen is polled while it runs, but rebuilding the card mid-flow
+  // wiped the pasted code and swallowed the click on "confirm", so only a change
+  // of shape redraws; the CLI's output is updated in place.
+  const sig = accs.map(accSig).join('¦')
+  if (sig !== st.accSig) {
+    st.accSig = sig
+    $('accountsBody').replaceChildren(...accs.map(accountCard).filter(Boolean), h('p', { class: 'note' }, tr('สลับบัญชี = เปิดหน้า login ของผู้ให้บริการ (ใช้ขั้นตอนของ CLI เอง ไม่ผ่าน shell) · ทุกขั้นบันทึก audit')))
+  }
+  for (const a of accs) setAccOut(a)
+  const running = accs.some(a => a.login && a.login.running)
+  // one more read after the flow ends: the CLI writes the new account as it exits
+  if (running || st.accRunning) st.accTimer = setTimeout(drawAccounts, running ? 2500 : 1500)
+  st.accRunning = running
+}
+function accSig (a) {
+  const f = a.login || {}
+  return [a.provider, a.loggedIn, a.email, a.method, a.org, a.expiresAt, a.detail, !!a.login, f.running, f.needsCode, f.url, f.code].join('·')
+}
+const accEls = {}
+function setAccOut (a) {
+  const el = accEls[a.provider]
+  if (!el) return
+  const text = (a.login && a.login.output) || ''
+  el.out.textContent = text
+  el.out.hidden = !text
 }
 function accountCard (a) {
   const p = a.provider
   const f = a.login
-  const email = h('input', { type: 'email', placeholder: tr('อีเมลบัญชีที่จะใช้ (ไม่บังคับ)'), autocomplete: 'off' })
-  const code = h('input', { type: 'text', placeholder: tr('วางโค้ดที่ได้หลัง login'), autocomplete: 'off', spellcheck: 'false' })
+  if (!accEls[p]) {
+    accEls[p] = {
+      email: h('input', { type: 'email', placeholder: tr('อีเมลบัญชีที่จะใช้ (ไม่บังคับ)'), autocomplete: 'off' }),
+      code: h('input', { type: 'text', placeholder: tr('วางโค้ดที่ได้หลัง login'), autocomplete: 'off', spellcheck: 'false' }),
+      out: h('pre', { class: 'accOut' })
+    }
+  }
+  const { email, code, out } = accEls[p]
   const call = async (path, body, msg) => {
     try { await api('/accounts/' + p + '/' + path, { method: 'POST', body: body || {} }); if (msg) toast(msg) } catch (e) { toast(tr('ไม่สำเร็จ: ') + e.message, true) }
     drawAccounts()
@@ -2249,13 +2299,13 @@ function accountCard (a) {
         f.url ? h('a', { href: f.url, target: '_blank', rel: 'noopener noreferrer', class: 'pri accLink' }, tr('เปิดหน้า login ↗')) : h('p', { class: 'note' }, tr('กำลังรอลิงก์…')),
         f.code ? h('p', null, tr('2) กรอกรหัสนี้ในหน้านั้น: '), h('code', { class: 'devCode' }, f.code), ' ', h('button', { type: 'button', class: 'ghost', onclick: e => copyText(f.code, e.currentTarget) }, tr('คัดลอก'))) : null,
         p === 'claude' ? h('div', { class: 'accRow' }, h('span', null, tr('2) วางโค้ดที่หน้าเว็บแสดง:')), code, h('button', { type: 'button', class: 'pri', onclick: () => call('code', { code: code.value }, tr('ส่งโค้ดแล้ว กำลังตรวจ…')) }, tr('ยืนยันโค้ด'))) : h('p', { class: 'note' }, tr('Codex จะเสร็จเองเมื่อกรอกรหัสบนเว็บแล้ว')),
-        f.output ? h('pre', { class: 'accOut' }, f.output) : null,
+        out,
         h('button', { type: 'button', class: 'ghost', onclick: () => call('cancel', null, tr('ยกเลิกแล้ว')) }, tr('ยกเลิก login')))
       : h('div', { class: 'accRow' },
         p === 'claude' ? email : null,
         h('button', { type: 'button', class: 'pri', onclick: start }, a.loggedIn ? tr('สลับบัญชี') : 'Login'),
         a.loggedIn ? h('button', { type: 'button', class: 'warn', onclick: logout }, 'Logout') : null),
-    f && !f.running && f.output ? h('pre', { class: 'accOut' }, f.output) : null)
+    f && !f.running ? out : null)
 }
 $('accountsBtn').addEventListener('click', openAccounts)
 
@@ -2331,15 +2381,9 @@ $('ask').addEventListener('submit', async e => {
     tr('ส่งเลย')
   )
   if (!ok) return
+  if (files.some(f => f.busy || !f.path)) { toast(tr('รูปยังอัปโหลดไม่เสร็จ — รออีกครู่แล้วกดส่งอีกที'), true); return }
   if (files.length) {
-    try {
-      const paths = []
-      for (const f of files) paths.push(await uploadImage(f.blob))
-      text = (text || tr('ดูรูปที่แนบ')) + '\n\n' + paths.map((p, i) => tr('รูปแนบ ') + (i + 1) + ': ' + p).join('\n')
-    } catch (err) {
-      toast(tr('อัปโหลดรูปไม่สำเร็จ: ') + err.message, true)
-      return
-    }
+    text = (text || tr('ดูรูปที่แนบ')) + '\n\n' + files.map((f, i) => tr('รูปแนบ ') + (i + 1) + ': ' + f.path).join('\n')
   }
   const sent = mode === 'mission'
     ? await act('/missions', { workspace: ws, task: text }, r => tr('สร้างงาน ') + (r.runId || '') + tr(' ใน ') + ws + tr(' แล้ว'))
@@ -2347,25 +2391,84 @@ $('ask').addEventListener('submit', async e => {
   if (sent) {
     ta.value = ''
     clearPastes()
-    for (const f of files) URL.revokeObjectURL(f.url)
+    clearDraft()
+    for (const f of files) { if (f.url) URL.revokeObjectURL(f.url) }
     st.attach = []
     drawThumbs($('askThumbs'))
     growText()
   }
 })
 
-function addFiles (list) {
+// Pictures are uploaded the moment they are picked, not when Send is pressed.
+// On an iPad the photo library is a system screen, and coming back from it can
+// reload a standalone (home-screen) app from scratch — which used to take the
+// picture and the half-typed command with it. Once the bytes are on the service
+// all that has to survive the reload is a path, which the draft below keeps.
+async function addFiles (list, thumbs) {
+  const el = thumbs || $('askThumbs')
+  let skipped = 0
+  const fresh = []
   for (const f of list) {
-    if (f && /^image\/(png|jpeg|gif|webp)$/.test(f.type) && (st.attach || []).length < 10) (st.attach = st.attach || []).push({ blob: f, url: URL.createObjectURL(f) })
+    if (!f) continue
+    if (!/^image\/(png|jpeg|gif|webp)$/.test(f.type)) { skipped++; continue }
+    if ((st.attach || []).length + fresh.length >= 10) { skipped++; continue }
+    fresh.push({ blob: f, url: URL.createObjectURL(f), path: '', busy: true })
   }
-  drawThumbs($('askThumbs'))
+  // A photo library can hand back HEIC, which the service does not take. Saying
+  // nothing left the picture simply missing with no reason given.
+  if (skipped) toast(tr('แนบไม่ได้ ') + skipped + tr(' ไฟล์ — รับเฉพาะ PNG, JPEG, GIF, WebP และไม่เกิน 10 รูป'), true)
+  if (!fresh.length) return drawThumbs(el)
+  st.attach = (st.attach || []).concat(fresh)
+  drawThumbs(el)
+  for (const a of fresh) {
+    try {
+      a.path = await uploadImage(a.blob)
+    } catch (e) {
+      const i = st.attach.indexOf(a)
+      if (i >= 0) st.attach.splice(i, 1)
+      URL.revokeObjectURL(a.url)
+      toast(tr('อัปโหลดรูปไม่สำเร็จ: ') + e.message, true)
+    }
+    a.busy = false
+    drawThumbs(el)
+    saveDraft()
+  }
+}
+
+// What is in the composer, kept where a reload cannot reach it. Only the text
+// and the uploaded paths are stored — never the image bytes.
+const draftKey = 'aiagentDraft'
+function saveDraft () {
+  const text = $('askText') ? $('askText').value : ''
+  const paths = (st.attach || []).map(a => a.path).filter(Boolean)
+  try {
+    if (!text && !paths.length) localStorage.removeItem(draftKey)
+    else localStorage.setItem(draftKey, JSON.stringify({ text, paths }))
+  } catch (e) { /* storage unavailable: the draft is simply not kept */ }
+}
+function clearDraft () { try { localStorage.removeItem(draftKey) } catch (e) { /* see above */ } }
+function restoreDraft () {
+  let d = null
+  try { d = JSON.parse(localStorage.getItem(draftKey) || 'null') } catch (e) { d = null }
+  if (!d) return
+  if (d.text && $('askText') && !$('askText').value) { $('askText').value = d.text; growText() }
+  for (const p of (d.paths || []).slice(0, 10)) {
+    const a = { blob: null, url: '', path: p, busy: false }
+    ;(st.attach = st.attach || []).push(a)
+    loadUpload(p.split('/').pop()).then(u => { a.url = u; drawThumbs(st.thumbsEl || $('askThumbs')) }, () => {})
+  }
+  if (st.attach && st.attach.length) drawThumbs($('askThumbs'))
 }
 function growText () {
   const ta = $('askText')
   const keep = ta.scrollTop
   const atEnd = ta.selectionEnd >= ta.value.length - 1
   ta.style.height = 'auto'
-  ta.style.height = Math.min(240, ta.scrollHeight + 2) + 'px'
+  // While you are actually typing the box opens up to a few lines, so a command
+  // long enough to be worth checking can be read before it is sent. It falls
+  // back to the content height on blur.
+  const floor = document.activeElement === ta ? 124 : 0
+  ta.style.height = Math.min(240, Math.max(floor, ta.scrollHeight + 2)) + 'px'
   // The textarea is absolute and anchored to the bottom of a 44px wrapper, so
   // growing it used to send it up over the scene. Grow the wrapper with it:
   // the bar gets taller, the stage gets shorter, and nothing is covered.
@@ -2382,7 +2485,8 @@ function growText () {
   applyZoom()
 }
 $('askText').addEventListener('focus', growText)
-$('askText').addEventListener('input', growText)
+$('askText').addEventListener('blur', growText)
+$('askText').addEventListener('input', () => { growText(); saveDraft() })
 $('askText').addEventListener('keydown', e => {
   if (e.key === 'Tab' && !e.shiftKey && (st.suggest || []).length && composerSession()) {
     const v = st.suggest[0]
@@ -2456,6 +2560,16 @@ function showLogin (msg) {
   clearTimeout(st.timer)
   const d = $('login')
   $('loginErr').textContent = msg || ''
+  const petals = $('loginPetals')
+  if (!petals.childElementCount) {
+    for (let i = 0; i < 14; i++) {
+      const p = h('i')
+      p.style.left = Math.round(i * 7 + 3) + '%'
+      p.style.animationDelay = (i * 0.9).toFixed(1) + 's'
+      p.style.animationDuration = (10 + (i % 5) * 1.6).toFixed(1) + 's'
+      petals.append(p)
+    }
+  }
   if (!d.open) d.showModal()
   $('loginToken').focus()
 }
@@ -2499,10 +2613,11 @@ $('stageBack').addEventListener('click', () => goBack())
 // than something you can read. The map is still one tap away; this only
 // chooses what you land on, and only the first time, so a deliberate switch
 // sticks.
+// The list is home on every screen now; the map is one tap away. A deliberate
+// switch still sticks, so someone who picks the map keeps landing on it.
 try {
-  if (isPhone() && !localStorage.getItem('aiagentView')) setView('list')
-  else if (localStorage.getItem('aiagentView') === 'list') setView('list')
-} catch (e) { /* storage unavailable: the map stays the default */ }
+  setView(localStorage.getItem('aiagentView') === 'map' ? 'map' : 'list')
+} catch (e) { setView('list') }
 for (const [el, v] of [[$('viewMap'), 'map'], [$('viewList'), 'list']]) {
   el.addEventListener('click', () => {
     try { localStorage.setItem('aiagentView', v) } catch (e) { /* see above */ }
@@ -2514,10 +2629,8 @@ function followActor () {
   if (!id) return null
   const sess = st.snap.sessions.find(x => x.sessionId === id.split(':')[0])
   if (!sess || !sess.live) return null
-  const house = houseKeyOf(sess.sessionId)
-  if (!house) return null
-  const a = actorsFor(house).find(x => x.id === id)
-  return a ? Object.assign({ house }, a) : null
+  const a = actorsFor().find(x => x.id === id)
+  return a ? Object.assign({ house: HOUSE }, a) : null
 }
 function stopFollow () {
   st.follow = null
@@ -2590,7 +2703,8 @@ document.addEventListener('keydown', e => {
   else if (st.house) goBack()
 })
 setInterval(renderConn, 2000)
-if (window.matchMedia('(max-width: 900px)').matches) setView('list')
+// a standalone app on iOS can be reloaded out from under the composer
+restoreDraft()
 poll()
 
 // ---------- markdown ----------

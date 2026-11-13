@@ -85,6 +85,12 @@ full-resolution cut-out is downloaded by the owner from the Canva link, into
 `~/Downloads`, and `tools/propprep` takes it from there — the same path every
 other batch has taken.
 
+> **Retired, 2026-11-09.** None of the five houses below is needed any more,
+> and no download is outstanding. The village map is one painting now, and the
+> village is one house entered from the middle of it — see
+> [VILLAGE_BRIEF.md](VILLAGE_BRIEF.md). The prompts are kept because they are
+> the only record of what those Canva credits bought.
+
 ## 2026-11-07 — the other four village houses
 
 All four use the attempt 2 prompt for `house-kcmd`, with the room contents and
