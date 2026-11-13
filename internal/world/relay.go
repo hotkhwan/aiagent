@@ -142,12 +142,35 @@ func (c *Collector) tmux(ctx context.Context, args ...string) (string, error) {
 	return string(out), err
 }
 
+// attachReason pulls the CLI's own complaint off a dead relay pane, so the
+// operator is told what the tool said rather than a guess about it.
+func attachReason(screen string) string {
+	for _, l := range strings.Split(screen, "\n") {
+		l = strings.TrimSpace(l)
+		if l == "" || strings.HasPrefix(l, "Pane is dead") {
+			continue
+		}
+		return truncateRunes(Redact(l), 160)
+	}
+	return "it exited without saying why"
+}
+
 func (c *Collector) relaySend(ctx context.Context, short, message string) error {
 	name := relayName(short)
+	fresh := false
 	if _, err := c.tmux(ctx, "has-session", "-t", "="+name); err != nil {
 		if _, err := c.tmux(ctx, "new-session", "-d", "-s", name, "-x", "220", "-y", "50", c.ClaudePath, "attach", short); err != nil {
 			return &APIError{502, "AIAGENT_RELAY_FAILED", "could not start relay: " + err.Error()}
 		}
+		fresh = true
+		// Keep the pane after the client exits, so a refused attach can be read
+		// back instead of vanishing. `claude attach` answers "No job matching
+		// <id>" for a session its daemon does not list, and without this the
+		// tmux session was simply gone a moment later — which the loop below
+		// could only report as "not ready yet", i.e. as a busy agent. That sent
+		// the operator off waiting for an agent to finish something it was
+		// never doing.
+		_, _ = c.tmux(ctx, "set-option", "-w", "-t", "="+name+":", "remain-on-exit", "on")
 	}
 	// pin the pane size: with tmux's default window-size a smaller client
 	// (or a resize) can shrink the pane until Claude's input box is no
@@ -165,8 +188,20 @@ func (c *Collector) relaySend(ctx context.Context, short, message string) error 
 	// window-size comment above records the same trap one command earlier.
 	ready := false
 	for i := 0; i < 40 && !ready; i++ {
-		cmd, err := c.tmux(ctx, "list-panes", "-t", "="+name, "-F", "#{pane_current_command}")
-		if err == nil && agentReady(strings.TrimSpace(cmd)) {
+		out, err := c.tmux(ctx, "list-panes", "-t", "="+name, "-F", "#{pane_dead} #{pane_current_command}")
+		if err != nil && fresh {
+			// The relay we just started is not there at all: the attach exited
+			// and took its tmux session with it.
+			return &APIError{502, "AIAGENT_RELAY_FAILED",
+				"the relay to this session closed immediately — the agent CLI would not attach to it"}
+		}
+		f := strings.Fields(strings.TrimSpace(out))
+		if len(f) > 0 && f[0] == "1" {
+			screen, _ := c.tmux(ctx, "capture-pane", "-p", "-J", "-t", "="+name+":")
+			_, _ = c.tmux(ctx, "kill-session", "-t", "="+name)
+			return &APIError{502, "AIAGENT_RELAY_FAILED", "the agent CLI refused to attach: " + attachReason(screen)}
+		}
+		if err == nil && len(f) > 1 && agentReady(f[1]) {
 			screen, _ := c.tmux(ctx, "capture-pane", "-p", "-t", "="+name+":")
 			ready = strings.Contains(screen, "❯")
 		}

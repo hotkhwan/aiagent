@@ -32,6 +32,7 @@ type fakeRunner struct {
 	calls      [][]string
 	relayUp    bool
 	relayBusy  bool // the pane shows no prompt: the agent is mid-task
+	paneDead   bool // `claude attach` refused and the pane exited
 	agentsJSON string
 }
 
@@ -53,6 +54,23 @@ func (f *fakeRunner) Run(_ context.Context, name string, args ...string) ([]byte
 			return nil, nil
 		case "list-panes":
 			if len(args) > 1 && args[1] == "-t" {
+				format := ""
+				for i, a := range args {
+					if a == "-F" && i+1 < len(args) {
+						format = args[i+1]
+					}
+				}
+				dead := "0"
+				if f.paneDead {
+					dead = "1"
+				}
+				// Answer in the shape the caller asked for, the way tmux does.
+				if strings.Contains(format, "pane_current_command") && strings.Contains(format, "pane_dead") {
+					return []byte(dead + " claude\n"), nil
+				}
+				if strings.Contains(format, "pane_dead") {
+					return []byte(dead + " 0\n"), nil
+				}
 				return []byte("claude\n"), nil
 			}
 			return []byte(f.panes), nil
@@ -73,6 +91,9 @@ func (f *fakeRunner) Run(_ context.Context, name string, args ...string) ([]byte
 			}
 			if args[0] == "send-keys" {
 				return nil, nil
+			}
+			if f.paneDead {
+				return []byte("No job matching 'aaaa1111'. Run 'claude agents' to list running sessions.\nPane is dead"), nil
 			}
 			if f.relayBusy {
 				return []byte("──\nesc to interrupt\n──"), nil
@@ -628,6 +649,9 @@ func TestSessionMessageRelayAndConversation(t *testing.T) {
 	// bug in place: no relayed message had ever reached an agent.
 	want := []string{
 		"new-session -d -s aiagent-aaaa1111 -x 220 -y 50 claude attach aaaa1111",
+		// the pane is kept after the client exits, so an attach the CLI
+		// refuses can be read back instead of looking like a busy agent
+		"set-option -w -t =aiagent-aaaa1111: remain-on-exit on",
 		"set-option -w -t =aiagent-aaaa1111: window-size manual",
 		"resize-window -t =aiagent-aaaa1111: -x 220 -y 50",
 		"send-keys -t =aiagent-aaaa1111: -l -- สวัสดีจากเว็บ",
@@ -1586,5 +1610,35 @@ func TestQueuedMessagesExpireAndCanBeCancelled(t *testing.T) {
 	}
 	if got := e.svc.PendingFor(id); len(got) != 0 {
 		t.Fatalf("nothing should be left; got %v", got)
+	}
+}
+
+// TestRefusedAttachIsNotReportedAsABusyAgent pins the difference between the
+// two ways a relay can fail.
+//
+// `claude attach <id>` answers "No job matching <id>" for a session its daemon
+// does not list, and the pane exits at once. The relay could only tell that the
+// prompt had not appeared, so it reported a busy agent — and once messages were
+// queued for busy agents, every one of them sat in the outbox retrying forever
+// against a session that could never receive it. A refused attach has to say so.
+func TestRefusedAttachIsNotReportedAsABusyAgent(t *testing.T) {
+	e := newEnv(t)
+	tok, _ := e.store.Enable("test")
+	fakeProcPPID(t, e.proc, "5001", "51", "1")
+	writeFile(t, filepath.Join(e.home, ".claude", "sessions", "5001.json"),
+		`{"pid":5001,"sessionId":"aaaa1111-0000-0000-0000-000000000000","cwd":"/root","procStart":"51","kind":"bg","status":"idle"}`)
+	const id = "aaaa1111-0000-0000-0000-000000000000"
+	e.runner.paneDead = true
+
+	code, m, _ := e.do(t, "POST", "/aiagent/api/sessions/"+id+"/message", tok, `{"message":"ดูรูปที่แนบ"}`)
+	if code == 200 {
+		t.Fatalf("an unreachable session must not look like a successful send: %v", m)
+	}
+	msg, _ := m["message"].(string)
+	if !strings.Contains(msg, "No job matching") {
+		t.Errorf("the operator should be told what the CLI said; got %q", msg)
+	}
+	if got := e.svc.PendingFor(id); len(got) != 0 {
+		t.Errorf("a message that can never be delivered must not be queued; got %v", got)
 	}
 }
