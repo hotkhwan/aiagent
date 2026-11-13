@@ -31,6 +31,7 @@ type fakeRunner struct {
 	agcmdOut   string
 	calls      [][]string
 	relayUp    bool
+	relayBusy  bool // the pane shows no prompt: the agent is mid-task
 	agentsJSON string
 }
 
@@ -72,6 +73,9 @@ func (f *fakeRunner) Run(_ context.Context, name string, args ...string) ([]byte
 			}
 			if args[0] == "send-keys" {
 				return nil, nil
+			}
+			if f.relayBusy {
+				return []byte("──\nesc to interrupt\n──"), nil
 			}
 			return []byte("──\n❯ \n──"), nil
 		}
@@ -1504,5 +1508,83 @@ func TestRenameFallsBackToAnAliasWhenUnreachable(t *testing.T) {
 	d := m["details"].(map[string]any)
 	if d["syncedToCli"] != false || d["name"] != "ตั้งชื่อเอง" {
 		t.Errorf("want a local alias and syncedToCli=false; got %v", d)
+	}
+}
+
+// TestBusyAgentQueuesTheMessageInsteadOfLosingIt pins the outbox.
+//
+// The relay only types into a CLI whose prompt is on screen, so a message sent
+// to an agent that was mid-task failed with AIAGENT_RELAY_NOT_READY and was
+// gone. From a phone that is the usual case: the screenshot is already
+// uploaded, and the line that refers to it never arrives. The message is held
+// now and typed in when the session frees up.
+func TestBusyAgentQueuesTheMessageInsteadOfLosingIt(t *testing.T) {
+	e := newEnv(t)
+	tok, _ := e.store.Enable("test")
+	fakeProcPPID(t, e.proc, "5001", "51", "1")
+	writeFile(t, filepath.Join(e.home, ".claude", "sessions", "5001.json"),
+		`{"pid":5001,"sessionId":"aaaa1111-0000-0000-0000-000000000000","cwd":"/root","procStart":"51","kind":"bg","status":"idle"}`)
+	const id = "aaaa1111-0000-0000-0000-000000000000"
+
+	// The agent is working: no prompt on the pane.
+	e.runner.relayBusy = true
+	code, m, _ := e.do(t, "POST", "/aiagent/api/sessions/"+id+"/message", tok, `{"message":"ดูรูปที่แนบ"}`)
+	if code != 200 {
+		t.Fatalf("a busy agent must not fail the send: %d %v", code, m)
+	}
+	if d, _ := m["details"].(map[string]any); d == nil || d["queued"] != true {
+		t.Fatalf("expected the message to be queued, got %v", m)
+	}
+	if got := e.svc.PendingFor(id); len(got) != 1 || got[0].Message != "ดูรูปที่แนบ" {
+		t.Fatalf("outbox = %v", got)
+	}
+
+	// It is still waiting while the agent stays busy.
+	if sent := e.svc.FlushOutbox(context.Background(), e.now); sent != 0 {
+		t.Fatalf("a busy agent must not be typed into; sent %d", sent)
+	}
+	if got := e.svc.PendingFor(id); len(got) != 1 {
+		t.Fatalf("the message should still be waiting; got %v", got)
+	}
+
+	// The agent finishes, and the queue delivers on the next tick.
+	e.runner.relayBusy = false
+	if sent := e.svc.FlushOutbox(context.Background(), e.now); sent != 1 {
+		t.Fatalf("an idle agent should receive the queued message; sent %d", sent)
+	}
+	if got := e.svc.PendingFor(id); len(got) != 0 {
+		t.Fatalf("the queue should be empty after delivery; got %v", got)
+	}
+	var typed []string
+	for _, c := range e.runner.callsTo("tmux") {
+		if c[0] == "send-keys" && len(c) > 4 {
+			typed = append(typed, c[len(c)-1])
+		}
+	}
+	if len(typed) == 0 || typed[len(typed)-1] != "ดูรูปที่แนบ" {
+		t.Fatalf("the queued text should have been typed in; got %q", typed)
+	}
+}
+
+// TestQueuedMessagesExpireAndCanBeCancelled keeps stale text out of an agent.
+func TestQueuedMessagesExpireAndCanBeCancelled(t *testing.T) {
+	e := newEnv(t)
+	const id = "s-old"
+	if _, err := e.svc.Enqueue(id, "ข้อความเก่า", e.now.Add(-outboxTTL-time.Minute)); err != nil {
+		t.Fatalf("enqueue: %v", err)
+	}
+	if _, err := e.svc.Enqueue(id, "ข้อความใหม่", e.now); err != nil {
+		t.Fatalf("enqueue: %v", err)
+	}
+	// Enqueue prunes as it writes, so only the fresh one survives.
+	got := e.svc.PendingFor(id)
+	if len(got) != 1 || got[0].Message != "ข้อความใหม่" {
+		t.Fatalf("expired message should be dropped; got %v", got)
+	}
+	if n := e.svc.CancelPending(id, ""); n != 1 {
+		t.Fatalf("cancel should remove the waiting message; removed %d", n)
+	}
+	if got := e.svc.PendingFor(id); len(got) != 0 {
+		t.Fatalf("nothing should be left; got %v", got)
 	}
 }

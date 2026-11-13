@@ -166,7 +166,10 @@ func (s *Service) asset(name, typ string) fiber.Handler {
 // another app, call it BEFORE that app's static fallback so /aiagent is never
 // answered with the other app's UI.
 func (s *Service) Mount(app *fiber.App) {
-	s.policyOnce.Do(func() { s.StartPolicy(context.Background()) })
+	s.policyOnce.Do(func() {
+		s.StartPolicy(context.Background())
+		s.StartOutbox(context.Background())
+	})
 	page := s.asset("index.html", "html")
 	// On its own hostname — behind a tunnel or a reverse proxy — the /aiagent
 	// prefix is redundant, so the root serves the page itself rather than
@@ -226,6 +229,7 @@ func (s *Service) Mount(app *fiber.App) {
 	api.Post("/accounts/claude/code", s.handleLoginCode)
 	api.Post("/accounts/:provider/cancel", s.handleLoginCancel)
 	api.Post("/accounts/:provider/logout", s.handleLogout)
+	api.Post("/sessions/:id/pending/cancel", s.handleCancelPending)
 	api.Get("/reviews", s.handleReviews)
 	api.Get("/models", s.handleModels)
 	api.Get("/policy", s.handlePolicy)
@@ -290,6 +294,7 @@ func (s *Service) handleSnapshot(c fiber.Ctx) error {
 	snap := s.Collector.Snapshot(c.Context())
 	snap.Sessions = s.applyNames(snap.Sessions)
 	snap.nonNil() // applyNames can hand back nil for an empty list
+	snap.Pending = s.PendingFor("")
 	return c.JSON(okEnv(snap))
 }
 
@@ -486,7 +491,24 @@ func (s *Service) handleSessionMessage(c fiber.Ctx) error {
 	id := c.Params("id")
 	return s.mutate(c, "aiagent.sessionMessage", []string{id, body.Message}, func() (any, error) {
 		how, err := s.Collector.SendToSession(c.Context(), id, body.Message)
+		// An agent that is mid-task cannot be typed into. Rather than lose
+		// the message — the picture it refers to is already uploaded — hold
+		// it and let the outbox deliver it when the session is free.
+		if ae, ok := err.(*APIError); ok && ae.Code == "AIAGENT_RELAY_NOT_READY" {
+			p, qerr := s.Enqueue(id, body.Message, time.Now())
+			if qerr != nil {
+				return nil, qerr
+			}
+			return fiber.Map{"sessionId": id, "queued": true, "pendingId": p.ID}, nil
+		}
 		return fiber.Map{"sessionId": id, "via": how}, err
+	})
+}
+
+func (s *Service) handleCancelPending(c fiber.Ctx) error {
+	id := c.Params("id")
+	return s.mutate(c, "aiagent.pendingCancel", []string{id}, func() (any, error) {
+		return fiber.Map{"sessionId": id, "cancelled": s.CancelPending(id, "")}, nil
 	})
 }
 

@@ -336,6 +336,18 @@ var EN = {
   'เลือกปลายทางก่อน': 'Choose a destination',
   'ส่งจากเว็บไม่ได้': 'Cannot send from the web',
 
+  // messages held for an agent that is mid-task (the outbox)
+  ' กำลังทำงานอยู่ — เก็บข้อความไว้ให้แล้ว จะส่งเองเมื่อว่าง': ' is working — the message is held and will be sent when it is free',
+  'รอส่ง ': 'waiting to send ',
+  ' ข้อความ': ' message(s)',
+  'agent กำลังทำงาน — จะพิมพ์ให้เองเมื่อว่าง': 'the agent is working — this is typed in as soon as it is free',
+  'ยกเลิกที่รออยู่': 'Cancel what is waiting',
+  'ยกเลิกข้อความที่รอส่ง': 'Cancel the waiting message',
+  'ข้อความที่เก็บไว้ให้ ': 'What is being held for ',
+  ' จะถูกทิ้ง ไม่ถูกส่งให้ agent': ' will be dropped and never sent to the agent',
+  'ทิ้งเลย': 'Drop it',
+  'ยกเลิกแล้ว ': 'Cancelled ',
+
   // the composer inside the room monitor, and attaching pictures
   'ไม่มี agent ในห้องนี้ที่รับข้อความจากเว็บได้': 'No agent in this room can be given work from the web',
   'พิมพ์ถึง agent ในห้องนี้…': 'Write to an agent in this room…',

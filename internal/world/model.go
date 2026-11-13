@@ -188,4 +188,7 @@ type Snapshot struct {
 	Workspaces  []Workspace `json:"workspaces"`
 	Quotas      []Quota     `json:"quotas"`
 	Warnings    []string    `json:"warnings"`
+	// Pending is what the web asked to send to an agent that was busy; the
+	// service types each one in as soon as its session is free (outbox.go).
+	Pending []Pending `json:"pending,omitempty"`
 }

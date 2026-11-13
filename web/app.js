@@ -1554,6 +1554,7 @@ function sessionCard (sess) {
   h('div', { class: 'sRight' },
     h('em', { class: 'pill ' + tone }, state),
     h('span', { class: 'sNums' },
+      pendingOf(sess.sessionId).length ? '⏳ ' + tr('รอส่ง ') + pendingOf(sess.sessionId).length + ' · ' : '',
       subs ? subs + tr(' ตัวช่วย') : '',
       subs && revs ? ' · ' : '',
       revs ? revs + tr(' รอตรวจ') : '',
@@ -1764,6 +1765,13 @@ function copyText (text, btn) {
 function chatPanel (sess) {
   const log = h('div', { class: 'chatLog', 'aria-live': 'polite' }, h('p', { class: 'note' }, tr('กำลังโหลดบทสนทนา…')))
   const parts = [log]
+  const waiting = pendingOf(sess.sessionId)
+  if (waiting.length) {
+    parts.push(h('div', { class: 'queued' },
+      h('b', null, '⏳ ' + tr('รอส่ง ') + waiting.length + tr(' ข้อความ')),
+      h('span', null, tr('agent กำลังทำงาน — จะพิมพ์ให้เองเมื่อว่าง')),
+      h('button', { type: 'button', class: 'ghost', onclick: () => cancelPending(sess) }, tr('ยกเลิกที่รออยู่'))))
+  }
   parts.push(h('p', { class: 'note' }, sess.messageVia ? tr('พิมพ์ตอบที่ช่องยาวด้านล่าง (ส่งถึง agent ตัวนี้) · แนบรูปได้ · ') + (sess.messageVia === 'relay' ? tr('ผ่าน relay claude attach ') + sess.sessionId.slice(0, 8) : tr('ผ่าน agcmd dispatch ') + sess.dispatchVia) : tr('ส่งข้อความจากเว็บไม่ได้: ') + (sess.messageBlocked || tr('ไม่มีช่องทางที่ปลอดภัย'))))
   parts.push(h('p', { class: 'note' }, tr('แสดงเฉพาะข้อความผู้ใช้และคำตอบของ agent · ข้อมูลลับ (token, key, รหัสผ่าน) ถูกปิดบังก่อนส่งมาที่เว็บ')))
   return h('div', { class: 'chat' }, parts)
@@ -1902,6 +1910,11 @@ async function loadUpload (name) {
   return st.imgCache[name]
 }
 
+async function cancelPending (sess) {
+  if (!await confirmBox(tr('ยกเลิกข้อความที่รอส่ง'), tr('ข้อความที่เก็บไว้ให้ ') + sess.displayName + tr(' จะถูกทิ้ง ไม่ถูกส่งให้ agent'), '', tr('ทิ้งเลย'))) return
+  await act('/sessions/' + encodeURIComponent(sess.sessionId) + '/pending/cancel', {}, r => tr('ยกเลิกแล้ว ') + (r.cancelled || 0) + tr(' ข้อความ'))
+}
+
 async function sendChat (sess, ta, thumbs) {
   let text = expandPastes(ta.value).trim()
   const files = st.attach || []
@@ -1917,7 +1930,10 @@ async function sendChat (sess, ta, thumbs) {
   if (files.length) {
     text = (text || tr('ดูรูปที่แนบ')) + '\n\n' + files.map((f, i) => tr('รูปแนบ ') + (i + 1) + ': ' + f.path).join('\n')
   }
-  const ok = await act('/sessions/' + encodeURIComponent(sess.sessionId) + '/message', { message: text }, r => tr('ส่งถึง ') + sess.displayName + tr(' แล้ว (') + (r.via || '') + ')' + (files.length ? tr(' พร้อมรูป ') + files.length + tr(' รูป') : ''))
+  const withPics = files.length ? tr(' พร้อมรูป ') + files.length + tr(' รูป') : ''
+  const ok = await act('/sessions/' + encodeURIComponent(sess.sessionId) + '/message', { message: text }, r => r.queued
+    ? sess.displayName + tr(' กำลังทำงานอยู่ — เก็บข้อความไว้ให้แล้ว จะส่งเองเมื่อว่าง') + withPics
+    : tr('ส่งถึง ') + sess.displayName + tr(' แล้ว (') + (r.via || '') + ')' + withPics)
   ta.disabled = false
   if (ok) {
     ta.value = ''
@@ -2157,6 +2173,11 @@ function useSuggest (v) {
 }
 
 // ----- reviews: HTML pages agents file for the operator to check -----
+// Messages the service is holding for this agent because it was busy.
+function pendingOf (sid) {
+  return ((st.snap && st.snap.pending) || []).filter(p => p.sessionId === sid)
+}
+
 function openReviewsOf (sid) {
   return (st.reviews || []).filter(r => r.status === 'open' && r.sessionId && sid.startsWith(r.sessionId.slice(0, 8)) && r.sessionId.startsWith(sid.slice(0, 8)))
 }
