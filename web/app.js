@@ -1696,17 +1696,19 @@ function sessionHeader (sess) {
   const stateDot = h('i')
   stateDot.style.background = !sess.live ? 'var(--line)' : sess.status === 'running' ? 'var(--brand)' : sess.status === 'needsInput' ? 'var(--amber)' : 'var(--muted)'
   return [
-    h('button', { type: 'button', class: 'ghost', onclick: back }, tr('← ภาพรวม')),
-    h('div', { class: 'who' }, ava, h('div', null,
-      h('h2', { class: 'nameRow' }, h('span', null, sess.displayName),
-        h('button', { type: 'button', class: 'ghost renameBtn', title: tr('เปลี่ยนชื่อที่แสดงในเว็บ'), 'aria-label': tr('เปลี่ยนชื่อ'), onclick: () => renameSession(sess) }, '✎')),
-      h('p', null, runtimeName[sess.runtimeType] + ' · ' + (sess.repoId || '—')))),
-    h('div', { class: 'state' }, stateDot, stateText(sess), (sess.subAgents || []).length
-      ? h('button', { type: 'button', class: 'pill work subToggle' + (st.subsOpen ? ' on' : ''), 'aria-expanded': String(!!st.subsOpen), onclick: () => { st.subsOpen = !st.subsOpen; st.inspKey = ''; renderInspector() } }, '+' + sess.subAgents.length + ' sub-agent ' + (st.subsOpen ? '▴' : '▾'))
-      : null),
+    h('div', { class: 'sessTop' },
+      h('button', { type: 'button', class: 'ghost', onclick: back }, tr('← ภาพรวม')),
+      h('div', { class: 'who' }, ava, h('div', null,
+        h('h2', { class: 'nameRow' }, h('span', null, sess.displayName),
+          h('button', { type: 'button', class: 'ghost renameBtn', title: tr('เปลี่ยนชื่อที่แสดงในเว็บ'), 'aria-label': tr('เปลี่ยนชื่อ'), onclick: () => renameSession(sess) }, '✎')),
+        h('p', null, runtimeName[sess.runtimeType] + ' · ' + (sess.repoId || '—'))))),
+    h('div', { class: 'sessMeta' },
+      h('div', { class: 'state' }, stateDot, stateText(sess), (sess.subAgents || []).length
+        ? h('button', { type: 'button', class: 'pill work subToggle' + (st.subsOpen ? ' on' : ''), 'aria-expanded': String(!!st.subsOpen), onclick: () => { st.subsOpen = !st.subsOpen; st.inspKey = ''; renderInspector() } }, '+' + sess.subAgents.length + ' sub-agent ' + (st.subsOpen ? '▴' : '▾'))
+        : null),
+      modelRow(sess)),
     st.subsOpen ? subCards(sess) : null,
     ...openReviewsOf(sess.sessionId).map(r => h('button', { type: 'button', class: 'revAlert', onclick: () => openReview(r.id) }, h('b', null, tr('🧪 รอคุณตรวจงาน')), h('span', null, r.title), h('em', null, tr('เปิดตรวจ →')))),
-    modelRow(sess),
     sess.doing && sess.live && sess.status === 'running' ? h('div', { class: 'doing' }, h('i'), h('span', null, sess.doing.detail), h('small', null, ago(sess.doing.at))) : null,
     h('div', { class: 'tabs', role: 'tablist' },
       h('button', { type: 'button', role: 'tab', class: (st.tab || 'chat') === 'chat' ? 'on' : '', 'aria-selected': String((st.tab || 'chat') === 'chat'), onclick: () => { st.tab = 'chat'; st.inspKey = ''; renderInspector() } }, tr('บทสนทนา')),

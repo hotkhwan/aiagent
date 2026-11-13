@@ -698,6 +698,16 @@ body:not([data-phase="night"]) .focusHint { color: #2C3654 }
 .modelRow { display: flex; align-items: center; gap: 8px; margin: 2px 0 6px }
 .modelChip { padding: 3px 10px; border-radius: 999px; background: rgba(155,123,224,.22); color: #DCCBFF; font-size: 13px; font-weight: 600 }
 .modelRow select { background: var(--sky); border: 1px solid var(--line); border-radius: 8px; padding: 3px 6px; color: inherit; font: inherit; font-size: 13px }
+/* compact session header: back + identity on one row, state + model on one line, chat gets the rest */
+.sessTop { display: flex; align-items: center; gap: 10px }
+.sessTop > .ghost { flex: none; align-self: flex-start }
+.sessTop .who { gap: 10px; min-width: 0 }
+.sessTop .ava { width: 40px; height: 40px; border-radius: 12px }
+.sessTop .who h2 { font-size: 17px }
+.sessTop .who p { font-size: 12px; margin-top: 0 }
+.sessMeta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px }
+.sessMeta .state { font-size: 13px; gap: 6px }
+.sessMeta .modelRow { margin: 0 }
 .advice { margin: 8px 0; padding: 10px 12px; border-radius: 12px; background: var(--sky3); border: 1px solid var(--line) }
 .advice.warn { border-color: var(--amber) }
 .advice p { margin: 4px 0; font-size: 13px }
