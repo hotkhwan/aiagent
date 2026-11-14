@@ -61,8 +61,8 @@ type tmuxState struct {
 // agentCommands are the pane commands text may be typed into. It is an
 // allowlist, not a list of shells to avoid: an editor, a REPL or a pager in an
 // agent window would run the text as something the operator did not ask for.
-// codex and gemini installed through npm show as node.
-var agentCommands = map[string]bool{"claude": true, "codex": true, "gemini": true, "node": true}
+// node is deliberately absent — see paneAgent.
+var agentCommands = map[string]bool{"claude": true, "codex": true, "gemini": true}
 
 // claudeVersionBinary matches the name tmux reports for Claude Code on macOS,
 // where ~/.local/bin/claude links to a binary named after its version
@@ -73,6 +73,62 @@ var claudeVersionBinary = regexp.MustCompile(`^[0-9]+\.[0-9]+\.[0-9]+$`)
 // be typed into.
 func IsAgentCommand(cmd string) bool {
 	return agentCommands[cmd] || claudeVersionBinary.MatchString(cmd)
+}
+
+// paneAgent names the agent CLI a pane runs — "claude", "codex" or "gemini" —
+// or returns "" when it is not one.
+//
+// codex and gemini installed through npm show in tmux as node, and so does a
+// bare node REPL, which would run typed text as JavaScript. So a node pane is
+// identified by the argv of the processes at and below its pid: it counts only
+// when one of them is the codex or gemini script.
+func paneAgent(pt procTable, cmd string, panePid int) string {
+	switch {
+	case cmd == "codex" || cmd == "gemini":
+		return cmd
+	case cmd == "claude" || claudeVersionBinary.MatchString(cmd):
+		return "claude"
+	case cmd != "node" || panePid <= 0:
+		return ""
+	}
+	kids := pt.children()
+	queue := []int{panePid}
+	for depth := 0; depth < 4 && len(queue) > 0; depth++ {
+		var next []int
+		for _, pid := range queue {
+			if cli := nodeCLI(pt[pid].argv); cli != "" {
+				return cli
+			}
+			next = append(next, kids[pid]...)
+		}
+		queue = next
+	}
+	return ""
+}
+
+// nodeCLI recognises `node <script>` where the script is codex or gemini.
+func nodeCLI(argv []string) string {
+	if len(argv) < 2 || filepath.Base(argv[0]) != "node" {
+		return ""
+	}
+	script := argv[1]
+	switch base := strings.TrimSuffix(filepath.Base(script), ".js"); {
+	case base == "codex" || strings.Contains(script, "/@openai/codex/"):
+		return "codex"
+	case base == "gemini" || strings.Contains(script, "/@google/gemini-cli/"):
+		return "gemini"
+	}
+	return ""
+}
+
+// PaneAgent is paneAgent for a caller without a collector (agcmd): it reads
+// the process table itself, from procRoot or from ps.
+func PaneAgent(ctx context.Context, r Runner, procRoot, cmd string, panePid int) string {
+	if cmd != "node" {
+		return paneAgent(nil, cmd, panePid)
+	}
+	c := &Collector{ProcRoot: procRoot, Runner: r}
+	return paneAgent(c.readProcTable(ctx), cmd, panePid)
 }
 
 func (c *Collector) readTmux(ctx context.Context) tmuxState {
@@ -108,6 +164,21 @@ func (c *Collector) readTmux(ctx context.Context) tmuxState {
 			if pid, err := strconv.Atoi(p[4]); err == nil {
 				st.agentPid[p[0]] = pid
 			}
+		}
+	}
+	// A node pane is named by what it runs, so everything that asks whether a
+	// pane is an agent sees "codex" or "gemini" — or a plain "node" it will
+	// refuse. The process table is read only when there is a node pane.
+	var pt procTable
+	for s, cmd := range st.agentCmd {
+		if cmd != "node" {
+			continue
+		}
+		if pt == nil {
+			pt = c.readProcTable(ctx)
+		}
+		if cli := paneAgent(pt, cmd, st.agentPid[s]); cli != "" {
+			st.agentCmd[s] = cli
 		}
 	}
 	return st
@@ -266,7 +337,7 @@ func (c *Collector) requireAgentReady(ctx context.Context, session string) error
 		return ErrConflict("tmux session " + session + " is not running — start the agent first (agcmd start)")
 	}
 	if cmd := tm.agentCmd[session]; !agentReady(cmd) {
-		return ErrConflict("the agent window of " + session + " is a plain shell (" + cmd + "), not an AI agent — refusing to type into a shell")
+		return ErrConflict("the agent window of " + session + " is running " + cmd + ", not an AI agent CLI — refusing to type into it")
 	}
 	return nil
 }

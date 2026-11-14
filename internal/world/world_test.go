@@ -38,7 +38,8 @@ type fakeRunner struct {
 	// rather than report: dead until the relay is started again.
 	paneDeadStale bool
 	agentsJSON    string
-	crashOnEnter  bool // panic on the Enter that submits a typed message
+	crashOnEnter  bool   // panic on the Enter that submits a typed message
+	psOut         string // what `ps` prints, for a host without /proc
 	// afterType runs, outside the lock, each time literal text is typed with
 	// send-keys -l. Set it before any goroutine starts.
 	afterType func()
@@ -125,6 +126,9 @@ func (f *fakeRunner) Run(_ context.Context, name string, args ...string) ([]byte
 			return []byte("──\n❯ \n──"), nil
 		}
 		return nil, nil
+	}
+	if name == "ps" {
+		return []byte(f.psOut), nil
 	}
 	if name == "claude" && len(args) > 0 && args[0] == "agents" {
 		return []byte(f.agentsJSON), nil
@@ -409,7 +413,7 @@ func TestAnswerOnlyWhenWaiting(t *testing.T) {
 	e := newEnv(t)
 	tok, _ := e.store.Enable("test")
 	e.runner.sessions = "api\t1\n"
-	e.runner.panes = "api\tagent\t1\tnode\n"
+	e.runner.panes = "api\tagent\t1\tclaude\n"
 	writeFile(t, filepath.Join(e.runs, "ENG-20261104-002.json"), `{"id":"ENG-20261104-002","task":"t","workspace":"api","session":"api","status":"RUNNING","created_at":"2026-11-04T01:00:00Z","updated_at":"2026-11-04T01:00:00Z","decision":null}`)
 	if code, _, _ := e.do(t, "POST", "/aiagent/api/runs/ENG-20261104-002/answer", tok, `{"answer":"ok"}`); code != 409 {
 		t.Fatalf("answer to a non-waiting run: %d", code)

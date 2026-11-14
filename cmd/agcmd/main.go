@@ -24,6 +24,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -151,24 +152,25 @@ func tmux(args ...string) (string, error) {
 }
 
 // agentPane returns the pane id of a workspace's agent window and what it is
-// running, refusing anything that is not an agent CLI (world.IsAgentCommand).
+// running, refusing anything that is not an agent CLI (world.PaneAgent).
 //
 // The session is matched exactly ("=name") so a session whose name merely
 // starts with the workspace's cannot receive the text, and the target is the
 // pane id rather than the window, so the pane that was checked is the pane
 // that is typed into even if another pane becomes active in between.
 func agentPane(w world.WorkspaceInfo) (target, running string, err error) {
-	out, err := tmux("list-panes", "-t", "="+w.TmuxSession+":agent", "-F", "#{pane_active}\t#{pane_id}\t#{pane_current_command}")
+	out, err := tmux("list-panes", "-t", "="+w.TmuxSession+":agent", "-F", "#{pane_active}\t#{pane_id}\t#{pane_pid}\t#{pane_current_command}")
 	if err != nil {
 		return "", "", fmt.Errorf("workspace %q: no tmux session %q with an \"agent\" window (%s)", w.Name, w.TmuxSession, out)
 	}
 	for _, line := range strings.Split(out, "\n") {
-		f := strings.SplitN(strings.TrimSpace(line), "\t", 3)
-		if len(f) != 3 || f[0] != "1" {
+		f := strings.SplitN(strings.TrimSpace(line), "\t", 4)
+		if len(f) != 4 || f[0] != "1" {
 			continue
 		}
-		running = f[2]
-		if !world.IsAgentCommand(running) {
+		running = f[3]
+		pid, _ := strconv.Atoi(f[2])
+		if world.PaneAgent(context.Background(), world.ExecRunner{}, "/proc", running, pid) == "" {
 			return "", running, fmt.Errorf("workspace %q: the agent pane is running %q, not an agent CLI — refusing to type into it", w.Name, running)
 		}
 		return f[1], running, nil
