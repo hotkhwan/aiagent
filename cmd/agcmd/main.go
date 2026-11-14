@@ -326,9 +326,17 @@ func appendLog(id, line string) error {
 
 // nextRunID allocates ENG-<date>-NNN, counting only today's records so the
 // numbers stay short and readable.
+//
+// The id is reserved by creating its record file with O_EXCL, so two agcmd
+// processes started at the same moment cannot both take it: the loser sees the
+// file exists and moves to the next number. saveRun later replaces the empty
+// reservation; readers already skip a record they cannot parse.
 func nextRunID() (string, error) {
 	day := time.Now().Format("20060102")
 	prefix := "ENG-" + day + "-"
+	if err := os.MkdirAll(runsDir(), 0o700); err != nil {
+		return "", err
+	}
 	files, _ := filepath.Glob(filepath.Join(runsDir(), prefix+"*.json"))
 	high := 0
 	for _, p := range files {
@@ -337,7 +345,18 @@ func nextRunID() (string, error) {
 			high = n
 		}
 	}
-	return fmt.Sprintf("%s%03d", prefix, high+1), nil
+	for n := high + 1; n < high+1000; n++ {
+		id := fmt.Sprintf("%s%03d", prefix, n)
+		f, err := os.OpenFile(filepath.Join(runsDir(), id+".json"), os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
+		if errors.Is(err, os.ErrExist) {
+			continue
+		}
+		if err != nil {
+			return "", err
+		}
+		return id, f.Close()
+	}
+	return "", fmt.Errorf("no free run id after %s%03d", prefix, high)
 }
 
 // ---------- commands ----------
