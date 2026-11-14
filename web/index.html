@@ -23,7 +23,7 @@
 </head>
 <body>
 <header class="top">
-  <div class="brand"><img src="/aiagent/assets/house-kcmd.png" alt="" class="logo">AI Agent World</div>
+  <div class="brand"><img src="/aiagent/assets/house-kcmd.png" alt="" class="logo"><span class="brandName">AI Agent World</span></div>
   <div class="host" id="host">—</div>
   <nav class="views" aria-label="มุมมอง">
     <button type="button" id="viewMap" class="on" aria-pressed="true">หมู่บ้าน</button>
@@ -103,6 +103,9 @@
 <dialog id="panelPop" class="screenPop panelPop">
   <div class="spHead"><h2>รายละเอียด</h2><form method="dialog"><button class="ghost" aria-label="ปิด">✕</button></form></div>
   <div class="spBody" id="panelPopBody"></div>
+  <!-- The page composer is inert while this is open (showModal), so a session
+       shown here gets its own. Hidden until there is a session to write to. -->
+  <div class="spFoot" id="panelPopFoot" hidden></div>
 </dialog>
 
 <dialog id="accountsDlg" class="screenPop">

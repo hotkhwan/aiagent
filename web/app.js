@@ -372,6 +372,7 @@ const hint = (long, short) => (isPhone() ? short : long)
 
 function updateComposerHint () {
   const sess = composerSession()
+  if (isPhone()) drawSheetComposer()
   if (!sess) st.suggest = []
   setTimeout(drawSuggest, 0)
   const chip = $('askTarget')
@@ -528,16 +529,26 @@ function sceneBoard (w, hgt, cls) {
   return board
 }
 
+// On a phone the whole village fits the width at about a quarter size, too
+// small to see who is who, so it opens at 2x and the child pans across it.
+function zoomLevel () { return st.zoom ?? (isPhone() ? 2 : 1) }
+
 function applyZoom () {
   const v = $('village')
   const b = st.board
   if (!b || !b.el.isConnected) return
   const inRoom = st.house && st.roomFocus
   const fit = (inRoom ? v.clientWidth / b.w : Math.min(v.clientWidth / b.w, v.clientHeight / b.h)) || 1
-  const z = fit * (st.zoom || 1)
+  const zl = zoomLevel()
+  const z = fit * zl
   b.el.style.transform = 'translate(' + Math.max(0, (v.clientWidth - b.w * z) / 2) + 'px,' + Math.max(0, (v.clientHeight - b.h * z) / 2) + 'px) scale(' + z + ')'
-  v.classList.toggle('zoomed', (st.zoom || 1) > 1)
-  $('zoomVal').textContent = Math.round((st.zoom || 1) * 100) + '%'
+  v.classList.toggle('zoomed', zl > 1)
+  if (zl > 1 && st.zoomShown !== zl) {
+    st.zoomShown = zl
+    v.scrollLeft = Math.max(0, (b.w * z - v.clientWidth) / 2)
+    v.scrollTop = Math.max(0, (b.h * z - v.clientHeight) / 2)
+  }
+  $('zoomVal').textContent = Math.round(zl * 100) + '%'
 }
 
 function renderMap () {
@@ -1388,6 +1399,36 @@ function drawPopComposer (want) {
       h('div', { class: 'spTa' }, ta),
       h('button', { type: 'button', class: 'pri', onclick: send }, tr('ส่ง')))
   )
+  drawThumbs(thumbs)
+}
+
+// The detail sheet covers the page, and the page composer is inert under that
+// modal, so a session open in the sheet carries its own composer.
+function drawSheetComposer () {
+  const foot = $('panelPopFoot')
+  const sess = composerSession()
+  const sig = sess ? sess.sessionId : ''
+  if (foot.dataset.sig === sig) return
+  foot.dataset.sig = sig
+  foot.replaceChildren()
+  foot.hidden = !sess
+  if (!sess) return
+  const ta = h('textarea', { rows: 1, maxlength: 4000, placeholder: tr('พิมพ์ถึง ') + sess.displayName + '…', 'aria-label': tr('ข้อความ') })
+  ta.addEventListener('input', () => { ta.style.height = 'auto'; ta.style.height = Math.min(160, ta.scrollHeight + 2) + 'px' })
+  const thumbs = h('div', { class: 'thumbs' })
+  const file = h('input', { type: 'file', accept: 'image/png,image/jpeg,image/gif,image/webp', multiple: true, hidden: true })
+  file.addEventListener('change', () => { addFiles(file.files, thumbs); file.value = '' })
+  const send = () => {
+    const now = composerSession()
+    if (now) sendChat(now, ta, thumbs)
+    ta.style.height = ''
+    return false
+  }
+  foot.append(h('div', { class: 'spAsk' },
+    h('button', { type: 'button', class: 'ghost clip', 'aria-label': tr('แนบรูป'), onclick: () => file.click() }, '📎'),
+    thumbs, file,
+    h('div', { class: 'spTa' }, ta),
+    h('button', { type: 'button', class: 'pri', onclick: send }, tr('ส่ง'))))
   drawThumbs(thumbs)
 }
 
@@ -2720,8 +2761,8 @@ function goBack () {
   st.drawn = ''
   render()
 }
-$('zoomIn').addEventListener('click', () => { st.zoom = Math.min(2, (st.zoom || 1) + 0.2); applyZoom() })
-$('zoomOut').addEventListener('click', () => { st.zoom = Math.max(0.6, (st.zoom || 1) - 0.2); applyZoom() })
+$('zoomIn').addEventListener('click', () => { st.zoom = Math.min(3, zoomLevel() + 0.2); applyZoom() })
+$('zoomOut').addEventListener('click', () => { st.zoom = Math.max(0.6, zoomLevel() - 0.2); applyZoom() })
 $('fullBtn').addEventListener('click', () => {
   // The body, not the stage: fullscreening the stage alone left the composer
   // outside it, so there was no way to answer without leaving fullscreen
