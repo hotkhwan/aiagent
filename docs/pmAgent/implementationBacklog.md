@@ -42,7 +42,9 @@ Vertical slice: บน Mac mini UI แสดง liveness ของ Claude/Codex 
 | A10 | CI job `macos-latest` (vet + test) | C | A2 | CI เขียวทั้ง ubuntu และ macOS | — | 1 ชม. |
 | A11 | แก้ README "Thai only" → Thai+English | C | — | ตรง `ARCHITECTURE.md:78` | — | 0.2 ชม. |
 
-## Phase B — SQLite task store + state machine
+## Phase B — task store + state machine
+
+**สถานะ (2026-11-14):** เสร็จใน PR #5 — ใช้ JSONL event log แทน SQLite ตาม D-1 (ไม่มี dependency เพิ่ม); B1–B6 ครบยกเว้น CLI `aiagent task` (ย้ายไป Phase C พร้อม orchestrator)
 
 Vertical slice: สร้าง task ผ่าน CLI `aiagent task add`, เห็นใน `/api/tasks`, เปลี่ยน state ด้วยมือตาม transition table, restart service แล้ว state ถูกต้อง
 

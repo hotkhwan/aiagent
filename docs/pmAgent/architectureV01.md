@@ -196,7 +196,7 @@ feedback → PM `intakeFeedback` ร่าง task + acceptance criteria → **�
 
 | id | เรื่อง | ทางเลือก | ข้อเสนอ |
 |---|---|---|---|
-| D-1 | SQLite driver | modernc vs mattn | **ตัดสินแล้ว:** modernc (วัด binary size ใน B1) |
+| D-1 | task storage | modernc SQLite / mattn SQLite / JSONL event log | **ตัดสินแล้ว (แก้ 2026-11-14):** JSONL event log ไม่มี dependency เพิ่ม — repo ตั้งใจมี external dependency ตัวเดียว และผู้ใช้ขอตัวที่เบาสุด; `taskstore.Store` คือ seam ถ้าต้องย้ายไป SQLite (PR #5) |
 | D-2 | managed worker transport | headless vs tmux | **ตัดสินแล้ว:** headless |
 | D-3 | การเข้าถึงจากภายนอก | Access / Tailscale / token | **ตัดสินแล้ว:** token login |
 | D-4 | Codex CLI | ติดตั้ง / ข้าม | ข้ามจนกว่าจะติดตั้ง |
