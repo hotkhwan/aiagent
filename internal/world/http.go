@@ -42,6 +42,7 @@ import (
 	"github.com/gofiber/fiber/v3"
 
 	"github.com/hotkhwan/aiagent/internal/audit"
+	"github.com/hotkhwan/aiagent/internal/orchestrator"
 	"github.com/hotkhwan/aiagent/internal/taskstore"
 	"github.com/hotkhwan/aiagent/web"
 )
@@ -71,6 +72,8 @@ type Service struct {
 	Auditor   *audit.Logger
 	// Tasks is the PM's task log; nil means the task routes are absent.
 	Tasks *taskstore.Store
+	// Orch dispatches and follows tasks; nil means dispatch is off.
+	Orch *orchestrator.Orchestrator
 
 	mu        sync.Mutex
 	failures  map[string][]time.Time
@@ -196,6 +199,7 @@ func (s *Service) Mount(app *fiber.App) {
 	s.policyOnce.Do(func() {
 		s.StartPolicy(context.Background())
 		s.StartOutbox(context.Background())
+		s.StartOrchestrator(context.Background())
 	})
 	page := s.asset("index.html", "html")
 	// On its own hostname — behind a tunnel or a reverse proxy — the /aiagent

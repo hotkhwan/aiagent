@@ -149,6 +149,9 @@ func serve(args []string) {
 			log.Printf("task log: %d attempt(s) were mid-dispatch at the last stop; marked unknown, not resent", n)
 		}
 		svc.Tasks = ts
+		// An attempt that shows no transcript activity for this long is
+		// reported as expired; nothing is requeued by itself.
+		svc.Orch = world.NewOrchestrator(ts, col, 45*time.Minute)
 	}
 	svc.Mount(app)
 

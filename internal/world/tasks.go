@@ -20,6 +20,8 @@ func (s *Service) mountTasks(api fiber.Router) {
 	api.Get("/tasks/:id", s.handleTaskGet)
 	api.Post("/tasks", s.handleTaskCreate)
 	api.Post("/tasks/:id/transition", s.handleTaskTransition)
+	api.Post("/tasks/:id/dispatch", s.handleTaskDispatch)
+	api.Post("/tasks/:id/attempts/:aid/confirm", s.handleAttemptConfirm)
 }
 
 func (s *Service) handleTaskList(c fiber.Ctx) error {

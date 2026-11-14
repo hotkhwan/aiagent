@@ -40,6 +40,7 @@ type fakeRunner struct {
 	agentsJSON    string
 	crashOnEnter  bool   // panic on the Enter that submits a typed message
 	psOut         string // what `ps` prints, for a host without /proc
+	gitHead       string // the HEAD of every checkout, the only commit that exists
 	// afterType runs, outside the lock, each time literal text is typed with
 	// send-keys -l. Set it before any goroutine starts.
 	afterType func()
@@ -129,6 +130,20 @@ func (f *fakeRunner) Run(_ context.Context, name string, args ...string) ([]byte
 	}
 	if name == "ps" {
 		return []byte(f.psOut), nil
+	}
+	if name == "git" {
+		switch {
+		case slices.Contains(args, "rev-parse"):
+			return []byte(f.gitHead + "\n"), nil
+		case slices.Contains(args, "cat-file"):
+			for _, a := range args {
+				if strings.HasPrefix(a, f.gitHead) && f.gitHead != "" {
+					return nil, nil
+				}
+			}
+			return nil, errors.New("fatal: Not a valid object name")
+		}
+		return nil, nil
 	}
 	if name == "claude" && len(args) > 0 && args[0] == "agents" {
 		return []byte(f.agentsJSON), nil
