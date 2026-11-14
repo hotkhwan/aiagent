@@ -91,6 +91,30 @@ func TestTheSameIdempotencyKeyCreatesOneTask(t *testing.T) {
 	}
 }
 
+// The service and the CLI each open the log. Their writes interleave without
+// clashing ids, and each sees the other's tasks.
+func TestTwoOpenersShareOneLog(t *testing.T) {
+	a, path := newStore(t)
+	b := openAt(t, path)
+	ta, err := a.Create(outboxTask(), ActorUser, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	tb, err := b.Create(outboxTask(), ActorUser, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ta.ID == tb.ID {
+		t.Fatalf("two openers handed out the same id %s", ta.ID)
+	}
+	if _, err := a.Transition(tb.ID, StatusReady, ActorOrchestrator, Change{}, ""); err != nil {
+		t.Fatalf("the first opener could not act on the second's task: %v", err)
+	}
+	if got, _ := b.Get(tb.ID); got.Status != StatusReady {
+		t.Fatalf("the second opener did not see the first's change: %s", got.Status)
+	}
+}
+
 // A crash in the middle of an append leaves half a line at the end of the
 // log. Everything before it is intact and must load, and the store must keep
 // writing whole lines after it.

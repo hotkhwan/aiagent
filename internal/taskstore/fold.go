@@ -36,6 +36,7 @@ type Attempt struct {
 	StartedAt      time.Time     `json:"startedAt"`
 	HeartbeatAt    time.Time     `json:"heartbeatAt"`
 	LeaseExpiresAt time.Time     `json:"leaseExpiresAt"`
+	LeaseSeconds   int64         `json:"leaseSeconds"`
 	EndedAt        *time.Time    `json:"endedAt,omitempty"`
 	ExitReason     string        `json:"exitReason,omitempty"`
 }
