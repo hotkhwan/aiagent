@@ -10,7 +10,7 @@ for work that is not happening.
 
 > **Status: alpha.** It has been run by its author on one machine. The security
 > model below is real and tested, but this has not had an outside audit, and
-> the UI is in Thai. See [Known gaps](#known-gaps).
+> the UI defaults to Thai. See [Known gaps](#known-gaps).
 
 ## What you see
 
@@ -169,7 +169,8 @@ version, including what is **not** protected, is in
 
 ## Known gaps
 
-- **The UI is Thai only.** The code and docs are English; the interface is not.
+- **The UI is Thai first.** It ships Thai and English (`web/i18n.js`, `?lang=en`
+  or the TH|EN switch); server-side reason strings are still Thai only.
 - **Linux-first, but not Linux-only.** Process discovery reads `/proc`, which
   macOS and BSD do not have. Measured on macOS: sessions Claude Code's own
   daemon reports (`claude agents`) *do* appear and the village populates, but
