@@ -1221,7 +1221,9 @@ function wireActor (act) {
   })
   el.addEventListener('pointermove', e => {
     if (!start) return
-    if (!act.dragging && Math.hypot(e.clientX - start.x, e.clientY - start.y) < 6) return
+    // A finger drifts several pixels during a tap; past 6px a tap became a drag and no details opened.
+    const slop = e.pointerType === 'touch' ? 16 : 6
+    if (!act.dragging && Math.hypot(e.clientX - start.x, e.clientY - start.y) < slop) return
     act.dragging = true
     act.route = []
     el.classList.add('dragging')
