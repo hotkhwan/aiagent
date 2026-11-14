@@ -34,7 +34,7 @@ type workspaceEntry struct {
 	name     string
 	session  string
 	dir      string
-	provider string // claude | codex | "" when not chosen by provider
+	provider string // claude | codex | gemini | "" when not chosen by provider
 }
 
 // workspaceConfig is the on-disk shape. Keys are camelCase, like every other
@@ -112,7 +112,7 @@ func LoadWorkspaces(path string) ([]workspaceEntry, error) {
 		case seen[w.Name]:
 			return nil, fmt.Errorf("%s: workspace %q declared twice", path, w.Name)
 		case w.Provider != "" && providerQuota[w.Provider] == "":
-			return nil, fmt.Errorf("%s: workspace %q provider %q is not claude or codex", path, w.Name, w.Provider)
+			return nil, fmt.Errorf("%s: workspace %q provider %q is not claude, codex or gemini", path, w.Name, w.Provider)
 		}
 		seen[w.Name] = true
 		out = append(out, workspaceEntry{

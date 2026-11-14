@@ -347,7 +347,7 @@ function renderComposerTargets () {
     sel.append(g)
   }
   const pg = h('optgroup', { label: tr('ส่งตาม provider (งานใหม่)') })
-  for (const [id, label] of [['auto', tr('อัตโนมัติ · agent ที่เหลือ quota มากกว่า')], ['claude', 'Claude'], ['codex', 'Codex']]) {
+  for (const [id, label] of [['auto', tr('อัตโนมัติ · agent ที่เหลือ quota มากกว่า')], ['claude', 'Claude'], ['codex', 'Codex'], ['gemini', 'Gemini']]) {
     pg.append(h('option', { value: 'provider:' + id }, label))
   }
   sel.append(pg)
