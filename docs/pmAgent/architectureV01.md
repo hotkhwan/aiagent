@@ -216,3 +216,15 @@ feedback → PM `intakeFeedback` ร่าง task + acceptance criteria → **�
 8. **Remote:** endpoint ใหม่ (`/api/tasks`) ถือว่า internet-reachable — เปิด write หลังงาน hardening ของ token gate (A9) เสร็จ
 9. **Events:** append-only log; rows ใน `tasks`/`attempts` เป็น authoritative (ไม่มี projection rebuild ใน v0.1)
 10. **Secrets:** secret finding เก็บ fingerprint + file:line เท่านั้น; audit error = code + digest; audit file 0600
+
+## 13. โมเดลการส่งงานจริง: CLI แบบ subscription + PM เลือก agent (ผู้ใช้ชี้แจง 2026-11-14)
+
+มีผลเหนือ D-2 และ §5.1/§12.3 เมื่อขัดกัน
+
+- **ไม่มี API key**: claude, codex และ gemini ใช้ CLI ที่ login แบบ subscription เท่านั้น → ห้ามออกแบบที่ต้องใช้ `ANTHROPIC_API_KEY`/`--bare`/`--max-budget-usd` หรือ API ของ provider โดยตรง
+- **PM กลางเลือก agent ต่องาน** แล้ว orchestrator **ส่งคำสั่งเข้า session ของ agent นั้น** (tmux pane ที่ CLI รันแบบ interactive อยู่) → การส่งผ่าน tmux คือเส้นทางหลัก ไม่ใช่ทางเสริม ดังนั้น Phase A (allowlist ตาม executable, pane id, per-session lock, ack, outbox ไม่ส่งซ้ำ) เป็นงานบน critical path
+- **ฐานที่มีแล้ว**: `internal/world/route.go` (`pickWorkspace`) เลือก workspace ตาม provider และ quota (`auto` = ใช้ quota น้อยก่อน, ไม่ทราบไปท้าย) → PM เสนอ provider, orchestrator ใช้ `pickWorkspace` + เงื่อนไขเพิ่ม: CLI พร้อมและ login อยู่, ไม่มีงานอื่นถือ session นั้น (lease), quota band ≠ critical/reserve; **ไม่ทราบ = ไม่ส่ง** เว้นแต่ผู้ใช้สั่งเอง
+- **Gemini**: ตอนนี้ provider `gemini` ถูกปฏิเสธโดยตั้งใจ (`route_test.go:81,110`) และเครื่องยังไม่มี `gemini` CLI → งานเพิ่ม: collector สำหรับ transcript ของ Gemini CLI, quota = "ไม่ทราบ" จนกว่าจะอ่านค่าจริงได้, เครื่องหมาย `◇` ใน UI
+- **ผลงานจาก session แบบ interactive**: completion ไม่เชื่อข้อความตอบ — envelope สั่งให้ agent commit บน branch ของ attempt และเขียน `.aiagent/result.json` ใน worktree; orchestrator ยืนยันด้วย git object + test จาก trusted base เหมือน §12.7
+- **PM เอง**: PM reasoning เรียกผ่าน CLI แบบ subscription (`claude -p` พร้อม flag ใน §12.4 — ใช้ OAuth ของ subscription ได้ ไม่ต้อง API key) หรือ session PM เฉพาะ; local model ยังเป็น pilot แยก
+- **Sandbox**: session ที่ orchestrator เปิดเองรันใต้ `sandbox-exec` profile (§12.2); session ที่ผู้ใช้เปิดเองเป็น observe/bound เท่านั้น
