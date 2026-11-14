@@ -305,7 +305,11 @@ func (s *Service) auditOutbox(event string, p Pending, err error) {
 	_ = s.Auditor.Write(r)
 }
 
+// trimErr shortens an error for the queue file, the API and the audit log, and
+// runs it through Redact: it carries CLI output, and the queue is served to
+// the browser.
 func trimErr(s string) string {
+	s = Redact(s)
 	const max = 200
 	if len(s) > max {
 		return s[:max] + "…"

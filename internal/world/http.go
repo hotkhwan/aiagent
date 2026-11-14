@@ -31,6 +31,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"net"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -117,6 +118,29 @@ func (s *Service) recordFailure(ip string, now time.Time) {
 	s.mu.Unlock()
 }
 
+// clientAddr is the address wrong tokens are counted against.
+//
+// Through the Cloudflare tunnel every request arrives from loopback, so the
+// peer address alone would put every visitor in one bucket and let anyone lock
+// the owner out. When the peer is loopback, the visitor address the tunnel
+// adds (Cf-Connecting-Ip) is used instead. Only loopback may name it: a client
+// reaching the service directly is counted by its own address, or it could
+// pick a fresh one for every guess.
+func clientAddr(c fiber.Ctx) string {
+	return lockoutKey(c.IP(), c.Get("Cf-Connecting-Ip"))
+}
+
+// lockoutKey is clientAddr's decision on plain values, so it can be tested
+// without a socket.
+func lockoutKey(peer, cfConnectingIP string) string {
+	if ip := net.ParseIP(peer); ip != nil && ip.IsLoopback() {
+		if v := net.ParseIP(strings.TrimSpace(cfConnectingIP)); v != nil {
+			return "cf:" + v.String()
+		}
+	}
+	return peer
+}
+
 // hidden answers 404 so a disabled feature is indistinguishable from absent.
 func hidden(c fiber.Ctx) error {
 	return c.Status(fiber.StatusNotFound).JSON(failEnv("NOT_FOUND", "not found"))
@@ -127,7 +151,7 @@ func (s *Service) gate(c fiber.Ctx) error {
 		return hidden(c)
 	}
 	now := time.Now()
-	ip := c.IP()
+	ip := clientAddr(c)
 	if s.tooManyFailures(ip, now) {
 		return c.Status(fiber.StatusTooManyRequests).JSON(failEnv("AIAGENT_LOCKED", "too many wrong tokens — wait a few minutes"))
 	}
