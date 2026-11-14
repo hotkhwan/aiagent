@@ -33,9 +33,11 @@ issue. There is one maintainer, so expect a human-speed reply, not an SLA.
   an entry in `workspaces.json` or the request is refused; the name itself
   never reaches a command line. With no config, nothing is dispatchable.
 - **Only real agent panes.** A message is typed only into a tmux pane confirmed
-  to be running an agent CLI (`claude`/`codex`/`node`), never a bare shell —
-  otherwise the dispatcher would create an empty session and type your text
-  into bash.
+  to be running an agent CLI — an allowlist (`claude`, its versioned binary
+  name such as `2.1.318`, `codex`, `gemini`, `node`), not a list of shells to
+  avoid — so neither a bare shell nor an editor or REPL left in the agent
+  window receives the text. The session is matched exactly and the text goes
+  to the pane id that was checked.
 - **Read-only by design:** sub-agents, and sessions you started yourself in a
   terminal or VS Code, can be watched but not driven.
 - Text is length-limited, stripped of control characters, and rejected if it is

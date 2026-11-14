@@ -57,7 +57,22 @@ type tmuxState struct {
 	agentPid map[string]int
 }
 
-var shellCommands = map[string]bool{"bash": true, "sh": true, "zsh": true, "fish": true, "dash": true, "login": true, "tmux": true, "": true}
+// agentCommands are the pane commands text may be typed into. It is an
+// allowlist, not a list of shells to avoid: an editor, a REPL or a pager in an
+// agent window would run the text as something the operator did not ask for.
+// codex and gemini installed through npm show as node.
+var agentCommands = map[string]bool{"claude": true, "codex": true, "gemini": true, "node": true}
+
+// claudeVersionBinary matches the name tmux reports for Claude Code on macOS,
+// where ~/.local/bin/claude links to a binary named after its version
+// (for example 2.1.318).
+var claudeVersionBinary = regexp.MustCompile(`^[0-9]+\.[0-9]+\.[0-9]+$`)
+
+// IsAgentCommand reports whether a pane running cmd is an agent CLI that may
+// be typed into.
+func IsAgentCommand(cmd string) bool {
+	return agentCommands[cmd] || claudeVersionBinary.MatchString(cmd)
+}
 
 func (c *Collector) readTmux(ctx context.Context) tmuxState {
 	st := tmuxState{sessions: map[string]time.Time{}, agentCmd: map[string]string{}, agentPid: map[string]int{}}
@@ -97,7 +112,7 @@ func (c *Collector) readTmux(ctx context.Context) tmuxState {
 	return st
 }
 
-func agentReady(cmd string) bool { return !shellCommands[cmd] }
+func agentReady(cmd string) bool { return IsAgentCommand(cmd) }
 
 func (c *Collector) workspaces(tm tmuxState) []Workspace {
 	out := make([]Workspace, 0, len(c.Workspaces))
