@@ -26,6 +26,7 @@ import (
 	"github.com/gofiber/fiber/v3"
 
 	"github.com/hotkhwan/aiagent/internal/audit"
+	"github.com/hotkhwan/aiagent/internal/taskstore"
 	"github.com/hotkhwan/aiagent/internal/world"
 )
 
@@ -136,7 +137,20 @@ func serve(args []string) {
 		ReadTimeout:  30 * time.Second,
 		WriteTimeout: 60 * time.Second,
 	})
-	world.NewService(store, col, auditor).Mount(app)
+	svc := world.NewService(store, col, auditor)
+	// The PM's task log. Failing to open it turns the task routes off rather
+	// than stopping the service the operator already relies on.
+	if ts, err := taskstore.Open(filepath.Join(dir, "tasks.jsonl")); err != nil {
+		log.Printf("task log unavailable, task routes are off: %v", err)
+	} else {
+		if n, err := ts.Recover(); err != nil {
+			log.Printf("task log recovery: %v", err)
+		} else if n > 0 {
+			log.Printf("task log: %d attempt(s) were mid-dispatch at the last stop; marked unknown, not resent", n)
+		}
+		svc.Tasks = ts
+	}
+	svc.Mount(app)
 
 	scheme := "http"
 	if tls {
