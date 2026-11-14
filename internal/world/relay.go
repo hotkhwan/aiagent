@@ -81,7 +81,7 @@ func (c *Collector) SendToSession(ctx context.Context, id, message string) (stri
 				return "", ErrConflict("short id " + short + " is ambiguous")
 			}
 		}
-		return "relay " + relayName(short), c.relaySend(ctx, short, message)
+		return "relay " + relayName(short), c.relaySend(ctx, target, message)
 	}
 	return "", ErrConflict(target.MessageBlocked)
 }
@@ -155,63 +155,115 @@ func attachReason(screen string) string {
 	return "it exited without saying why"
 }
 
-func (c *Collector) relaySend(ctx context.Context, short, message string) error {
-	name := relayName(short)
-	fresh := false
-	if _, err := c.tmux(ctx, "has-session", "-t", "="+name); err != nil {
-		if _, err := c.tmux(ctx, "new-session", "-d", "-s", name, "-x", "220", "-y", "50", c.ClaudePath, "attach", short); err != nil {
-			return &APIError{502, "AIAGENT_RELAY_FAILED", "could not start relay: " + err.Error()}
-		}
-		fresh = true
-		// Keep the pane after the client exits, so a refused attach can be read
-		// back instead of vanishing. `claude attach` answers "No job matching
-		// <id>" for a session its daemon does not list, and without this the
-		// tmux session was simply gone a moment later — which the loop below
-		// could only report as "not ready yet", i.e. as a busy agent. That sent
-		// the operator off waiting for an agent to finish something it was
-		// never doing.
-		_, _ = c.tmux(ctx, "set-option", "-w", "-t", "="+name+":", "remain-on-exit", "on")
+// relayDead reports whether the relay's pane has exited, and what it last said.
+func (c *Collector) relayDead(ctx context.Context, name string) (bool, string) {
+	out, err := c.tmux(ctx, "list-panes", "-t", "="+name, "-F", "#{pane_dead}")
+	if err != nil {
+		return false, ""
 	}
-	// pin the pane size: with tmux's default window-size a smaller client
-	// (or a resize) can shrink the pane until Claude's input box is no
-	// longer drawn, and the relay then never sees the prompt
-	// window-size is a window option: target the session's window ("=name:"),
-	// a bare "=name" is rejected as "no such window" and the size reverts
-	_, _ = c.tmux(ctx, "set-option", "-w", "-t", "="+name+":", "window-size", "manual")
-	_, _ = c.tmux(ctx, "resize-window", "-t", "="+name+":", "-x", "220", "-y", "50")
-	// wait until the pane runs the attach client and its prompt is drawn
-	//
-	// capture-pane needs "=name:" like the window options above, NOT "=name":
-	// with the bare form it answers `can't find pane` on every attempt, so the
-	// screen was always empty, the prompt was never found, and every relayed
-	// message failed with RELAY_NOT_READY after the full 16-second wait. The
-	// window-size comment above records the same trap one command earlier.
-	ready := false
-	for i := 0; i < 40 && !ready; i++ {
-		out, err := c.tmux(ctx, "list-panes", "-t", "="+name, "-F", "#{pane_dead} #{pane_current_command}")
-		if err != nil && fresh {
-			// The relay we just started is not there at all: the attach exited
-			// and took its tmux session with it.
-			return &APIError{502, "AIAGENT_RELAY_FAILED",
-				"the relay to this session closed immediately — the agent CLI would not attach to it"}
+	f := strings.Fields(strings.TrimSpace(out))
+	if len(f) == 0 || f[0] != "1" {
+		return false, ""
+	}
+	screen, _ := c.tmux(ctx, "capture-pane", "-p", "-J", "-t", "="+name+":")
+	return true, attachReason(screen)
+}
+
+// relayWait waits for the CLI's prompt. It returns ready, or the reason the
+// pane died; an empty reason with ready false means it is alive but busy.
+//
+// capture-pane needs "=name:" like the window options, NOT "=name": with the
+// bare form it answers `can't find pane` on every attempt, so the screen was
+// always empty, the prompt was never found, and every relayed message failed
+// with RELAY_NOT_READY after the full 16-second wait.
+func (c *Collector) relayWait(ctx context.Context, name string) (bool, string) {
+	for i := 0; i < 40; i++ {
+		if dead, why := c.relayDead(ctx, name); dead {
+			if why == "" {
+				why = "it exited without saying why"
+			}
+			return false, why
 		}
-		f := strings.Fields(strings.TrimSpace(out))
-		if len(f) > 0 && f[0] == "1" {
-			screen, _ := c.tmux(ctx, "capture-pane", "-p", "-J", "-t", "="+name+":")
-			_, _ = c.tmux(ctx, "kill-session", "-t", "="+name)
-			return &APIError{502, "AIAGENT_RELAY_FAILED", "the agent CLI refused to attach: " + attachReason(screen)}
-		}
-		if err == nil && len(f) > 1 && agentReady(f[1]) {
+		cmd, err := c.tmux(ctx, "list-panes", "-t", "="+name, "-F", "#{pane_current_command}")
+		if err == nil && agentReady(strings.TrimSpace(cmd)) {
 			screen, _ := c.tmux(ctx, "capture-pane", "-p", "-t", "="+name+":")
-			ready = strings.Contains(screen, "❯")
+			if strings.Contains(screen, "❯") {
+				return true, ""
+			}
 		}
-		if !ready {
-			c.sleep(400 * time.Millisecond)
-		}
+		c.sleep(400 * time.Millisecond)
 	}
-	if !ready {
-		return &APIError{504, "AIAGENT_RELAY_NOT_READY",
-			"the session did not become ready to receive text — it is probably still working; try again when it is idle"}
+	return false, ""
+}
+
+// relaySend types into the session, opening a relay for it if there is none.
+//
+// Two ways in, in this order. `claude attach <id>` joins a job the daemon is
+// still running. A session that has finished has no job to join — attach
+// answers "No job matching <id>" and exits — but the operator still wants to
+// give it more work (owner, 2026-11-14: "complete แล้วจริง แต่ก็ต้องพิมพ์สั่ง
+// เพิ่มได้"), and `claude --resume <id>` is how the CLI itself does that. So a
+// refused attach is followed by a resume before anything is called a failure.
+func (c *Collector) relaySend(ctx context.Context, ss *Session, message string) error {
+	short := shortID(ss.SessionID)
+	name := relayName(short)
+	// Two goes. remain-on-exit leaves a dead pane behind when an attach ends,
+	// and a leftover one is not evidence that the CLI would refuse now — the
+	// first pass replaces it, and only a fresh attach that also dies is
+	// reported as a refusal. Without this every send after the first exit
+	// failed instantly with "refused to attach".
+	reason := ""
+	for attempt := 0; attempt < 2; attempt++ {
+		if dead, why := c.relayDead(ctx, name); dead {
+			if why != "" {
+				reason = why
+			}
+			_, _ = c.tmux(ctx, "kill-session", "-t", "="+name)
+		}
+		if _, err := c.tmux(ctx, "has-session", "-t", "="+name); err != nil {
+			argv := []string{"new-session", "-d", "-s", name, "-x", "220", "-y", "50"}
+			if ss.Cwd != "" {
+				// --resume reads the transcript of the project it is run in.
+				argv = append(argv, "-c", ss.Cwd)
+			}
+			if attempt == 0 {
+				argv = append(argv, c.ClaudePath, "attach", short)
+			} else {
+				argv = append(argv, c.ClaudePath, "--resume", ss.SessionID)
+			}
+			if _, err := c.tmux(ctx, argv...); err != nil {
+				return &APIError{502, "AIAGENT_RELAY_FAILED", "could not start relay: " + err.Error()}
+			}
+			// Keep the pane after the client exits, so a refused attach can be
+			// read back instead of vanishing. `claude attach` answers "No job
+			// matching <id>" for a session its daemon does not list, and without
+			// this the tmux session was simply gone a moment later — which the
+			// wait below could only report as "not ready yet", i.e. as a busy
+			// agent. That sent the operator off waiting for an agent to finish
+			// something it was never doing.
+			_, _ = c.tmux(ctx, "set-option", "-w", "-t", "="+name+":", "remain-on-exit", "on")
+		}
+		// pin the pane size: with tmux's default window-size a smaller client
+		// (or a resize) can shrink the pane until Claude's input box is no
+		// longer drawn, and the relay then never sees the prompt
+		// window-size is a window option: target the session's window ("=name:"),
+		// a bare "=name" is rejected as "no such window" and the size reverts
+		_, _ = c.tmux(ctx, "set-option", "-w", "-t", "="+name+":", "window-size", "manual")
+		_, _ = c.tmux(ctx, "resize-window", "-t", "="+name+":", "-x", "220", "-y", "50")
+		ready, why := c.relayWait(ctx, name)
+		if ready {
+			reason = ""
+			break
+		}
+		if why == "" {
+			// Alive, just busy: the outbox holds the message and tries later.
+			return &APIError{504, "AIAGENT_RELAY_NOT_READY",
+				"the session did not become ready to receive text — it is probably still working; try again when it is idle"}
+		}
+		reason = why
+	}
+	if reason != "" {
+		return &APIError{502, "AIAGENT_RELAY_FAILED", "the agent CLI refused to attach: " + reason}
 	}
 	// "=name:" again, not "=name": send-keys takes a pane target too.
 	if _, err := c.tmux(ctx, "send-keys", "-t", "="+name+":", "-l", "--", message); err != nil {

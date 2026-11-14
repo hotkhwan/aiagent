@@ -25,15 +25,18 @@ import (
 // ---------- fixtures ----------
 
 type fakeRunner struct {
-	mu         sync.Mutex
-	sessions   string
-	panes      string
-	agcmdOut   string
-	calls      [][]string
-	relayUp    bool
-	relayBusy  bool // the pane shows no prompt: the agent is mid-task
-	paneDead   bool // `claude attach` refused and the pane exited
-	agentsJSON string
+	mu        sync.Mutex
+	sessions  string
+	panes     string
+	agcmdOut  string
+	calls     [][]string
+	relayUp   bool
+	relayBusy bool // the pane shows no prompt: the agent is mid-task
+	paneDead  bool // `claude attach` refused and the pane exited
+	// A pane left dead by an earlier attach, which the next send should replace
+	// rather than report: dead until the relay is started again.
+	paneDeadStale bool
+	agentsJSON    string
 }
 
 func (f *fakeRunner) Run(_ context.Context, name string, args ...string) ([]byte, error) {
@@ -51,6 +54,14 @@ func (f *fakeRunner) Run(_ context.Context, name string, args ...string) ([]byte
 			return nil, errors.New("no session")
 		case "new-session":
 			f.relayUp = true
+			f.paneDeadStale = false
+			return nil, nil
+		case "kill-session":
+			// Real tmux takes the session with it, so has-session must stop
+			// answering. Without this a killed relay looked alive and the code
+			// never started a new one.
+			f.relayUp = false
+			f.paneDeadStale = false
 			return nil, nil
 		case "list-panes":
 			if len(args) > 1 && args[1] == "-t" {
@@ -61,7 +72,7 @@ func (f *fakeRunner) Run(_ context.Context, name string, args ...string) ([]byte
 					}
 				}
 				dead := "0"
-				if f.paneDead {
+				if f.paneDead || f.paneDeadStale {
 					dead = "1"
 				}
 				// Answer in the shape the caller asked for, the way tmux does.
@@ -92,7 +103,7 @@ func (f *fakeRunner) Run(_ context.Context, name string, args ...string) ([]byte
 			if args[0] == "send-keys" {
 				return nil, nil
 			}
-			if f.paneDead {
+			if f.paneDead || f.paneDeadStale {
 				return []byte("No job matching 'aaaa1111'. Run 'claude agents' to list running sessions.\nPane is dead"), nil
 			}
 			if f.relayBusy {
@@ -648,7 +659,9 @@ func TestSessionMessageRelayAndConversation(t *testing.T) {
 	// the code did and what real tmux rejects — so the test was pinning the
 	// bug in place: no relayed message had ever reached an agent.
 	want := []string{
-		"new-session -d -s aiagent-aaaa1111 -x 220 -y 50 claude attach aaaa1111",
+		// -c is the session's own cwd: `claude --resume`, the fallback for a
+		// finished session, reads the transcript of the project it runs in.
+		"new-session -d -s aiagent-aaaa1111 -x 220 -y 50 -c /root claude attach aaaa1111",
 		// the pane is kept after the client exits, so an attach the CLI
 		// refuses can be read back instead of looking like a busy agent
 		"set-option -w -t =aiagent-aaaa1111: remain-on-exit on",
@@ -1640,5 +1653,78 @@ func TestRefusedAttachIsNotReportedAsABusyAgent(t *testing.T) {
 	}
 	if got := e.svc.PendingFor(id); len(got) != 0 {
 		t.Errorf("a message that can never be delivered must not be queued; got %v", got)
+	}
+}
+
+// TestAStaleDeadRelayIsReplacedNotReported pins the regression that followed
+// the refused-attach fix.
+//
+// remain-on-exit keeps the pane after an attach client ends, so the tmux
+// session outlives it. The first version treated any dead pane as the CLI
+// refusing, which meant every send after one exit failed instantly with
+// "refused to attach" — the owner could not send at all from his iPad. A
+// leftover pane is replaced first; only a fresh attach that also dies is a
+// refusal.
+func TestAStaleDeadRelayIsReplacedNotReported(t *testing.T) {
+	e := newEnv(t)
+	tok, _ := e.store.Enable("test")
+	fakeProcPPID(t, e.proc, "5001", "51", "1")
+	writeFile(t, filepath.Join(e.home, ".claude", "sessions", "5001.json"),
+		`{"pid":5001,"sessionId":"aaaa1111-0000-0000-0000-000000000000","cwd":"/root","procStart":"51","kind":"bg","status":"idle"}`)
+	const id = "aaaa1111-0000-0000-0000-000000000000"
+
+	// A relay is already there from an earlier send, and its pane has exited.
+	e.runner.relayUp = true
+	e.runner.paneDeadStale = true
+
+	code, m, _ := e.do(t, "POST", "/aiagent/api/sessions/"+id+"/message", tok, `{"message":"สวัสดี"}`)
+	if code != 200 {
+		t.Fatalf("a leftover dead relay must be replaced, not reported: %d %v", code, m)
+	}
+	var typed []string
+	for _, c := range e.runner.callsTo("tmux") {
+		if c[0] == "send-keys" && len(c) > 4 {
+			typed = append(typed, c[len(c)-1])
+		}
+	}
+	if len(typed) == 0 || typed[len(typed)-1] != "สวัสดี" {
+		t.Fatalf("the message should have been typed into the new relay; got %q", typed)
+	}
+}
+
+// TestAFinishedSessionIsResumedNotRefused pins the second way in.
+//
+// `claude attach <id>` only joins a job the daemon is still running, so a
+// session that has finished answers "No job matching <id>" and the pane exits.
+// The owner still gives those more work ("complete แล้วจริง แต่ก็ต้องพิมพ์สั่ง
+// เพิ่มได้", 2026-11-14), and the service briefly refused them outright. A
+// refused attach is followed by `claude --resume <id>`.
+func TestAFinishedSessionIsResumedNotRefused(t *testing.T) {
+	e := newEnv(t)
+	tok, _ := e.store.Enable("test")
+	fakeProcPPID(t, e.proc, "5001", "51", "1")
+	writeFile(t, filepath.Join(e.home, ".claude", "sessions", "5001.json"),
+		`{"pid":5001,"sessionId":"aaaa1111-0000-0000-0000-000000000000","cwd":"/root","procStart":"51","kind":"bg","status":"idle"}`)
+	const id = "aaaa1111-0000-0000-0000-000000000000"
+	// Attach is refused once; the fake clears the dead pane when a relay is
+	// started again, so the resume attempt comes up alive.
+	e.runner.paneDeadStale = true
+	e.runner.relayUp = true
+
+	code, m, _ := e.do(t, "POST", "/aiagent/api/sessions/"+id+"/message", tok, `{"message":"ทำต่ออีกหน่อย"}`)
+	if code != 200 {
+		t.Fatalf("a finished session must still take work: %d %v", code, m)
+	}
+	var started []string
+	for _, c := range e.runner.callsTo("tmux") {
+		if c[0] == "new-session" {
+			started = append(started, strings.Join(c, " "))
+		}
+	}
+	if len(started) == 0 {
+		t.Fatalf("no relay was started at all")
+	}
+	if !strings.Contains(started[len(started)-1], "claude attach") && !strings.Contains(started[len(started)-1], "--resume") {
+		t.Fatalf("the relay was started with neither attach nor resume: %q", started)
 	}
 }

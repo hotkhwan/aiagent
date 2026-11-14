@@ -37,7 +37,7 @@
    kept the zoom control on screen in list view for exactly that reason. Make
    the attribute mean what it says. */
 [hidden] { display: none !important }
-html, body { height: 100% }
+html, body { height: 100%; overflow-x: hidden }
 body { min-height: 100%; display: flex; flex-direction: column; background: radial-gradient(1200px 700px at 40% 30%, #1A2342 0%, var(--sky) 60%) var(--sky); color: var(--ink); font: 14px/1.5 var(--font) }
 button, input, select { font: inherit; color: inherit }
 button { cursor: pointer; border: 1px solid var(--line); background: transparent; border-radius: 10px; padding: 8px 14px }
@@ -48,10 +48,14 @@ button:focus-visible, input:focus-visible, select:focus-visible, [tabindex]:focu
 button:disabled { opacity: .45; cursor: not-allowed }
 code, pre, .mono { font-family: ui-monospace, 'IBM Plex Mono', monospace; font-size: 12px }
 
-.top { display: flex; align-items: center; gap: 16px; padding: 12px 24px; border-bottom: 1px solid var(--line); flex-wrap: wrap }
-.brand { font-weight: 600; font-size: 17px }
+/* One row, always. Wrapping put a second line of buttons under the header on
+   an iPad, which pushed the footer — and the agent counters in it — off the
+   bottom of the screen. Everything here shrinks or clips instead. */
+.top { display: flex; align-items: center; gap: 16px; padding: 12px 24px; border-bottom: 1px solid var(--line); flex-wrap: nowrap; overflow: hidden }
+.top > * { flex: none }
+.brand { font-weight: 600; font-size: 17px; white-space: nowrap }
 .brand b { color: var(--brand) }
-.host { color: var(--muted) }
+.host { color: var(--muted); min-width: 0; flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
 .views { display: flex; gap: 4px; background: var(--sky3); padding: 3px; border-radius: 12px }
 .views button { border: 0; padding: 5px 12px; color: var(--muted) }
 .views button.on { background: var(--sky); color: var(--ink) }
@@ -106,7 +110,9 @@ code, pre, .mono { font-family: ui-monospace, 'IBM Plex Mono', monospace; font-s
 .insp h2 { font-size: 19px; font-weight: 600; line-height: 1.35 }
 .insp h3 { font-size: 13px; color: var(--muted); font-weight: 500 }
 .who { display: flex; gap: 12px; align-items: center }
-.ava { width: 48px; height: 48px; border-radius: 14px; display: grid; place-items: center; flex: none }
+.ava { width: 48px; height: 48px; border-radius: 14px; display: grid; place-items: center; flex: none; overflow: hidden }
+/* the agent's own face, cropped out of its walking sheet (avatarFace) */
+.avaFace { width: 100%; height: 100%; display: block; background-repeat: no-repeat; image-rendering: auto }
 .who p { color: var(--muted); font-size: 13px }
 .state { display: inline-flex; align-items: center; gap: 8px; font-weight: 500 }
 .state i { width: 8px; height: 8px; border-radius: 50% }
@@ -190,12 +196,21 @@ dialog::backdrop { background: rgba(5,8,18,.7) }
 .tabs { display: flex; gap: 4px; background: var(--sky3); padding: 3px; border-radius: 12px; align-self: flex-start }
 .tabs button { border: 0; padding: 5px 14px; color: var(--muted) }
 .tabs button.on { background: var(--sky); color: var(--ink) }
+.sessTop { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px }
+.sessTop .who { min-width: 0 }
+.sessTop .modelRow { margin: 0 }
+.chatFrame { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 8px; border: 1px solid var(--line); border-radius: 14px; padding: 8px }
+.chatFrame .tabs { align-self: flex-start }
+.chatFrame .chat { flex: 1; min-height: 0 }
 .chat { display: flex; flex-direction: column; gap: 10px; min-height: 0; flex: 1 }
 .chatLog { flex: 1; min-height: 240px; max-height: 52vh; overflow: auto; display: flex; flex-direction: column; gap: 10px; padding: 4px 2px }
 .msg { max-width: 92%; padding: 9px 12px; border-radius: 14px; background: var(--sky3); border: 1px solid var(--line) }
 .msg.user { align-self: flex-end; background: rgba(0,220,130,.12); border-color: rgba(0,220,130,.3) }
 .msg .who2 { font-size: 11px; color: var(--muted); margin-bottom: 3px }
-.msg .body { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13px; line-height: 1.55 }
+/* 13px was unreadable on an iPad at arm's length (owner, 2026-11-13). */
+.msg .body { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 15px; line-height: 1.6 }
+body.typing .msg .body { font-size: 16px }
+body.typing .msg .who2 { font-size: 12px }
 .chatBox { display: flex; gap: 8px; align-items: flex-end }
 .chatBox textarea { flex: 1; min-width: 0; resize: vertical; background: var(--sky); border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; font: inherit; color: inherit }
 
@@ -302,9 +317,6 @@ dialog::backdrop { background: rgba(5,8,18,.7) }
 @media (prefers-reduced-motion: no-preference) { .actor .bang { animation: hop 1.1s ease-in-out infinite } }
 
 /* ---------- v3: room-art interiors, sprite actors, panel, attachments ---------- */
-.main { transition: grid-template-columns .25s ease }
-.main.collapsed { grid-template-columns: minmax(0, 1fr) 0 }
-.main.collapsed .insp { padding: 0; border: 0; overflow: hidden; visibility: hidden }
 .board.interior { background: #F3E6D0; border-radius: 28px }
 .hall { position: absolute; background: repeating-linear-gradient(90deg, #EAD6B8 0 60px, #E3CCA9 60px 62px); border-radius: 22px }
 .roomCard { position: absolute; border-radius: 22px; background: #FBF3E6; box-shadow: 0 10px 24px rgba(90,60,30,.18), inset 0 0 0 4px #E8D3B0 }
@@ -474,9 +486,9 @@ dialog { margin: auto }
 .spFoot .note { margin: 0 }
 .spAsk { display: flex; align-items: flex-end; gap: 8px }
 .spAsk select { flex: none; max-width: 160px; background: var(--sky); border: 1px solid var(--line); border-radius: 10px; padding: 8px; color: inherit; font: inherit }
-.spAsk .taWrap { flex: 1; min-width: 0 }
-.spAsk textarea { width: 100%; resize: none; min-height: 44px; max-height: 180px; background: var(--sky); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; font: inherit; color: inherit; line-height: 1.45 }
-.spAsk textarea:focus { outline: none; border-color: var(--brand); min-height: 112px }
+.spAsk .spTa { flex: 1; min-width: 0 }
+.spAsk textarea { display: block; width: 100%; resize: none; min-height: 44px; max-height: 160px; overflow-y: auto; background: var(--sky); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; font: inherit; color: inherit; line-height: 1.45 }
+.spAsk textarea:focus { outline: none; border-color: var(--brand) }
 .spAsk .clip { flex: none; font-size: 18px; padding: 6px 10px }
 .spAsk .pri { flex: none }
 .spFoot .thumbs { position: relative; flex: none }
@@ -744,7 +756,11 @@ a.accLink:hover { filter: brightness(1.08) }
 .skyLayer { position: absolute; pointer-events: none; -webkit-mask-size: 100% 100%; mask-size: 100% 100%; opacity: 0; transition: opacity 1.5s ease, background 1.5s ease }
 body[data-phase="morning"] .skyLayer { opacity: .5; background: linear-gradient(#FFC9A3, #FFE6C4 70%) }
 body[data-phase="evening"] .skyLayer { opacity: .88; background: linear-gradient(#6A4E9C 0%, #E9798A 45%, #F7B26A 100%) }
-body[data-phase="night"] .skyLayer { opacity: .96; background: radial-gradient(#FFFFFF 0.8px, transparent 1.3px) 0 0 / 23px 19px, radial-gradient(#E6E9FF 0.6px, transparent 1.1px) 11px 9px / 31px 27px, linear-gradient(#0E1433, #1E2A5C) }
+/* At night this filled the window with a flat navy panel and a dot grid, which
+   on the iPad reads as a hole cut in the wall rather than as a sky — the owner
+   circled it on 2026-11-13 and asked for it gone. The painted window in the
+   room art is what shows now; morning, evening and the weather skies stay. */
+body[data-phase="night"] .skyLayer { opacity: 0 }
 body[data-phase="night"] .roomInner .roomBg { filter: brightness(.86) saturate(.92) }
 .actor .rtBadge { position: absolute; top: 4px; right: 50%; margin-right: -46px; z-index: 3; width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; font-size: 12px; font-weight: 800; line-height: 1; box-shadow: 0 2px 4px rgba(0,0,0,.3); pointer-events: none }
 .actor.rt-claude .rtBadge { background: #D97757; color: #FFF6EE }
@@ -866,18 +882,17 @@ h3.mdH { font-size: 1.08em } h4.mdH { font-size: 1em } h5.mdH, h6.mdH { font-siz
 /* ---------- resizable reading surfaces ---------- */
 /* The side panel width is a preference (app.js remembers it); 380px is only
    the starting point. */
-.main { grid-template-columns: minmax(0, 1fr) var(--inspW, 380px) }
-.main.collapsed { grid-template-columns: minmax(0, 1fr) 0 }
+.main { grid-template-columns: minmax(0, 1fr) var(--inspW, 380px); position: relative }
 .insp { position: relative }
 
-/* The drag edge sits inside the panel and overhangs the border, so there is
-   something to grab without stealing clicks from the content. */
-.inspGrip { position: absolute; left: -4px; top: 0; width: 10px; height: 100%;
-  cursor: col-resize; z-index: 5; touch-action: none; background: transparent }
-.inspGrip::after { content: ''; position: absolute; left: 3px; top: 0; width: 2px; height: 100%;
-  background: transparent; transition: background .15s ease }
-.inspGrip:hover::after, .inspGrip:focus-visible::after, body.resizing .inspGrip::after { background: var(--brand) }
-.inspGrip:focus-visible { outline: 2px solid var(--brand); outline-offset: -2px }
+/* The handle is a child of .main, not of the panel: inside the panel's own
+   scroll box it would scroll away with the chat. It sits centred on the border. */
+.panelGrip { position: absolute; top: 0; bottom: 0; right: calc(var(--inspW, 380px) - 9px); width: 18px;
+  cursor: col-resize; z-index: 5; touch-action: none }
+.panelGrip::after { content: ''; position: absolute; left: 50%; top: 50%; width: 5px; height: 72px;
+  transform: translate(-50%, -50%); border-radius: 3px; background: var(--line); transition: background .15s ease }
+.panelGrip:hover::after, .panelGrip:focus-visible::after, body.resizing .panelGrip::after { background: var(--brand) }
+.panelGrip:focus-visible { outline: 2px solid var(--brand); outline-offset: -2px }
 /* While dragging, stop the pointer selecting text across the whole page. */
 body.resizing { user-select: none; cursor: col-resize }
 
@@ -900,7 +915,6 @@ dialog.screenPop.full { width: 100vw; height: 100vh; max-width: 100vw; max-heigh
 /* The side panel shown as a sheet: it is the same element, moved. */
 .panelPop .spBody { padding: 0 }
 .insp.inSheet { border-left: 0; height: 100%; width: auto }
-.insp.inSheet .inspGrip { display: none }
 .nameRow { display: flex; align-items: center; gap: 8px }
 .renameBtn { opacity: 0; font-size: 13px; padding: 2px 6px; transition: opacity .15s ease }
 .who:hover .renameBtn, .renameBtn:focus-visible { opacity: .75 }
@@ -919,9 +933,35 @@ dialog.screenPop.full { width: 100vw; height: 100vh; max-width: 100vw; max-heigh
    finger, and stop iOS Safari zooming when the composer is focused — an
    input below 16px triggers an automatic zoom that never zooms back. */
 @media (pointer: coarse) {
-  .inspGrip { width: 22px; left: -11px }
+  .panelGrip { width: 28px; right: calc(var(--inspW, 380px) - 14px) }
   #askText, input, select, textarea { font-size: 16px }
 }
+
+/* An iPad is 1180 wide in landscape and the header does not fit on it at full
+   size. Drop the least useful things first — the machine name, the word
+   "connecting", the quota wording — rather than let a second row appear. */
+@media (max-width: 1320px) {
+  .top { gap: 9px; padding: 10px 12px }
+  .host { display: none }
+  /* The quota chips are what did not fit. The same numbers are in the
+     right-hand panel, so they go rather than the header running off the screen. */
+  .energy { display: none }
+  .top .ghost { padding: 6px 9px; font-size: 13px }
+  .brand { font-size: 15px }
+  .brand .logo { width: 26px; height: 26px }
+}
+
+/* Typing: the keyboard takes half an iPad, so the scene goes and the
+   conversation gets the whole window. The header stays — it is the way back,
+   and hiding it would leave a full screen of chat with no exit. */
+body.typing .stage { display: none }
+body.typing .main { grid-template-columns: minmax(0, 1fr) }
+body.typing .insp { border-left: 0 }
+body.typing .panelGrip { display: none }
+body.typing .chatLog { max-height: none }
+/* the counters go, and the composer takes the row they were sharing */
+body.typing .stats { display: none }
+body.typing .bar { grid-template-columns: minmax(0, 1fr) }
 
 /* Standalone has no browser chrome to pull on, so a stray vertical drag
    bounces the whole page. Let the scrolling panes own it instead. */
@@ -940,15 +980,15 @@ dialog.screenPop.full { width: 100vw; height: 100vh; max-width: 100vw; max-heigh
    That is right for a tablet in portrait and wrong for a phone, where the
    composer has to stay reachable, so this block puts the fixed height back. */
 @media (max-width: 700px) {
-  html, body { height: 100% }
+  html, body { height: 100%; overflow-x: hidden }
   body { font-size: 13px }
 
   .top { padding: 7px 10px; gap: 7px; row-gap: 5px }
   .brand { font-size: 15px }
   .brand .logo { width: 22px; height: 22px }
   /* Gone on a phone: the host name is the same machine every time, and the
-     two panel buttons control a panel that is a sheet here. */
-  .host, #panelPopBtn, #togglePanel { display: none }
+     panel is a sheet here, so there is no column to resize. */
+  .host, .panelGrip { display: none }
   .views button { padding: 5px 10px }
   .energy { margin-left: 0; gap: 5px; font-size: 11px; width: 100%; order: 5 }
   .conn { font-size: 11px }

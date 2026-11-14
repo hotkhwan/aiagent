@@ -346,9 +346,14 @@ function renderComposerTargets () {
     }
     sel.append(g)
   }
+  const pg = h('optgroup', { label: tr('ส่งตาม provider (งานใหม่)') })
+  for (const [id, label] of [['auto', tr('อัตโนมัติ · agent ที่เหลือ quota มากกว่า')], ['claude', 'Claude'], ['codex', 'Codex']]) {
+    pg.append(h('option', { value: 'provider:' + id }, label))
+  }
+  sel.append(pg)
   // never pick a target for the operator: only an explicit choice or the
   // selected agent's own workspace
-  const stillThere = cur && (ready.some(w => w.name === cur) || live.some(x => 'session:' + x.sessionId === cur))
+  const stillThere = cur && (cur.startsWith('provider:') || ready.some(w => w.name === cur) || live.some(x => 'session:' + x.sessionId === cur))
   sel.value = stillThere ? cur : ''
   updateComposerHint()
 }
@@ -389,6 +394,8 @@ function updateComposerHint () {
   } else if (picked) {
     input.placeholder = tr('พิมพ์ถึง ') + picked.displayName +
       hint(tr('… (Enter ส่ง · Shift+Enter ขึ้นบรรทัด)'), '…')
+  } else if (ws.startsWith('provider:')) {
+    input.placeholder = hint(tr('งานใหม่ให้ agent ที่ว่าง…'), '…')
   } else if (w) {
     input.placeholder = tr('ส่งถึง ') + w.name +
       hint(' (' + w.agentCommand + tr(' ใน tmux ') + w.tmuxSession + ')…', '…')
@@ -525,7 +532,8 @@ function applyZoom () {
   const v = $('village')
   const b = st.board
   if (!b || !b.el.isConnected) return
-  const fit = Math.min(v.clientWidth / b.w, v.clientHeight / b.h) || 1
+  const inRoom = st.house && st.roomFocus
+  const fit = (inRoom ? v.clientWidth / b.w : Math.min(v.clientWidth / b.w, v.clientHeight / b.h)) || 1
   const z = fit * (st.zoom || 1)
   b.el.style.transform = 'translate(' + Math.max(0, (v.clientWidth - b.w * z) / 2) + 'px,' + Math.max(0, (v.clientHeight - b.h * z) / 2) + 'px) scale(' + z + ')'
   v.classList.toggle('zoomed', (st.zoom || 1) > 1)
@@ -1300,7 +1308,7 @@ setInterval(applyPhase, 30000)
 
 function monitorCards (want, msgsById, big) {
   if (!want.length) return [h('p', { class: 'scrNote' }, tr('ไม่มี agent ในห้องนี้'))]
-  return want.map(a => h('div', big ? { class: 'scrItem ' + a.mood, tabindex: 0, onclick: e => { e.stopPropagation(); $('screenPop').close(); st.tab = 'chat'; select(a.kind, a.id) } } : { class: 'scrItem ' + a.mood },
+  return want.map(a => h('div', big ? { class: 'scrItem ' + a.mood, tabindex: 0, onclick: e => { e.stopPropagation(); st.tab = 'chat'; select(a.kind, a.id) } } : { class: 'scrItem ' + a.mood },
     h('div', { class: 'scrTop' }, h('b', null, a.name), h('em', null, a.kind === 'sub' ? 'sub-agent' : a.label)),
     ...(big && a.kind === 'session' ? openReviewsOf(a.id).map(r => h('button', { type: 'button', class: 'pri revOpen', onclick: e => { e.stopPropagation(); $('screenPop').close(); openReview(r.id) } }, tr('🧪 เปิดตรวจงาน: ') + r.title)) : []),
     ...((a.watches || []).filter(w => w.ci).slice(0, big ? 6 : 2).map(w => h('div', { class: 'scrJob' }, h('i'), h('b', null, w.label), h('span', null, (w.event || tr('รอผล…')) + (w.eventAt && !w.eventAt.startsWith('0001') ? ' · ' + fmtTime(w.eventAt) : ''))))),
@@ -1355,6 +1363,7 @@ function drawPopComposer (want) {
     return
   }
   const ta = h('textarea', { rows: 1, maxlength: 4000, placeholder: tr('พิมพ์ถึง agent ในห้องนี้…'), 'aria-label': tr('ข้อความ') })
+  ta.addEventListener('input', () => { ta.style.height = 'auto'; ta.style.height = Math.min(160, ta.scrollHeight + 2) + 'px' })
   const thumbs = h('div', { class: 'thumbs' })
   const pick = targets.length > 1
     ? h('select', { 'aria-label': tr('เลือก agent ที่จะส่งถึง') }, targets.map(s => h('option', { value: s.sessionId }, s.displayName)))
@@ -1362,7 +1371,7 @@ function drawPopComposer (want) {
   const targetOf = () => (pick ? targets.find(s => s.sessionId === pick.value) : targets[0]) || targets[0]
   const file = h('input', { type: 'file', accept: 'image/png,image/jpeg,image/gif,image/webp', multiple: true, hidden: true })
   file.addEventListener('change', () => { addFiles(file.files, thumbs); file.value = '' })
-  const send = () => { sendChat(targetOf(), ta, thumbs); return false }
+  const send = () => { sendChat(targetOf(), ta, thumbs); ta.style.height = ''; return false }
   ta.addEventListener('keydown', e => {
     if (e.key === 'Enter' && !e.shiftKey && !isPhone()) { e.preventDefault(); send() }
   })
@@ -1374,7 +1383,7 @@ function drawPopComposer (want) {
       pick || '',
       h('button', { type: 'button', class: 'ghost clip', 'aria-label': tr('แนบรูป'), onclick: () => file.click() }, '📎'),
       thumbs, file,
-      h('div', { class: 'taWrap' }, ta),
+      h('div', { class: 'spTa' }, ta),
       h('button', { type: 'button', class: 'pri', onclick: send }, tr('ส่ง')))
   )
   drawThumbs(thumbs)
@@ -1540,7 +1549,7 @@ function sessionCard (sess) {
           : activityLabel[sess.activityType]
   const subs = (sess.subAgents || []).length
   const revs = openReviewsOf(sess.sessionId).length
-  const ava = h('div', { class: 'ava' }, avatarSvg(agentHex(sess)))
+  const ava = h('div', { class: 'ava' }, avatarFace(sess))
   ava.style.background = 'color-mix(in srgb, ' + agentColor(sess) + ' 18%, transparent)'
   return h('button', {
     type: 'button',
@@ -1603,7 +1612,6 @@ const isPhone = () => window.matchMedia('(max-width: 700px)').matches
 
 async function select (kind, id) {
   if (isPhone()) openPanelSheet()
-  else if (!st.panelOpen) setPanel(true)
   st.target = targetFor(kind, id)
   setTimeout(updateComposerHint, 0)
   if (!st.sel || st.sel.id !== id) { st.chatSig = ''; st.inspKey = ''; st.attach = [] }
@@ -1691,31 +1699,35 @@ function subList (sess) {
 }
 
 function sessionHeader (sess) {
-  const ava = h('div', { class: 'ava' }, avatarSvg(agentHex(sess)))
+  const ava = h('div', { class: 'ava' }, avatarFace(sess))
   ava.style.background = 'color-mix(in srgb, ' + agentColor(sess) + ' 18%, transparent)'
   const stateDot = h('i')
   stateDot.style.background = !sess.live ? 'var(--line)' : sess.status === 'running' ? 'var(--brand)' : sess.status === 'needsInput' ? 'var(--amber)' : 'var(--muted)'
   return [
-    h('button', { type: 'button', class: 'ghost', onclick: back }, tr('← ภาพรวม')),
-    h('div', { class: 'who' }, ava, h('div', null,
-      h('h2', { class: 'nameRow' }, h('span', null, sess.displayName),
-        h('button', { type: 'button', class: 'ghost renameBtn', title: tr('เปลี่ยนชื่อที่แสดงในเว็บ'), 'aria-label': tr('เปลี่ยนชื่อ'), onclick: () => renameSession(sess) }, '✎')),
-      h('p', null, runtimeName[sess.runtimeType] + ' · ' + (sess.repoId || '—')))),
-    h('div', { class: 'state' }, stateDot, stateText(sess), (sess.subAgents || []).length
-      ? h('button', { type: 'button', class: 'pill work subToggle' + (st.subsOpen ? ' on' : ''), 'aria-expanded': String(!!st.subsOpen), onclick: () => { st.subsOpen = !st.subsOpen; st.inspKey = ''; renderInspector() } }, '+' + sess.subAgents.length + ' sub-agent ' + (st.subsOpen ? '▴' : '▾'))
-      : null),
+    h('div', { class: 'sessTop' },
+      h('button', { type: 'button', class: 'ghost', onclick: back }, tr('← ภาพรวม')),
+      h('div', { class: 'who' }, ava, h('div', null,
+        h('h2', { class: 'nameRow' }, h('span', null, sess.displayName),
+          h('button', { type: 'button', class: 'ghost renameBtn', title: tr('เปลี่ยนชื่อที่แสดงในเว็บ'), 'aria-label': tr('เปลี่ยนชื่อ'), onclick: () => renameSession(sess) }, '✎')),
+        h('p', null, runtimeName[sess.runtimeType] + ' · ' + (sess.repoId || '—')))),
+      h('div', { class: 'state' }, stateDot, stateText(sess), (sess.subAgents || []).length
+        ? h('button', { type: 'button', class: 'pill work subToggle' + (st.subsOpen ? ' on' : ''), 'aria-expanded': String(!!st.subsOpen), onclick: () => { st.subsOpen = !st.subsOpen; st.inspKey = ''; renderInspector() } }, '+' + sess.subAgents.length + ' sub-agent ' + (st.subsOpen ? '▴' : '▾'))
+        : null),
+      modelRow(sess)),
     st.subsOpen ? subCards(sess) : null,
     ...openReviewsOf(sess.sessionId).map(r => h('button', { type: 'button', class: 'revAlert', onclick: () => openReview(r.id) }, h('b', null, tr('🧪 รอคุณตรวจงาน')), h('span', null, r.title), h('em', null, tr('เปิดตรวจ →')))),
-    modelRow(sess),
-    sess.doing && sess.live && sess.status === 'running' ? h('div', { class: 'doing' }, h('i'), h('span', null, sess.doing.detail), h('small', null, ago(sess.doing.at))) : null,
-    h('div', { class: 'tabs', role: 'tablist' },
-      h('button', { type: 'button', role: 'tab', class: (st.tab || 'chat') === 'chat' ? 'on' : '', 'aria-selected': String((st.tab || 'chat') === 'chat'), onclick: () => { st.tab = 'chat'; st.inspKey = ''; renderInspector() } }, tr('บทสนทนา')),
-      h('button', { type: 'button', role: 'tab', class: st.tab === 'detail' ? 'on' : '', 'aria-selected': String(st.tab === 'detail'), onclick: () => { st.tab = 'detail'; st.inspKey = ''; renderInspector() } }, tr('รายละเอียด')))
+    sess.doing && sess.live && sess.status === 'running' ? h('div', { class: 'doing' }, h('i'), h('span', null, sess.doing.detail), h('small', null, ago(sess.doing.at))) : null
   ]
 }
 
+function sessionTabs () {
+  return h('div', { class: 'tabs', role: 'tablist' },
+    h('button', { type: 'button', role: 'tab', class: (st.tab || 'chat') === 'chat' ? 'on' : '', 'aria-selected': String((st.tab || 'chat') === 'chat'), onclick: () => { st.tab = 'chat'; st.inspKey = ''; renderInspector() } }, tr('บทสนทนา')),
+    h('button', { type: 'button', role: 'tab', class: st.tab === 'detail' ? 'on' : '', 'aria-selected': String(st.tab === 'detail'), onclick: () => { st.tab = 'detail'; st.inspKey = ''; renderInspector() } }, tr('รายละเอียด')))
+}
+
 function sessionPanel (sess, tab) {
-  if (tab === 'chat') return [...sessionHeader(sess), chatPanel(sess)]
+  if (tab === 'chat') return [...sessionHeader(sess), h('div', { class: 'chatFrame' }, sessionTabs(), chatPanel(sess))]
   const ws = sess.dispatchVia && st.snap.workspaces.find(w => w.name === sess.dispatchVia)
   const usage = sess.usage || {}
   let tokens = tr('ไม่ได้นับ')
@@ -1726,6 +1738,7 @@ function sessionPanel (sess, tab) {
     : sess.messageVia === 'relay' ? tr('ได้ — ผ่าน relay (tmux aiagent-') + sess.sessionId.slice(0, 8) + tr(' ที่รัน claude attach)') : tr('ไม่ได้ — ') + (sess.messageBlocked || tr('ไม่มีช่องทางที่ปลอดภัย'))
   return [
     ...sessionHeader(sess),
+    sessionTabs(),
     sess.title ? h('p', null, sess.title) : null,
     h('dl', { class: 'kv' },
       h('dt', null, 'Session'), h('dd', { class: 'mono', title: sess.sessionId }, shortId(sess.sessionId)),
@@ -1772,8 +1785,6 @@ function chatPanel (sess) {
       h('span', null, tr('agent กำลังทำงาน — จะพิมพ์ให้เองเมื่อว่าง')),
       h('button', { type: 'button', class: 'ghost', onclick: () => cancelPending(sess) }, tr('ยกเลิกที่รออยู่'))))
   }
-  parts.push(h('p', { class: 'note' }, sess.messageVia ? tr('พิมพ์ตอบที่ช่องยาวด้านล่าง (ส่งถึง agent ตัวนี้) · แนบรูปได้ · ') + (sess.messageVia === 'relay' ? tr('ผ่าน relay claude attach ') + sess.sessionId.slice(0, 8) : tr('ผ่าน agcmd dispatch ') + sess.dispatchVia) : tr('ส่งข้อความจากเว็บไม่ได้: ') + (sess.messageBlocked || tr('ไม่มีช่องทางที่ปลอดภัย'))))
-  parts.push(h('p', { class: 'note' }, tr('แสดงเฉพาะข้อความผู้ใช้และคำตอบของ agent · ข้อมูลลับ (token, key, รหัสผ่าน) ถูกปิดบังก่อนส่งมาที่เว็บ')))
   return h('div', { class: 'chat' }, parts)
 }
 
@@ -2330,12 +2341,24 @@ function accountCard (a) {
 }
 $('accountsBtn').addEventListener('click', openAccounts)
 
-function avatarSvg (fill) {
-  const v = s('svg', { width: 30, height: 30, viewBox: '0 0 34 34', 'aria-hidden': 'true' })
-  s('circle', { cx: 17, cy: 11, r: 7, fill }, v)
-  s('rect', { x: 7, y: 19, width: 20, height: 13, rx: 6, fill, opacity: 0.75 }, v)
-  return v
+// The agent's own face, cropped out of the walking sprite it already uses in
+// the village, so the panel and the room show the same character (owner,
+// 2026-11-13: "เอาหน้าตัวละครไปใส่ avatar ของ agent ทางขวา"). The rest sheet is
+// four 128px frames in a row; this is the first frame, zoomed to the head.
+const AVA_PX = 48      // .ava is 48px square
+const AVA_ZOOM = 2.3   // how much of the 128px frame the head should fill
+function avatarFace (sess) {
+  const el = h('i', { class: 'avaFace' })
+  // One frame, scaled. Percentages cannot express this: a negative background
+  // position in % is measured against (box - image), which walks the sheet the
+  // wrong way and lands on an empty frame.
+  const f = AVA_PX * AVA_ZOOM
+  el.style.backgroundImage = 'url(' + A('ch-' + charFor(sess.sessionId) + '-rest') + ')'
+  el.style.backgroundSize = (f * 4) + 'px ' + f + 'px'
+  el.style.backgroundPosition = (AVA_PX / 2 - f / 2) + 'px ' + (AVA_PX / 2 - f * 0.28) + 'px'
+  return el
 }
+
 
 // ---------- actions ----------
 function confirmBox (title, body, text, okLabel) {
@@ -2393,8 +2416,10 @@ $('ask').addEventListener('submit', async e => {
   let text = expandPastes(ta.value).trim()
   const files = st.attach || []
   if (!ws || (!text && !files.length)) return
+  const prov = ws.startsWith('provider:') ? ws.slice('provider:'.length) : ''
+  if (prov && mode !== 'mission') { toast(tr('ส่งตาม provider ได้เฉพาะงานใหม่ (mission)'), true); return }
   const w = st.snap && st.snap.workspaces.find(x => x.name === ws)
-  const where = ws + (w ? ' (tmux ' + w.tmuxSession + ', ' + w.agentCommand + ')' : '')
+  const where = prov ? (prov === 'auto' ? tr('agent ที่เหลือ quota มากกว่า') : prov) : ws + (w ? ' (tmux ' + w.tmuxSession + ', ' + w.agentCommand + ')' : '')
   const ok = await confirmBox(
     mode === 'mission' ? tr('สร้างงานใหม่') : tr('ส่งข้อความถึง agent'),
     tr('ข้อความนี้จะถูกพิมพ์เข้า agent ใน ') + where + (mode === 'mission' ? tr(' และติดตามเป็นงาน agcmd eng') : ''),
@@ -2407,7 +2432,7 @@ $('ask').addEventListener('submit', async e => {
     text = (text || tr('ดูรูปที่แนบ')) + '\n\n' + files.map((f, i) => tr('รูปแนบ ') + (i + 1) + ': ' + f.path).join('\n')
   }
   const sent = mode === 'mission'
-    ? await act('/missions', { workspace: ws, task: text }, r => tr('สร้างงาน ') + (r.runId || '') + tr(' ใน ') + ws + tr(' แล้ว'))
+    ? await act('/missions', prov ? { provider: prov, task: text } : { workspace: ws, task: text }, r => tr('สร้างงาน ') + (r.runId || '') + tr(' ใน ') + (r.workspace || ws) + tr(' แล้ว'))
     : await act('/messages', { workspace: ws, message: text }, () => tr('ส่งข้อความถึง ') + ws + tr(' แล้ว'))
   if (sent) {
     ta.value = ''
@@ -2505,8 +2530,21 @@ function growText () {
   // under the composer.
   applyZoom()
 }
-$('askText').addEventListener('focus', growText)
-$('askText').addEventListener('blur', growText)
+// Typing mode: while the composer has focus the scene steps aside and the
+// conversation takes the window. On an iPad the keyboard already covers half
+// the screen, and what was left of it was a picture of a village with four
+// lines of chat squeezed down the side.
+function setTyping (on) {
+  document.body.classList.toggle('typing', on)
+  growText()
+  requestAnimationFrame(applyZoom)
+}
+$('askText').addEventListener('focus', () => setTyping(true))
+// A tap on Send or the paperclip blurs the box first, so wait and check: the
+// click has to land before the scene comes back and moves everything under it.
+$('askText').addEventListener('blur', () => setTimeout(() => {
+  if (document.activeElement !== $('askText')) setTyping(false)
+}, 150))
 $('askText').addEventListener('input', () => { growText(); saveDraft() })
 $('askText').addEventListener('keydown', e => {
   if (e.key === 'Tab' && !e.shiftKey && (st.suggest || []).length && composerSession()) {
@@ -2605,12 +2643,6 @@ $('loginForm').addEventListener('submit', e => {
   poll()
 })
 $('login').addEventListener('cancel', e => e.preventDefault())
-$('logout').addEventListener('click', () => {
-  st.token = ''
-  safeSet(tokenKey, '')
-  st.snap = null
-  showLogin()
-})
 function setView (view) {
   st.view = view
   $('viewMap').classList.toggle('on', view === 'map')
@@ -2700,22 +2732,9 @@ $('fullBtn').addEventListener('click', () => {
 })
 window.addEventListener('resize', () => applyZoom())
 try { new ResizeObserver(() => applyZoom()).observe($('village')) } catch (e) { /* older browser: window resize only */ }
-function setPanel (open) {
-  st.panelOpen = open
-  document.querySelector('.main').classList.toggle('collapsed', !open)
-  $('togglePanel').textContent = open ? tr('ซ่อนแผงขวา ⟩') : tr('⟨ แสดงแผง')
-  $('togglePanel').setAttribute('aria-expanded', String(open))
-  try { localStorage.setItem('aiagentPanel', open ? '1' : '0') } catch (e) { /* per-tab only */ }
-  setTimeout(applyZoom, 60)
-}
-$('togglePanel').addEventListener('click', () => setPanel(!st.panelOpen))
-$('panelPopBtn').addEventListener('click', openPanelSheet)
 // The panel element itself lives in the sheet while it is open, so it has to
 // be put back when the sheet closes — including on Esc and on the backdrop.
 $('panelPop').addEventListener('close', closePanelSheet)
-let panelPref = '1'
-try { panelPref = localStorage.getItem('aiagentPanel') || '1' } catch (e) { panelPref = '1' }
-setPanel(panelPref === '1')
 document.addEventListener('fullscreenchange', () => setTimeout(applyZoom, 50))
 $('viewList').addEventListener('click', () => setView('list'))
 document.addEventListener('keydown', e => {
@@ -2972,13 +2991,13 @@ function applyInspWidth (px) {
 }
 
 function initPanelResize () {
-  const insp = $('insp')
-  if (!insp || insp.querySelector('.inspGrip')) return
+  const main = document.querySelector('.main')
+  if (!main || main.querySelector('.panelGrip')) return
   const saved = uiPref('inspW')
   if (saved) applyInspWidth(saved)
 
   const grip = h('div', {
-    class: 'inspGrip',
+    class: 'panelGrip',
     role: 'separator',
     'aria-orientation': 'vertical',
     'aria-label': tr('ลากเพื่อปรับความกว้างแผงขวา'),
@@ -3018,7 +3037,7 @@ function initPanelResize () {
     else return
     e.preventDefault()
   })
-  insp.prepend(grip)
+  main.append(grip)
 }
 
 // ---------- panel as a sheet ----------

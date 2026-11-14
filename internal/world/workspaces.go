@@ -31,9 +31,10 @@ import (
 // API use, the tmux session that must be running an agent CLI, and the
 // directory a session's cwd is matched against.
 type workspaceEntry struct {
-	name    string
-	session string
-	dir     string
+	name     string
+	session  string
+	dir      string
+	provider string // claude | codex | "" when not chosen by provider
 }
 
 // workspaceConfig is the on-disk shape. Keys are camelCase, like every other
@@ -43,6 +44,7 @@ type workspaceConfig struct {
 		Name        string `json:"name"`
 		TmuxSession string `json:"tmuxSession"`
 		Dir         string `json:"dir"`
+		Provider    string `json:"provider"`
 	} `json:"workspaces"`
 }
 
@@ -109,12 +111,15 @@ func LoadWorkspaces(path string) ([]workspaceEntry, error) {
 			return nil, fmt.Errorf("%s: workspace %q dir %q is not absolute", path, w.Name, w.Dir)
 		case seen[w.Name]:
 			return nil, fmt.Errorf("%s: workspace %q declared twice", path, w.Name)
+		case w.Provider != "" && providerQuota[w.Provider] == "":
+			return nil, fmt.Errorf("%s: workspace %q provider %q is not claude or codex", path, w.Name, w.Provider)
 		}
 		seen[w.Name] = true
 		out = append(out, workspaceEntry{
-			name:    w.Name,
-			session: w.TmuxSession,
-			dir:     filepath.Clean(w.Dir),
+			name:     w.Name,
+			session:  w.TmuxSession,
+			dir:      filepath.Clean(w.Dir),
+			provider: w.Provider,
 		})
 	}
 	return out, nil

@@ -367,14 +367,15 @@ func (s *Service) mutate(c fiber.Ctx, rpc string, params []string, fn func() (an
 func (s *Service) handleMission(c fiber.Ctx) error {
 	var body struct {
 		Workspace string `json:"workspace"`
+		Provider  string `json:"provider"`
 		Task      string `json:"task"`
 	}
 	if err := c.Bind().Body(&body); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(failEnv("AIAGENT_BAD_REQUEST", "invalid JSON body"))
 	}
-	return s.mutate(c, "aiagent.mission", []string{body.Workspace, body.Task}, func() (any, error) {
-		id, err := s.Collector.Mission(c.Context(), body.Workspace, body.Task)
-		return fiber.Map{"runId": id, "workspace": body.Workspace}, err
+	return s.mutate(c, "aiagent.mission", []string{body.Workspace, body.Provider, body.Task}, func() (any, error) {
+		runID, ws, err := s.Collector.Dispatch(c.Context(), body.Workspace, body.Provider, body.Task)
+		return fiber.Map{"runId": runID, "workspace": ws}, err
 	})
 }
 
