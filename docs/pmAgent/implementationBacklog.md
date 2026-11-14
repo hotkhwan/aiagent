@@ -17,6 +17,16 @@ Owner: `C` = Claude Code, `X` = Codex (เมื่อมี CLI), `U` = ผู�
 
 Vertical slice: บน Mac mini UI แสดง liveness ของ Claude/Codex session ถูกต้อง และส่งข้อความเข้า pane ที่ bind ไว้ได้พร้อม ack หรือ `unknown`
 
+**สถานะ (2026-11-14):** part 1 อยู่ใน PR #4 (`feat/phase-a-delivery`)
+
+| id | สถานะ |
+|---|---|
+| A7 outbox, A4 allowlist, A5 send lock, A8 run id, A9 lockout, A10 macOS CI, A11 README | **เสร็จ** — PR #4 |
+| A3 daemon parked | **ไม่แก้ (ตัดสินใจ)** — session ที่ `claude agents` รายงานคือ job ที่ daemon ถืออยู่ และ `claude attach` ปลุกได้; job ที่ daemon ไม่รู้จักถูก attach ปฏิเสธ (มี test) การตั้ง Live=false จะทำให้ส่งข้อความหา background session ที่ park ไว้จากมือถือไม่ได้ |
+| A1/A2 procinfo + darwin | ถัดไป — รวมการตรวจ argv ของ `node` เพื่อแยก codex/gemini ออกจาก node REPL |
+| A6 ack จาก transcript | ถัดไป |
+| gemini provider ใน routing + collector | ถัดไป (ต้องติดตั้ง `gemini` CLI ก่อนจึงจะทดสอบกับของจริงได้) |
+
 | id | task | owner | depends | acceptance | tests | effort |
 |---|---|---|---|---|---|---|
 | A1 | `internal/procinfo` interface + Linux impl (ย้ายจาก `proc.go` ไม่เปลี่ยนพฤติกรรม) | C | P0-4 | test เดิมใน `world_test.go` ผ่านทั้งหมดโดยไม่แก้ assertion | ใช้ fake /proc เดิม | 3–5 ชม. |
