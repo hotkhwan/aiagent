@@ -37,6 +37,7 @@ type fakeRunner struct {
 	// rather than report: dead until the relay is started again.
 	paneDeadStale bool
 	agentsJSON    string
+	crashOnEnter  bool // panic on the Enter that submits a typed message
 }
 
 func (f *fakeRunner) Run(_ context.Context, name string, args ...string) ([]byte, error) {
@@ -101,6 +102,11 @@ func (f *fakeRunner) Run(_ context.Context, name string, args ...string) ([]byte
 				}
 			}
 			if args[0] == "send-keys" {
+				if f.crashOnEnter && args[len(args)-1] == "Enter" {
+					// The text is already in the pane; the process dies before
+					// it can record that.
+					panic("simulated crash after typing")
+				}
 				return nil, nil
 			}
 			if f.paneDead || f.paneDeadStale {
