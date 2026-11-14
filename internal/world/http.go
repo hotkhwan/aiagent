@@ -366,7 +366,7 @@ func (s *Service) mutate(c fiber.Ctx, rpc string, params []string, fn func() (an
 	s.lastWrite = time.Now()
 	s.mu.Unlock()
 
-	sub := "aiagent-token@" + c.IP()
+	sub := "aiagent-token@" + clientAddr(c)
 	ph := paramsHash(params...)
 	if err := s.Auditor.Write(audit.Record{Event: "intent", RPC: rpc, AdminSub: sub, ParamsHash: ph}); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(failEnv("AIAGENT_AUDIT_FAILED", "audit log unavailable — action not performed"))
@@ -456,7 +456,7 @@ func (s *Service) handleUpload(c fiber.Ctx) error {
 	}
 	body := c.Body()
 	sum := sha256.Sum256(body)
-	sub := "aiagent-token@" + c.IP()
+	sub := "aiagent-token@" + clientAddr(c)
 	ph := hex.EncodeToString(sum[:])[:32]
 	if err := s.Auditor.Write(audit.Record{Event: "intent", RPC: "aiagent.upload", AdminSub: sub, ParamsHash: ph}); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(failEnv("AIAGENT_AUDIT_FAILED", "audit log unavailable — upload refused"))
@@ -515,6 +515,7 @@ func (s *Service) handleSessionMessage(c fiber.Ctx) error {
 	}
 	id := c.Params("id")
 	return s.mutate(c, "aiagent.sessionMessage", []string{id, body.Message}, func() (any, error) {
+		sentAt := s.Collector.now()
 		how, err := s.Collector.SendToSession(c.Context(), id, body.Message)
 		// An agent that is mid-task cannot be typed into. Rather than lose
 		// the message — the picture it refers to is already uploaded — hold
@@ -526,7 +527,12 @@ func (s *Service) handleSessionMessage(c fiber.Ctx) error {
 			}
 			return fiber.Map{"sessionId": id, "queued": true, "pendingId": p.ID}, nil
 		}
-		return fiber.Map{"sessionId": id, "via": how}, err
+		if err != nil {
+			return fiber.Map{"sessionId": id, "via": how}, err
+		}
+		// tmux exiting 0 is not delivery; the transcript is the evidence.
+		delivery := s.Collector.AwaitDelivery(c.Context(), id, body.Message, sentAt)
+		return fiber.Map{"sessionId": id, "via": how, "delivery": delivery}, nil
 	})
 }
 

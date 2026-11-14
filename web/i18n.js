@@ -329,6 +329,9 @@ var EN = {
     '… (Enter to send · Shift+Enter for a new line · paste or drag images)',
   '… (Enter ส่ง · Shift+Enter ขึ้นบรรทัด)': '… (Enter to send · Shift+Enter for a new line)',
   'ส่งถึง ': 'To ',
+  ' · ยืนยันจาก transcript': ' · confirmed in the transcript',
+  'พิมพ์ส่งให้ ': 'Typed to ',
+  ' แล้ว แต่ยังไม่เห็นใน transcript — ยังไม่ยืนยันว่าถึง': ', but it is not in the transcript yet — delivery not confirmed',
   ' ใน tmux ': ' in tmux ',
   'เลือกปลายทางก่อน หรือคลิกตัวละครที่รับงานได้': 'Choose a destination first, or click an agent that can take work',
   // short forms, used on a phone where the composer is one line tall

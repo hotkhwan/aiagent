@@ -1944,7 +1944,9 @@ async function sendChat (sess, ta, thumbs) {
   const withPics = files.length ? tr(' พร้อมรูป ') + files.length + tr(' รูป') : ''
   const ok = await act('/sessions/' + encodeURIComponent(sess.sessionId) + '/message', { message: text }, r => r.queued
     ? sess.displayName + tr(' กำลังทำงานอยู่ — เก็บข้อความไว้ให้แล้ว จะส่งเองเมื่อว่าง') + withPics
-    : tr('ส่งถึง ') + sess.displayName + tr(' แล้ว (') + (r.via || '') + ')' + withPics)
+    : r.delivery === 'unknown'
+      ? tr('พิมพ์ส่งให้ ') + sess.displayName + tr(' แล้ว แต่ยังไม่เห็นใน transcript — ยังไม่ยืนยันว่าถึง') + withPics
+      : tr('ส่งถึง ') + sess.displayName + tr(' แล้ว (') + (r.via || '') + ')' + (r.delivery === 'acked' ? tr(' · ยืนยันจาก transcript') : '') + withPics)
   ta.disabled = false
   if (ok) {
     ta.value = ''
