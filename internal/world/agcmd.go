@@ -22,6 +22,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 	"unicode"
 	"unicode/utf8"
@@ -300,6 +301,7 @@ func (c *Collector) Mission(ctx context.Context, workspace, task string) (string
 	if engReserved[strings.ToLower(task)] {
 		return "", ErrBadRequest("task text is a reserved agcmd word; describe the task in a sentence")
 	}
+	defer c.lockSend("ws:" + w.session)()
 	if err := c.requireAgentReady(ctx, w.session); err != nil {
 		return "", err
 	}
@@ -323,11 +325,22 @@ func (c *Collector) Message(ctx context.Context, workspace, message string) erro
 	if err != nil {
 		return err
 	}
+	defer c.lockSend("ws:" + w.session)()
 	if err := c.requireAgentReady(ctx, w.session); err != nil {
 		return err
 	}
 	_, err = c.agcmd(ctx, "dispatch", w.name, message)
 	return err
+}
+
+// lockSend serialises everything typed into one tmux target — the API, the
+// outbox, the model policy, idle ideas, review replies — so two messages
+// cannot interleave between one's text and its Enter. It returns the unlock.
+func (c *Collector) lockSend(key string) func() {
+	v, _ := c.sendLocks.LoadOrStore(key, &sync.Mutex{})
+	m := v.(*sync.Mutex)
+	m.Lock()
+	return m.Unlock
 }
 
 func (c *Collector) loadRun(id string) (runFile, error) {

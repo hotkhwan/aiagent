@@ -12,6 +12,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -38,9 +39,15 @@ type fakeRunner struct {
 	paneDeadStale bool
 	agentsJSON    string
 	crashOnEnter  bool // panic on the Enter that submits a typed message
+	// afterType runs, outside the lock, each time literal text is typed with
+	// send-keys -l. Set it before any goroutine starts.
+	afterType func()
 }
 
 func (f *fakeRunner) Run(_ context.Context, name string, args ...string) ([]byte, error) {
+	if f.afterType != nil && name == "tmux" && len(args) > 0 && args[0] == "send-keys" && slices.Contains(args, "-l") {
+		defer f.afterType()
+	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.calls = append(f.calls, append([]string{name}, args...))

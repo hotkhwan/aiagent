@@ -45,6 +45,7 @@ type Collector struct {
 	cachedAt       time.Time
 
 	daemonMu    sync.Mutex
+	sendLocks   sync.Map // tmux target → *sync.Mutex, see lockSend
 	daemonCache []daemonEntry
 	daemonAt    time.Time
 }
