@@ -92,6 +92,12 @@ func (s *Store) MarkRunning(attemptID, sessionID string) (Attempt, error) {
 	return s.attemptEvent(attemptID, evAttemptRunning, ActorOrchestrator, data, "")
 }
 
+// MarkUnknown records that a dispatch was typed but its receipt could not be
+// confirmed. The attempt keeps holding its task; nothing resends it.
+func (s *Store) MarkUnknown(attemptID string) (Attempt, error) {
+	return s.attemptEvent(attemptID, evAttemptUnknown, ActorOrchestrator, nil, "")
+}
+
 // Heartbeat renews an attempt's lease from now.
 func (s *Store) Heartbeat(attemptID string) (Attempt, error) {
 	return s.attemptEvent(attemptID, evAttemptBeat, ActorOrchestrator, nil, "")

@@ -158,6 +158,26 @@ func TestARestartBeforeTheDispatchIsConfirmedLeavesTheAttemptUnknown(t *testing.
 	}
 }
 
+// A dispatch that was typed but never showed up in the agent's transcript is
+// unknown while the service runs, too. Once someone confirms the agent has the
+// work, the attempt runs.
+func TestAnUnconfirmedDispatchIsUnknownUntilConfirmed(t *testing.T) {
+	s, _ := newStore(t)
+	task := readied(t, s, outboxTask())
+	a := start(t, s, task.ID)
+	got, err := s.MarkUnknown(a.ID)
+	if err != nil || got.Status != AttemptUnknown {
+		t.Fatalf("mark unknown: %+v, %v", got, err)
+	}
+	got, err = s.MarkRunning(a.ID, "sess-1")
+	if err != nil || got.Status != AttemptRunning || got.SessionID != "sess-1" {
+		t.Fatalf("confirmed: %+v, %v", got, err)
+	}
+	if _, err := s.MarkUnknown(a.ID); err == nil {
+		t.Fatal("a running attempt cannot go back to unknown")
+	}
+}
+
 // Workers report through the orchestrator; they do not start or end their
 // own attempts.
 func TestOnlyTheOrchestratorStartsAndEndsAttempts(t *testing.T) {
