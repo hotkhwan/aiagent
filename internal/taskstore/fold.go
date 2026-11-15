@@ -39,6 +39,7 @@ type Attempt struct {
 	LeaseSeconds   int64         `json:"leaseSeconds"`
 	EndedAt        *time.Time    `json:"endedAt,omitempty"`
 	ExitReason     string        `json:"exitReason,omitempty"`
+	Commit         string        `json:"commit,omitempty"` // what a reported attempt says it produced
 }
 
 const (

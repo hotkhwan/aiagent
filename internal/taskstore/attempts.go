@@ -40,6 +40,14 @@ type attemptStartData struct {
 type attemptEndData struct {
 	Status AttemptStatus `json:"status"`
 	Reason string        `json:"reason,omitempty"`
+	Commit string        `json:"commit,omitempty"`
+}
+
+// ReportAttempt ends an attempt whose worker says it is done, recording the
+// commit it names. Whether that work passes is decided after, by verifying it.
+func (s *Store) ReportAttempt(attemptID, commit, summary string) (Attempt, error) {
+	data, _ := json.Marshal(attemptEndData{Status: AttemptReported, Reason: summary, Commit: commit})
+	return s.attemptEvent(attemptID, evAttemptEnded, ActorOrchestrator, data, "")
 }
 
 type attemptRunningData struct {
@@ -229,7 +237,7 @@ func (s *Store) applyAttempt(t *Task, e Event) error {
 			return fmt.Errorf("%q is not how an attempt ends", d.Status)
 		}
 		at := e.At
-		a.Status, a.ExitReason, a.EndedAt = d.Status, d.Reason, &at
+		a.Status, a.ExitReason, a.EndedAt, a.Commit = d.Status, d.Reason, &at, d.Commit
 	default:
 		return fmt.Errorf("unknown event type %q", e.Type)
 	}

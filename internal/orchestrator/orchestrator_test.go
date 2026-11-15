@@ -45,14 +45,29 @@ func (f *fakeAgents) LastActivity(_ context.Context, sessionID string) (time.Tim
 	return f.activity, !f.activity.IsZero()
 }
 
-// fakeGit knows one head and the commits that exist.
+// fakeGit knows one head, the commits that exist, what a commit changed and
+// how its tests come out.
 type fakeGit struct {
-	head    string
-	commits map[string]bool
+	head     string
+	commits  map[string]bool
+	changed  []string
+	testsOK  bool
+	testArgv []string
+	testedAt string
 }
 
 func (g *fakeGit) Head(string) (string, error)         { return g.head, nil }
 func (g *fakeGit) HasCommit(_ string, sha string) bool { return g.commits[sha] }
+func (g *fakeGit) ChangedFiles(_, _, _ string) ([]string, error) {
+	return g.changed, nil
+}
+func (g *fakeGit) RunTests(_ context.Context, _, commit string, argv []string) (TestRun, error) {
+	g.testArgv, g.testedAt = argv, commit
+	if g.testsOK {
+		return TestRun{Passed: true, Output: "ok"}, nil
+	}
+	return TestRun{Passed: false, Output: "--- FAIL: TestOutbox"}, nil
+}
 
 type rig struct {
 	o      *Orchestrator

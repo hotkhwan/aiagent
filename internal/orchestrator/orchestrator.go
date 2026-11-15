@@ -31,6 +31,9 @@ type Workspace struct {
 	Name     string
 	Provider string
 	Dir      string
+	// TestCommand is the operator's argv for verifying work in this
+	// workspace. It comes from the service's config, never the repository.
+	TestCommand []string
 }
 
 // Delivery is what is known after typing into a session: which session it
@@ -53,10 +56,21 @@ type Agents interface {
 	LastActivity(ctx context.Context, sessionID string) (time.Time, bool)
 }
 
-// Git answers the two questions the orchestrator asks of a checkout.
+// Git answers what the orchestrator asks of a checkout.
 type Git interface {
 	Head(dir string) (string, error)
 	HasCommit(dir, sha string) bool
+	// ChangedFiles lists the paths that differ between two commits.
+	ChangedFiles(dir, base, commit string) ([]string, error)
+	// RunTests runs argv at commit, in a checkout of its own so the
+	// operator's working tree is not touched.
+	RunTests(ctx context.Context, dir, commit string, argv []string) (TestRun, error)
+}
+
+// TestRun is how a test command came out.
+type TestRun struct {
+	Passed bool
+	Output string // the tail, for the reason or the evidence
 }
 
 // Orchestrator is the control loop over the task store.
@@ -242,7 +256,7 @@ func (o *Orchestrator) applyResult(t taskstore.Task, a taskstore.Attempt, ws Wor
 		if !commitRE.MatchString(r.Commit) || !o.Git.HasCommit(ws.Dir, r.Commit) {
 			return false
 		}
-		if _, err := o.Store.EndAttempt(a.ID, taskstore.AttemptReported, summary, ""); err != nil {
+		if _, err := o.Store.ReportAttempt(a.ID, r.Commit, summary); err != nil {
 			return false
 		}
 		_, err := o.Store.Transition(t.ID, taskstore.StatusVerifying, taskstore.ActorOrchestrator,

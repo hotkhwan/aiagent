@@ -12,6 +12,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"sync"
@@ -908,7 +909,7 @@ func TestLoadWorkspaces(t *testing.T) {
 	}
 	// The trailing slash must be cleaned, or prefix matching in workspaceFor
 	// would compare against "/home/dev/web//".
-	if ws[0] != (workspaceEntry{name: "web", session: "web", dir: "/home/dev/web"}) {
+	if !reflect.DeepEqual(ws[0], workspaceEntry{name: "web", session: "web", dir: "/home/dev/web"}) {
 		t.Errorf("first entry = %+v", ws[0])
 	}
 	if ws[1].session != "api-agent" {
