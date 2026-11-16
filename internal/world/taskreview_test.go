@@ -177,6 +177,7 @@ type fakePM struct {
 	planIn   planner.PlanInput
 	reviewIn planner.ReviewInput
 	block    chan struct{}
+	panics   string
 }
 
 func (f *fakePM) Name() string { return "fake" }
@@ -184,6 +185,9 @@ func (f *fakePM) Name() string { return "fake" }
 func (f *fakePM) Plan(_ context.Context, in planner.PlanInput) (planner.Plan, planner.Call, error) {
 	if f.block != nil {
 		<-f.block
+	}
+	if f.panics != "" {
+		panic(f.panics)
 	}
 	f.planIn = in
 	p := f.plan
@@ -200,6 +204,9 @@ func (f *fakePM) Plan(_ context.Context, in planner.PlanInput) (planner.Plan, pl
 }
 
 func (f *fakePM) Advise(_ context.Context, in planner.ReviewInput) (planner.Advice, planner.Call, error) {
+	if f.panics != "" {
+		panic(f.panics)
+	}
 	f.reviewIn = in
 	return f.advice, planner.Call{Adapter: "fake", Skill: "summarizeReview", Version: "v1", Tries: 1, Outcome: "ok"}, f.err
 }
@@ -246,6 +253,29 @@ func TestTaskAdvisoryIsWrittenOnRequest(t *testing.T) {
 	}
 	if got, _ := e.svc.Tasks.Get(task.ID); got.Status != taskstore.StatusAwaitingReview {
 		t.Errorf("advice moved the task to %s; only the user decides", got.Status)
+	}
+}
+
+// The note is written behind the response, where nothing else would catch a
+// crash. It ends as a failed note the user can ask for again, and the service
+// goes on serving.
+func TestATaskAdvisoryThatPanicsIsAFailedNote(t *testing.T) {
+	e, tok, task, _ := reviewEnv(t)
+	withPM(t, e, &fakePM{panics: "index out of range [3] with length 2"})
+
+	code, m, _ := e.do(t, "POST", "/aiagent/api/tasks/"+task.ID+"/advisory", tok, "{}")
+	if code != 200 {
+		t.Fatalf("advisory: %d %v", code, m)
+	}
+	e.svc.bg.Wait()
+
+	_, m, _ = e.do(t, "GET", "/aiagent/api/tasks/"+task.ID+"/review", tok, "")
+	adv, _ := m["details"].(map[string]any)["advisory"].(map[string]any)
+	if adv["state"] != "failed" {
+		t.Fatalf("advisory after a crash = %v, want failed", adv)
+	}
+	if why, _ := adv["error"].(string); why == "" || strings.Contains(why, "index out of range") {
+		t.Errorf("error shown = %q; it should say the call crashed without the panic text", why)
 	}
 }
 

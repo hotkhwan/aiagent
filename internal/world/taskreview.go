@@ -196,9 +196,7 @@ func (s *Service) handleTaskAdvisory(c fiber.Ctx) error {
 			AcceptanceCriteria: t.AcceptanceCriteria, AllowedPaths: t.AllowedPaths, RiskLabels: t.RiskLabels,
 			Tests: rv.Evidence["tests"], Files: rv.Files, Diff: rv.Diff, DiffTruncated: rv.DiffTruncated,
 		}
-		s.bg.Add(1)
-		go func() {
-			defer s.bg.Done()
+		s.background(func() {
 			ctx, cancel := context.WithTimeout(context.Background(), pmCallTimeout)
 			defer cancel()
 			adv, call, err := s.PM.Advise(ctx, in)
@@ -208,7 +206,9 @@ func (s *Service) handleTaskAdvisory(c fiber.Ctx) error {
 			}
 			redactAdvice(&adv)
 			_ = s.PMThread.AdvisoryDone(key, adv, call)
-		}()
+		}, func() {
+			_ = s.PMThread.AdvisoryFail(key, pmCrashed, planner.Call{Outcome: "failed"})
+		})
 		return fiber.Map{"attemptId": key, "state": "running"}, nil
 	})
 }

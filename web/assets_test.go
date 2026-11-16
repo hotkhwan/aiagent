@@ -311,3 +311,86 @@ func TestDialogDisplayStaysScoped(t *testing.T) {
 			strings.Join(strings.Fields(selector), " "))
 	}
 }
+
+// TestEveryViewHasAButtonAndAPane ties the nav in index.html to the table in
+// app.js that switches views.
+//
+// A view is three things in two files: a button in the nav, a row in `views`,
+// and the pane the row names. Add the button and forget the row and the
+// button does nothing; name a pane that is not in the page and setView throws
+// on load, before the first poll, which leaves the whole page blank.
+func TestEveryViewHasAButtonAndAPane(t *testing.T) {
+	page, err := fs.ReadFile(FS, "index.html")
+	if err != nil {
+		t.Fatalf("read index.html: %v", err)
+	}
+	app, err := fs.ReadFile(FS, "app.js")
+	if err != nil {
+		t.Fatalf("read app.js: %v", err)
+	}
+	html, src := string(page), string(app)
+	start := strings.Index(src, "const views = [")
+	if start < 0 {
+		t.Fatal("app.js has no `const views = [` — the view table was renamed; update this test with it")
+	}
+	end := strings.Index(src[start:], "\n]")
+	if end < 0 {
+		t.Fatal("views is not closed by a `]` at column 0")
+	}
+	rows := regexp.MustCompile(`\['(view[A-Za-z]+)', '([a-z]+)', '([A-Za-z]+)'\]`).FindAllStringSubmatch(src[start:start+end], -1)
+	if len(rows) == 0 {
+		t.Fatal("views has no rows of the form ['viewX', 'name', 'paneId']")
+	}
+	inTable := map[string]bool{}
+	for _, r := range rows {
+		button, pane := r[1], r[3]
+		inTable[button] = true
+		if !strings.Contains(html, `id="`+button+`"`) {
+			t.Errorf("views names the button %q, which index.html does not have", button)
+		}
+		if !strings.Contains(html, `id="`+pane+`"`) {
+			t.Errorf("view %q shows the pane %q, which index.html does not have", r[2], pane)
+		}
+	}
+	for _, m := range regexp.MustCompile(`<button type="button" id="(view[A-Za-z]+)"`).FindAllStringSubmatch(html, -1) {
+		if !inTable[m[1]] {
+			t.Errorf("index.html has the nav button %q with no row in views; it would do nothing", m[1])
+		}
+	}
+	for _, want := range []string{"viewMap", "viewList", "viewPM", "viewTasks", "viewReview"} {
+		if !inTable[want] {
+			t.Errorf("views has no row for %q", want)
+		}
+	}
+}
+
+// TestAThrottledWriteIsNotASignOut guards the difference between the two 429s
+// the service sends.
+//
+// AIAGENT_LOCKED means wrong tokens and the page must ask for one again.
+// AIAGENT_SLOW_DOWN means two writes landed inside a second — confirming one
+// PM proposal and then the next is enough. api() once treated every 429 as
+// the first kind, so a quick second tap threw a signed-in user to the login
+// dialog.
+func TestAThrottledWriteIsNotASignOut(t *testing.T) {
+	b, err := fs.ReadFile(FS, "app.js")
+	if err != nil {
+		t.Fatalf("read app.js: %v", err)
+	}
+	src := string(b)
+	start := strings.Index(src, "async function api (")
+	if start < 0 {
+		t.Fatal("app.js has no `async function api (` — update this test with the rename")
+	}
+	end := strings.Index(src[start:], "\n}")
+	if end < 0 {
+		t.Fatal("api() is not closed by a `}` at column 0")
+	}
+	body := src[start : start+end]
+	if regexp.MustCompile(`res\.status === 401 \|\| res\.status === 429\)`).MatchString(body) {
+		t.Error("api() sends every 429 to the login dialog; AIAGENT_SLOW_DOWN is write spacing, not a bad token")
+	}
+	if !strings.Contains(body, "AIAGENT_SLOW_DOWN") {
+		t.Error("api() does not tell AIAGENT_SLOW_DOWN apart from AIAGENT_LOCKED")
+	}
+}

@@ -1340,8 +1340,10 @@ body:fullscreen .banner { padding: 6px 18px; font-size: 13px }
 
 /* ---------- task board ----------
    Status colours are the design brief's: one per state, used as a pill and as
-   the card's edge. There is no progress bar anywhere — a task is in a state. */
-.tasksBoard { --s-queued: #B9A7FF; --s-ready: #3EE6FF; --s-running: #4D7CFF; --s-verifying: #FFC04D; --s-awaitingReview: #FF4FB8; --s-completed: #46F0A8; --s-blocked: #FF8A3D; --s-failed: #FF4D5E; --s-cancelled: #8A86A6 }
+   the card's edge. There is no progress bar anywhere — a task is in a state.
+   On :root because the village, the overview panel and the nav badge use
+   them too. */
+:root { --s-queued: #B9A7FF; --s-ready: #3EE6FF; --s-running: #4D7CFF; --s-verifying: #FFC04D; --s-awaitingReview: #FF4FB8; --s-completed: #46F0A8; --s-blocked: #FF8A3D; --s-failed: #FF4D5E; --s-cancelled: #8A86A6 }
 .tasksHead { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 4px 0 12px }
 .tasksHead h2 { margin: 0; font-size: 18px }
 .tasksEmpty { color: var(--muted); padding: 16px; border: 1px dashed var(--line); border-radius: 14px; margin-bottom: 12px }
@@ -1360,7 +1362,7 @@ body:fullscreen .banner { padding: 6px 18px; font-size: 13px }
 .tcard.s-verifying { border-left-color: var(--s-verifying) } .tcard.s-awaitingReview { border-left-color: var(--s-awaitingReview); box-shadow: 0 0 0 1px color-mix(in srgb, var(--s-awaitingReview) 45%, transparent) }
 .tcard.s-completed { border-left-color: var(--s-completed); opacity: .8 } .tcard.s-blocked { border-left-color: var(--s-blocked) } .tcard.s-failed { border-left-color: var(--s-failed) } .tcard.s-cancelled { border-left-color: var(--s-cancelled); opacity: .7 }
 .tcardTop { display: flex; align-items: center; gap: 8px; flex-wrap: wrap }
-.tid { font-family: ui-monospace, Menlo, monospace; font-size: 12px; color: var(--muted) }
+.tid { font-family: ui-monospace, Menlo, monospace; font-size: 12px; color: var(--muted); white-space: nowrap; flex: none }
 .ttitle { font-weight: 600; line-height: 1.35 }
 .tmeta { color: var(--muted); font-size: 12px; line-height: 1.4 }
 .tcall { font-size: 12px; color: var(--s-awaitingReview) }
@@ -1387,4 +1389,211 @@ body:fullscreen .banner { padding: 6px 18px; font-size: 13px }
   .tnone { display: none }
   .tcols2, .tform { grid-template-columns: 1fr }
   .tform label.wide, .tform button { grid-column: auto }
+}
+
+/* ---------- PM, review, and tasks in the village ----------
+   --sc is "this element's status colour": any element carrying an s-<status>
+   class gets it, so a row, a chip and a dot are coloured by one rule each
+   instead of nine. */
+.s-queued { --sc: var(--s-queued) } .s-ready { --sc: var(--s-ready) } .s-running { --sc: var(--s-running) }
+.s-verifying { --sc: var(--s-verifying) } .s-awaitingReview { --sc: var(--s-awaitingReview) } .s-completed { --sc: var(--s-completed) }
+.s-blocked { --sc: var(--s-blocked) } .s-failed { --sc: var(--s-failed) } .s-cancelled { --sc: var(--s-cancelled) }
+
+.navBadge { display: inline-block; min-width: 16px; margin-left: 5px; padding: 0 5px; border-radius: 999px; background: var(--s-awaitingReview); color: #fff; font-size: 11px; font-weight: 700; line-height: 16px; text-align: center; vertical-align: 1px }
+#pmBadge { background: var(--s-ready); color: #0E1324 }
+
+/* The PM and review pages carry their own side column. */
+body.fullView .insp, body.fullView .panelGrip { display: none }
+@media (min-width: 901px) {
+  body.fullView .main { grid-template-columns: minmax(0, 1fr) }
+  .tasksBoard.pmView, .tasksBoard.reviewView { top: 16px }
+}
+
+/* a task as one row: the overview panel and the PM's side column */
+.trow { display: flex; flex-direction: column; gap: 5px; padding: 8px 10px; border-radius: 12px; background: var(--sky3); border: 1px solid var(--line); border-left: 4px solid var(--sc, var(--muted)); cursor: pointer }
+.trow:hover { background: color-mix(in srgb, var(--ink) 7%, var(--sky3)) }
+.trowTop { display: flex; gap: 8px; align-items: baseline; min-width: 0 }
+.trowTitle { font-weight: 600; font-size: 13px; line-height: 1.35; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical }
+.trowBot { display: flex; align-items: center; justify-content: space-between; gap: 8px }
+.trowGo { font-size: 12px; font-weight: 600; padding: 2px 10px; border-radius: 999px; background: var(--s-awaitingReview); color: #fff }
+.pmSideActs { display: flex; flex-wrap: wrap; gap: 8px }
+.pmSideActs button { padding: 6px 12px }
+
+/* ----- PM ----- */
+.pmCols { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 20px; align-items: start; max-width: 1360px; margin: 0 auto }
+.pmMain { min-width: 0 }
+.pmHead { display: flex; align-items: center; gap: 12px; margin: 4px 0 14px }
+.pmHead h2 { margin: 0; font-size: 18px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap }
+.pmHead.side { margin: 0 }
+.pmHead.side h2 { font-size: 16px }
+.pmAvatar { width: 44px; height: 44px; border-radius: 50%; background: var(--sky3); border: 1px solid var(--line); object-fit: cover; flex: none }
+.pmAdapter { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 999px; background: color-mix(in srgb, var(--s-ready) 16%, transparent); color: var(--s-ready); white-space: nowrap }
+.pmAdapter.off { background: var(--sky3); color: var(--muted) }
+.pmThread { display: flex; flex-direction: column; gap: 16px; padding-bottom: 8px }
+.pmMsg { display: flex; gap: 10px; align-items: flex-start }
+.pmMsg .pmAvatar { width: 34px; height: 34px }
+.pmMsg.me { justify-content: flex-end }
+.pmBody { min-width: 0; flex: 1; max-width: 900px; display: flex; flex-direction: column; gap: 8px }
+.pmMsg.me .pmBody { flex: 0 1 auto; max-width: 78%; align-items: flex-end }
+.pmBubble { align-self: flex-start; max-width: 100%; padding: 10px 14px; border-radius: 4px 16px 16px 16px; background: var(--sky2); border: 1px solid var(--line); line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere }
+.pmMsg.me .pmBubble { align-self: flex-end; border-radius: 16px 4px 16px 16px; background: color-mix(in srgb, var(--brand) 15%, var(--sky2)); border-color: color-mix(in srgb, var(--brand) 40%, var(--line)) }
+.pmBubble.bad { border-color: var(--rose) }
+.pmBubble.bad b { color: var(--rose) }
+.pmBubble.thinking { display: inline-flex; align-items: center; gap: 8px; color: var(--muted) }
+.pmBubble.thinking .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--s-ready) }
+@media (prefers-reduced-motion: no-preference) { .pmBubble.thinking .dot { animation: beacon 1.2s ease-in-out infinite } }
+.pmMsg time, .pmFoot time { font-size: 11px; color: var(--muted) }
+.pmFoot { display: flex; align-items: center; gap: 10px; flex-wrap: wrap }
+.pmFoot button { padding: 3px 10px; font-size: 12px }
+.pmSkill { font-size: 11px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted) }
+.pmAsk { padding: 10px 14px; border-radius: 12px; border: 1px dashed var(--amber) }
+.pmAsk b { color: var(--amber) }
+.pmAsk ul { margin: 6px 0 0; padding-left: 18px; line-height: 1.55 }
+
+/* a proposal: what the PM suggests, and the button that makes it a task */
+.ppCard { display: flex; flex-direction: column; gap: 10px; padding: 12px 14px; border-radius: 14px; background: var(--sky2); border: 1px solid var(--line); border-left: 4px solid var(--s-queued) }
+.ppCard.p-confirmed { border-left-color: var(--s-completed) }
+.ppCard.p-dismissed { border-left-color: var(--s-cancelled); opacity: .6 }
+.ppTop { display: flex; align-items: center; gap: 10px; flex-wrap: wrap }
+.ppTop b { font-size: 15px; line-height: 1.35 }
+.ppKind { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 999px; background: var(--sky3); color: var(--muted) }
+.k-bug .ppKind, .k-regression .ppKind { color: var(--s-failed) }
+.k-security .ppKind { color: var(--s-blocked) }
+.k-feature .ppKind, .k-ux .ppKind { color: var(--s-ready) }
+.ppGrid { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 14px; align-items: end }
+.ppLines { display: flex; flex-direction: column; gap: 5px; min-width: 0 }
+.ppLine { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 10px; font-size: 13px; line-height: 1.5 }
+.ppLine > span { color: var(--muted) }
+.ppLine > div { overflow-wrap: anywhere }
+.ppLine ul { margin: 0; padding-left: 16px }
+.ppActs { display: flex; flex-wrap: wrap; gap: 8px; align-items: center }
+.ppGrid .ppActs { flex-direction: column; align-items: stretch; min-width: 150px }
+.ppForm { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px }
+.ppForm .ppTop, .ppForm .wide { grid-column: 1 / -1 }
+.ppForm label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted) }
+.ppForm input, .ppForm select, .ppForm textarea, .rvDecide textarea { width: 100%; background: var(--sky); border: 1px solid var(--line); border-radius: 10px; padding: 7px 9px; color: var(--ink); font: inherit; resize: vertical }
+
+.pmRail { display: flex; flex-direction: column; gap: 8px; padding: 14px; border-radius: 16px; background: var(--sky2); border: 1px solid var(--line) }
+.pmRail h3 { margin: 8px 0 2px; font-size: 13px; color: var(--muted); font-weight: 600 }
+.pmRail h3:first-child { margin-top: 0 }
+.pmCtx { display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: 12px; overflow: hidden }
+.pmCtxRow { display: flex; justify-content: space-between; gap: 10px; padding: 7px 10px; font-size: 13px; border-bottom: 1px solid var(--line) }
+.pmCtxRow:last-child { border-bottom: 0 }
+.pmCtxRow span { color: var(--muted); white-space: nowrap }
+.pmCtxRow b { font-weight: 600; text-align: right; overflow-wrap: anywhere }
+.pmCtxRow .ag { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; color: var(--muted) }
+.pmCtxRow .ag .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted) }
+.pmCtxRow .ag.ready { color: var(--s-completed) }
+.pmCtxRow .ag.ready .dot { background: var(--s-completed) }
+.pmCtxRow .ag.notReady { color: var(--s-verifying) }
+.pmCtxRow .ag.notReady .dot { background: var(--s-verifying) }
+.pmCtxRow .ag.notConfigured .dot { background: transparent; border: 1px solid var(--muted) }
+.pmNotice { display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; border-radius: 12px; font-size: 13px; line-height: 1.5; border: 1px solid color-mix(in srgb, var(--amber) 45%, var(--line)); background: color-mix(in srgb, var(--amber) 8%, transparent) }
+.pmNotice b { color: var(--amber) }
+
+/* ----- review ----- */
+.rvCols { display: grid; grid-template-columns: 280px minmax(0, 1fr); gap: 18px; align-items: start }
+.rvList { position: sticky; top: 0; display: flex; flex-direction: column; gap: 8px }
+.rvList h2 { margin: 4px 0; font-size: 18px }
+.rvList h3 { margin: 10px 0 0; font-size: 13px; color: var(--muted); font-weight: 600 }
+.rvMain { min-width: 0 }
+.rvDetail { display: flex; flex-direction: column; gap: 10px; padding: 14px 16px; border-radius: 16px; background: var(--sky2); border: 1px solid var(--line) }
+.rvDetail h3 { margin: 0; font-size: 18px; line-height: 1.35 }
+.rvDetail h4 { margin: 6px 0 0; font-size: 13px; color: var(--muted); font-weight: 600 }
+.rvDetail ul { margin: 0; padding-left: 18px; line-height: 1.55 }
+.rvDecide { display: flex; flex-direction: column; gap: 8px; padding: 12px; border-radius: 14px; border: 1px solid color-mix(in srgb, var(--s-awaitingReview) 50%, var(--line)); background: color-mix(in srgb, var(--s-awaitingReview) 6%, transparent) }
+.rvDecide h4 { margin: 0 }
+.rvDecide.past { border-color: var(--line); background: none; color: var(--muted); font-size: 13px }
+.rvFacts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px }
+.rvCard { display: flex; flex-direction: column; gap: 3px; min-width: 0; padding: 10px 12px; border-radius: 12px; background: var(--sky3); border: 1px solid var(--line); border-top: 3px solid var(--muted) }
+.rvCard small { color: var(--muted); font-size: 12px }
+.rvCard b { font-size: 14px }
+.rvCard .tmeta { overflow-wrap: anywhere }
+.rvCard.ok { border-top-color: var(--s-completed) }
+.rvCard.ok b { color: var(--s-completed) }
+.rvCard.warn { border-top-color: var(--s-verifying) }
+.rvCard.warn b { color: var(--s-verifying) }
+/* "ไม่ทราบ" is not a zero and not a pass, so it does not look like either:
+   dashed edge, hatched ground, grey text. */
+.rvCard.unknown { border-style: dashed; border-top-width: 1px; background: repeating-linear-gradient(135deg, transparent 0 8px, color-mix(in srgb, var(--muted) 10%, transparent) 8px 16px) }
+.rvCard.unknown b { color: var(--muted) }
+.rvAdvisory { display: flex; flex-direction: column; gap: 8px; padding: 12px; border-radius: 14px; border: 1px dashed var(--s-queued) }
+.rvAdvisory h4 { margin: 0; color: var(--s-queued) }
+.rvAdvisory p { line-height: 1.55; white-space: pre-wrap }
+.rvAdvisory > button { align-self: flex-start }
+.rvConcerns, .rvFiles { list-style: none; padding-left: 0 !important; display: flex; flex-direction: column; gap: 6px }
+.rvConcerns li { padding: 6px 10px; border-radius: 10px; background: var(--sky3); border-left: 3px solid var(--muted); font-size: 13px; line-height: 1.5; overflow-wrap: anywhere }
+.rvConcerns code, .rvFiles code { font-family: ui-monospace, Menlo, monospace; font-size: 12px }
+.sev { display: inline-block; margin-right: 6px; padding: 1px 7px; border-radius: 999px; background: var(--sky); color: var(--muted); font-size: 11px; font-weight: 700 }
+.rvConcerns .sev-warn { border-left-color: var(--s-verifying) }
+.sev-warn .sev, .rvFiles .sev { color: var(--s-verifying) }
+.rvConcerns .sev-risk { border-left-color: var(--s-failed) }
+.sev-risk .sev { color: var(--s-failed) }
+.rvFiles { gap: 2px }
+.rvFiles li { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 13px }
+.rvFiles button { padding: 2px 6px; text-align: left; overflow-wrap: anywhere; color: var(--ink) }
+.rvFiles .add { color: var(--s-completed) }
+.rvFiles .del { color: var(--s-failed) }
+.rvDiff { max-height: 72vh; overflow: auto; padding: 8px 0; border-radius: 12px; background: #0B1020; border: 1px solid var(--line); color: #C9D3F2; font: 12px/1.5 ui-monospace, Menlo, monospace; tab-size: 4 }
+.rvDiff span { display: block; min-width: max-content; padding: 0 12px; white-space: pre }
+.rvDiff .add { background: rgba(70, 240, 168, .12); color: #9BF5CD }
+.rvDiff .del { background: rgba(255, 77, 94, .13); color: #FFA8B0 }
+.rvDiff .hunk { background: rgba(77, 124, 255, .1); color: #8FB4FF }
+.rvDiff .meta { color: #7C86A8 }
+.rvDiff .f { margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255, 255, 255, .12); color: #fff; font-weight: 700; scroll-margin-top: 8px }
+.rvDiff .f:first-child { margin-top: 0; padding-top: 0; border-top: 0 }
+
+/* ----- tasks in the village ----- */
+.pill.review { background: rgba(255, 79, 184, .22); color: #FF9AD6 }
+.roomTasks { position: absolute; right: 12px; top: 20px; z-index: 6; display: flex; flex-direction: column; gap: 5px; align-items: flex-end }
+.rtChip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 999px; border: 1px solid var(--sc, var(--muted)); background: rgba(10, 15, 36, .9); color: #EEF0FA; font-size: 14px; font-weight: 700; white-space: nowrap; box-shadow: 0 2px 8px rgba(0, 0, 0, .45) }
+.rtChip .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--sc, var(--muted)) }
+button.rtChip:hover { background: #1D2440 }
+.rtChip.more { border-color: transparent; color: var(--muted) }
+.taskStrip { position: absolute; left: 24px; right: 24px; bottom: 12px; z-index: 8; display: flex; flex-direction: column; gap: 2px; padding: 8px 12px; border-radius: 14px; background: color-mix(in srgb, var(--sky2) 94%, transparent); border: 1px solid var(--line); backdrop-filter: blur(6px) }
+.stage.hasStrip #village { bottom: 126px }
+.tsHead { display: flex; align-items: center; justify-content: space-between; font-size: 13px; color: var(--muted) }
+.tsHead button { padding: 2px 8px; font-size: 12px }
+.tsRow { display: grid; grid-template-columns: 64px minmax(0, 1fr) auto 90px 120px 12px; gap: 12px; align-items: center; padding: 5px 6px; border-radius: 8px; font-size: 13px; cursor: pointer }
+.tsRow:hover { background: var(--sky3) }
+.tsTitle { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600 }
+.tsRoom, .tsGo { color: var(--muted) }
+
+/* Two scroll boxes rather than one: the conversation moves and the context
+   beside it stays put. A sticky column did not do it — a rail taller than the
+   pane was pushed off the top once the thread reached its end. */
+@media (min-width: 1101px) {
+  .tasksBoard.pmView { overflow: hidden }
+  .pmCols { height: 100%; grid-template-rows: minmax(0, 1fr); align-items: stretch }
+  .pmMain { overflow: auto; padding-right: 6px }
+  .pmRail { align-self: start; max-height: 100%; overflow: auto }
+  /* a scrolling flex column squeezes its children before it scrolls */
+  .pmRail > * { flex: none }
+}
+@media (max-width: 1100px) {
+  .pmCols { grid-template-columns: 1fr }
+  /* One column: the context goes above the conversation, so that the last
+     message stays next to the composer under it. */
+  .pmRail { order: -1 }
+  .rvFacts { grid-template-columns: repeat(2, minmax(0, 1fr)) }
+}
+@media (max-width: 900px) {
+  .rvCols { grid-template-columns: 1fr }
+  .rvList { position: static }
+  .ppGrid, .ppForm { grid-template-columns: 1fr }
+  .ppGrid .ppActs { flex-direction: row }
+  .ppLine { grid-template-columns: 76px minmax(0, 1fr) }
+  .pmMsg.me .pmBody { max-width: 92% }
+}
+/* In flow on a tablet, like the village above it. */
+@media (min-width: 701px) and (max-width: 900px) {
+  /* room under it for the zoom buttons, which sit in the stage's corner */
+  .taskStrip { position: static; margin: 8px 16px 52px }
+}
+@media (max-width: 700px) {
+  .taskStrip { left: 8px; right: 8px; bottom: 8px; padding: 6px 8px }
+  .stage.hasStrip #village { bottom: 112px }
+  .tsRow { grid-template-columns: 54px minmax(0, 1fr) auto 12px; gap: 8px }
+  .tsRoom, .tsRow .tmeta { display: none }
+  .pmMsg > .pmAvatar { display: none }
 }

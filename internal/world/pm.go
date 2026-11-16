@@ -21,6 +21,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
+	"runtime/debug"
 	"slices"
 	"sort"
 	"strings"
@@ -46,6 +48,9 @@ const (
 	pmBriefTitle    = 120
 	pmErrorRunes    = 500
 	agentStateTTL   = 10 * time.Second
+	// pmCrashed is what the user is shown when a PM job panicked. The panic
+	// itself goes to the service log.
+	pmCrashed = "the PM call crashed inside the service; the service log has the details"
 )
 
 func (s *Service) pmOn() bool { return s.PM != nil && s.PMThread != nil && s.Tasks != nil }
@@ -189,16 +194,33 @@ func (s *Service) handlePMMessage(c fiber.Ctx) error {
 			Tasks:    pmTaskBriefs(tasks),
 			Agents:   s.pmAgents(c.Context()),
 		}
-		s.bg.Add(1)
-		go s.runPlan(in)
+		s.background(func() { s.runPlan(in) }, func() {
+			_ = s.PMThread.Fail(pmCrashed, planner.Call{Outcome: "failed"})
+		})
 		return fiber.Map{"messageId": id, "thinking": true}, nil
 	})
+}
+
+// background runs one PM job behind a response. Nothing above that goroutine
+// would catch a panic, and an uncaught one ends the whole service, so a crash
+// in the job is logged and becomes that job's failure through crashed.
+func (s *Service) background(job, crashed func()) {
+	s.bg.Add(1)
+	go func() {
+		defer s.bg.Done()
+		defer func() {
+			if r := recover(); r != nil {
+				log.Printf("PM job crashed: %v\n%s", r, debug.Stack())
+				crashed()
+			}
+		}()
+		job()
+	}()
 }
 
 // runPlan asks the model and records what came back. A call takes longer than
 // a request should, so it runs behind the response and the page polls.
 func (s *Service) runPlan(in planner.PlanInput) {
-	defer s.bg.Done()
 	ctx, cancel := context.WithTimeout(context.Background(), pmCallTimeout)
 	defer cancel()
 	plan, call, err := s.PM.Plan(ctx, in)

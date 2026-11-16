@@ -227,6 +227,31 @@ func TestPMFailureIsShownAndTheThreadGoesOn(t *testing.T) {
 	}
 }
 
+// The PM call runs behind the response, where nothing else would catch a
+// crash: an uncaught panic there ends the whole service. It is that answer's
+// failure instead, and the next message is answered as usual.
+func TestAPMCallThatPanicsFailsOnlyThatAnswer(t *testing.T) {
+	pm := &fakePM{panics: "index out of range [3] with length 2"}
+	e, tok := pmEnv(t, pm)
+	ask(t, e, tok, "แผน")
+	v := pmView(t, e, tok)
+	msgs, _ := v["messages"].([]any)
+	last, _ := msgs[len(msgs)-1].(map[string]any)
+	if v["thinking"] != false || last["failed"] != true {
+		t.Fatalf("after a call that crashed: %v", v)
+	}
+	if text, _ := last["text"].(string); text == "" || strings.Contains(text, "index out of range") {
+		t.Errorf("text shown = %q; it should say the call crashed without the panic text", text)
+	}
+
+	pm.panics, pm.plan = "", planner.Plan{Reply: "ได้เลย"}
+	ask(t, e, tok, "ลองใหม่")
+	msgs, _ = pmView(t, e, tok)["messages"].([]any)
+	if last, _ := msgs[len(msgs)-1].(map[string]any); last["failed"] == true || last["text"] != "ได้เลย" {
+		t.Errorf("the message after the crash was answered with %v", last)
+	}
+}
+
 // The PM is told which agents could take work right now. "Nothing configured"
 // and "configured but not running" are different answers, and neither is ready.
 func TestAgentStatesTellNotConfiguredFromNotReady(t *testing.T) {

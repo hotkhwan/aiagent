@@ -126,7 +126,11 @@ async function api (path, opts) {
   })
   let body = null
   try { body = await res.json() } catch (e) { body = null }
-  if (res.status === 401 || res.status === 429) {
+  // Two different 429s: AIAGENT_LOCKED is wrong tokens and asks for one again.
+  // AIAGENT_SLOW_DOWN is two writes inside a second — the caller reports it
+  // and the user stays signed in.
+  const slow = res.status === 429 && body && body.code === 'AIAGENT_SLOW_DOWN'
+  if (res.status === 401 || (res.status === 429 && !slow)) {
     showLogin(body && body.message)
     throw new Error('auth')
   }
@@ -145,6 +149,7 @@ async function poll () {
       st.revAt = Date.now()
       try { st.reviews = (await api('/reviews')).reviews || [] } catch (e) { /* keep */ }
     }
+    await loadBoard()
     render()
   } catch (e) {
     if (e.message === 'auth') return
@@ -221,15 +226,19 @@ function render () {
     ? tr('จอมอนิเตอร์ห้อง · ข้อความล่าสุดของ agent ในห้องนี้ · คลิก agent เพื่อเปิดแชต · Esc/← กลับ')
     : hs
     ? hs.sub + tr(' · คลิกห้องเพื่อซูม · คลิก agent เพื่อดูบทสนทนา · อัปเดต ') + ago(snap.generatedAt)
-    : live.length + ' agent · ' + reach + tr(' รับข้อความจากเว็บได้ (● เขียว) · ') + snap.summary.needsInput + tr(' รอคุณตอบ · คลิกบ้านเพื่อเข้าไปดู')
+    : live.length + ' agent · ' + taskSummary() + reach + tr(' รับข้อความจากเว็บได้ (● เขียว) · ') + snap.summary.needsInput + tr(' รอคุณตอบ · คลิกบ้านเพื่อเข้าไปดู')
   applyWeather()
   checkLaunches()
   renderEnergy()
   renderStats()
   renderComposerTargets()
+  renderNavBadges()
   if (st.view === 'map') renderMap()
   else if (st.view === 'tasks') renderTasks()
+  else if (st.view === 'pm') renderPM()
+  else if (st.view === 'review') renderTaskReview()
   else renderList()
+  renderTaskStrip()
   renderInspector()
   followTick()
 }
@@ -330,6 +339,8 @@ function renderComposerTargets () {
   // click the character first, which is not where the composer sends you.
   const live = (st.snap.sessions || []).filter(x => x.live && x.messageVia)
   sel.append(h('option', { value: '' }, ready.length || live.length ? tr('— เลือกปลายทาง —') : tr('ไม่มี agent พร้อมรับงาน')))
+  // The PM is a target like the others, and the only one that reaches no agent.
+  if (st.pm) sel.append(h('option', { value: 'pm' }, tr('PM กลาง · วางแผนงาน (ยังไม่ส่งให้ agent)')))
   if (live.length) {
     const g = h('optgroup', { label: tr('agent ที่กำลังทำงาน') })
     for (const x of live) {
@@ -354,7 +365,7 @@ function renderComposerTargets () {
   sel.append(pg)
   // never pick a target for the operator: only an explicit choice or the
   // selected agent's own workspace
-  const stillThere = cur && (cur.startsWith('provider:') || ready.some(w => w.name === cur) || live.some(x => 'session:' + x.sessionId === cur))
+  const stillThere = cur && ((cur === 'pm' && st.pm) || cur.startsWith('provider:') || ready.some(w => w.name === cur) || live.some(x => 'session:' + x.sessionId === cur))
   sel.value = stillThere ? cur : ''
   updateComposerHint()
 }
@@ -396,6 +407,8 @@ function updateComposerHint () {
   } else if (picked) {
     input.placeholder = tr('พิมพ์ถึง ') + picked.displayName +
       hint(tr('… (Enter ส่ง · Shift+Enter ขึ้นบรรทัด)'), '…')
+  } else if (ws === 'pm') {
+    input.placeholder = hint(tr('เล่าให้ PM ฟังว่าอยากได้อะไร… (Enter ส่ง)'), tr('บอก PM…'))
   } else if (ws.startsWith('provider:')) {
     input.placeholder = hint(tr('งานใหม่ให้ agent ที่ว่าง…'), '…')
   } else if (w) {
@@ -406,8 +419,10 @@ function updateComposerHint () {
   }
   // A mission is an agcmd run and needs a workspace; a session can only be
   // messaged, so hide the mode picker rather than offer a choice that fails.
-  $('askMode').hidden = !!picked
-  $('askGo').disabled = !w && !picked
+  $('askMode').hidden = !!picked || ws === 'pm'
+  // A provider target and the PM are sendable too. Send used to be disabled
+  // for "by provider", which left a phone — no Enter-to-send — unable to use it.
+  $('askGo').disabled = !w && !picked && ws !== 'pm' && !ws.startsWith('provider:')
 }
 
 // targetSession resolves a "session:<id>" value from the target picker.
@@ -560,7 +575,7 @@ function renderMap () {
 
 function renderVillage () {
   const list = actorsFor()
-  const sig = list.map(a => a.mood + a.room).join(',')
+  const sig = list.map(a => a.mood + a.room).join(',') + '|' + entranceTaskPills().map(p => p && p.textContent).join('|')
   if (st.drawn === 'village' && st.villageSig === sig) return
   st.villageSig = sig
   // the scenery is drawn once; a status change only redraws the entrance
@@ -711,6 +726,7 @@ function drawVillageEntrance (b, list) {
       h('div', { class: 'hrow' },
         ask ? h('em', { class: 'pill ask' }, '⏸ ' + ask + tr(' รอคุณตอบ')) : '',
         busy ? h('em', { class: 'pill work' }, '✦ ' + busy + tr(' กำลังทำงาน')) : '',
+        ...entranceTaskPills(),
         !ask && !busy ? h('em', { class: 'pill idle' }, list.length ? tr('ว่างทั้งหมด') : tr('ไม่มี agent')) : '')),
     h('span', { class: 'pin' })))
   const enter = () => {
@@ -933,6 +949,9 @@ function drawInterior () {
     r.doorEl = door
     card.append(door)
     card.append(h('div', { class: 'roomCaption' }, roomDesc[key]))
+    // the tasks at this step of the flow; fillRoomTasks keeps it current
+    r.taskEl = h('div', { class: 'roomTasks' })
+    card.append(r.taskEl)
     card.classList.add('zoomable')
     card.title = tr('คลิกเพื่อซูมเข้าห้อง · จอมอนิเตอร์ข้อความ')
     card.addEventListener('click', e => { if (!e.target.closest('.actor')) openRoom(key) })
@@ -1453,6 +1472,7 @@ function renderInterior () {
     st.actors = {}
     st.actorLayer = drawInterior()
   }
+  fillRoomTasks()
   const layer = st.actorLayer
   const want = actorsFor()
   const taken = {}
@@ -2060,6 +2080,7 @@ function overviewPanel () {
     return h('div', { class: 'quota' }, h('span', null, (providerName[q.providerId] || q.providerId) + (q.planType ? ' · ' + q.planType : '')), h('b', null, right), h('div', { class: 'track' }, fill), h('small', { class: 'note' }, note))
   })
   return [
+    ...pmOverview(),
     h('h2', null, tr('ภาพรวมวันนี้')),
     h('h3', null, tr('ต้องให้คุณช่วย (') + needs.length + ')'),
     needs.length ? needs : h('p', { class: 'note' }, tr('ไม่มีงานที่รอคุณ')),
@@ -2483,6 +2504,7 @@ $('ask').addEventListener('submit', async e => {
   const ws = $('askWs').value
   const picked = targetSession(ws)
   if (picked) return sendChat(picked, ta, $('askThumbs'))
+  if (ws === 'pm') return sendToPM(ta)
   const mode = $('askMode').value
   let text = expandPastes(ta.value).trim()
   const files = st.attach || []
@@ -2714,23 +2736,45 @@ $('loginForm').addEventListener('submit', e => {
   poll()
 })
 $('login').addEventListener('cancel', e => e.preventDefault())
+// One row per view: its nav button, the name kept in localStorage, its pane.
+// web/assets_test.go checks every row against index.html.
+const views = [
+  ['viewMap', 'map', 'village'],
+  ['viewList', 'list', 'list'],
+  ['viewPM', 'pm', 'pm'],
+  ['viewTasks', 'tasks', 'tasks'],
+  ['viewReview', 'review', 'review']
+]
 function setView (view) {
   st.view = view
-  for (const [id, v] of [['viewMap', 'map'], ['viewList', 'list'], ['viewTasks', 'tasks']]) {
+  for (const [id, v, pane] of views) {
     $(id).classList.toggle('on', view === v)
     $(id).setAttribute('aria-pressed', String(view === v))
+    // the village is not hidden but switched off, so it keeps its size
+    if (v !== 'map') $(pane).hidden = view !== v
   }
   $('village').classList.toggle('off', view !== 'map')
   $('sceneTools').hidden = view !== 'map'
-  $('list').hidden = view !== 'list'
-  $('tasks').hidden = view !== 'tasks'
   // The stage carries the time-of-day sky and the village heading. Neither
   // belongs behind a table, so the list and task views say so on the body
   // and the stylesheet turns them off from there.
   document.body.classList.toggle('listView', view !== 'map')
+  // The PM and review pages bring their own side column, so the detail panel
+  // steps aside and the page gets the whole width.
+  document.body.classList.toggle('fullView', view === 'pm' || view === 'review')
+  if (view === 'pm') {
+    // The composer follows the page: here it talks to the PM, not to whoever
+    // was selected in the village.
+    stopFollow()
+    st.sel = null
+    st.chat = null
+    st.inspKey = ''
+    st.blockReason = ''
+    st.target = 'pm'
+    st.pmStick = true
+  }
   if (st.snap) render()
 }
-$('viewMap').addEventListener('click', () => setView('map'))
 $('stageBack').addEventListener('click', () => goBack())
 
 // On a phone the village opens as the list, not the map. The board is 2060px
@@ -2742,14 +2786,9 @@ $('stageBack').addEventListener('click', () => goBack())
 // switch still sticks, so someone who picks the map keeps landing on it.
 try {
   const saved = localStorage.getItem('aiagentView')
-  setView(saved === 'map' || saved === 'tasks' ? saved : 'list')
+  setView(views.some(row => row[1] === saved) ? saved : 'list')
 } catch (e) { setView('list') }
-$('viewTasks').addEventListener('click', () => setView('tasks'))
-for (const [el, v] of [[$('viewMap'), 'map'], [$('viewList'), 'list'], [$('viewTasks'), 'tasks']]) {
-  el.addEventListener('click', () => {
-    try { localStorage.setItem('aiagentView', v) } catch (e) { /* see above */ }
-  })
-}
+for (const [id, v] of views) $(id).addEventListener('click', () => goView(v))
 // ----- follow the selected agent from room to room -----
 function followActor () {
   const id = st.follow
@@ -2810,7 +2849,6 @@ try { new ResizeObserver(() => applyZoom()).observe($('village')) } catch (e) { 
 // be put back when the sheet closes — including on Esc and on the backdrop.
 $('panelPop').addEventListener('close', closePanelSheet)
 document.addEventListener('fullscreenchange', () => setTimeout(applyZoom, 50))
-$('viewList').addEventListener('click', () => setView('list'))
 document.addEventListener('keydown', e => {
   if (e.key !== 'Escape' || document.querySelector('dialog[open]')) return
   if (st.sel) back()
@@ -3320,6 +3358,7 @@ function taskDetail (data) {
     }, tr('ยืนยันว่า agent ได้รับงานแล้ว')))
   }
   if (t.status === 'awaitingReview') {
+    actions.push(h('button', { type: 'button', onclick: () => openTask(t) }, tr('ดู diff ที่หน้ารีวิว')))
     move('completed', tr('อนุมัติ — เสร็จแล้ว'), false, 'pri')
     move('queued', tr('ขอแก้'), true)
   }
@@ -3387,6 +3426,661 @@ function taskForm () {
     }
   })
   return f
+}
+
+// ---------- PM, review, and tasks in the village ----------
+// The task list and the PM thread are read beside the snapshot. Either can be
+// off on a machine — the routes answer 404 — and that is null here. Everything
+// below reads null as "not available", never as "none": an empty board and a
+// board that could not be read are different things to tell the user.
+async function loadBoard () {
+  const get = async path => {
+    try { return await api(path) } catch (e) {
+      if (e.message === 'auth') throw e
+      return null
+    }
+  }
+  const [t, pm] = await Promise.all([get('/tasks'), get('/pm')])
+  // A read that failed keeps what was last known; the connection banner is
+  // what says the page is stale. Only a first read that fails means "off".
+  if (t) st.tasks = t.tasks || []
+  else if (st.tasks === undefined) st.tasks = null
+  if (pm) st.pm = pm
+  else if (st.pm === undefined) st.pm = null
+}
+
+// The service takes one write a second (writeSpacing in http.go) and refuses
+// the next. Two quick taps — confirm one proposal, then the one under it — are
+// normal here, so writes from these views wait their turn instead.
+let writeQueue = Promise.resolve()
+let lastWrite = 0
+function spaced (fn) {
+  const run = async () => {
+    const wait = 1100 - (Date.now() - lastWrite)
+    if (wait > 0) await new Promise(resolve => setTimeout(resolve, wait))
+    try { return await fn() } finally { lastWrite = Date.now() }
+  }
+  writeQueue = writeQueue.then(run, run)
+  return writeQueue
+}
+
+const openStatuses = ['awaitingReview', 'verifying', 'running', 'ready', 'queued', 'blocked', 'failed']
+// designBrief §10: the room a task sits in, by its state. A finished or
+// cancelled task has left the house.
+const taskRoom = { queued: 'plan', ready: 'plan', running: 'code', verifying: 'test', awaitingReview: 'approval', blocked: 'ops', failed: 'ops' }
+const providerTitle = { claude: 'Claude', codex: 'Codex', gemini: 'Gemini' }
+const agentStateLabel = { ready: tr('พร้อม'), notReady: tr('ยังไม่พร้อม'), notConfigured: tr('ยังไม่ได้ตั้งค่า') }
+const taskKinds = ['bug', 'feature', 'ux', 'regression', 'security', 'chore']
+
+function openTasks () {
+  return (st.tasks || []).filter(t => openStatuses.includes(t.status))
+    .sort((a, b) => openStatuses.indexOf(a.status) - openStatuses.indexOf(b.status) || (a.updatedAt < b.updatedAt ? 1 : -1))
+}
+function countTasks (status) { return (st.tasks || []).filter(t => t.status === status).length }
+function openProposals () {
+  let n = 0
+  for (const m of (st.pm && st.pm.messages) || []) n += (m.proposals || []).filter(p => p.state === 'open').length
+  return n
+}
+
+function goView (v) {
+  try { localStorage.setItem('aiagentView', v) } catch (e) { /* the view is still switched */ }
+  setView(v)
+}
+
+// A task waiting for the user opens on the review page, where the diff is;
+// any other opens on the board, where its history is.
+function openTask (t) {
+  if (t.status === 'awaitingReview') {
+    st.rvOpen = t.taskId
+    goView('review')
+  } else {
+    st.taskOpen = t.taskId
+    goView('tasks')
+  }
+}
+
+function renderNavBadges () {
+  const wait = countTasks('awaitingReview')
+  const rb = $('reviewBadge')
+  rb.hidden = !wait
+  rb.textContent = wait ? String(wait) : ''
+  const thinking = !!(st.pm && st.pm.thinking)
+  const open = openProposals()
+  const pb = $('pmBadge')
+  pb.hidden = !thinking && !open
+  pb.textContent = thinking ? '…' : String(open)
+}
+
+function taskRow (t) {
+  const go = () => openTask(t)
+  return h('div', {
+    class: 'trow s-' + t.status,
+    tabindex: 0,
+    role: 'button',
+    onclick: go,
+    onkeydown: e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go() } }
+  },
+  h('div', { class: 'trowTop' }, h('span', { class: 'tid' }, t.taskId), h('span', { class: 'trowTitle' }, t.title)),
+  h('div', { class: 'trowBot' }, taskPill(t.status),
+    t.status === 'awaitingReview' ? h('span', { class: 'trowGo' }, tr('ตรวจงาน')) : h('span', { class: 'tmeta' }, ago(t.updatedAt))))
+}
+
+// The PM block at the top of the overview panel: what is open, and what is
+// waiting for the user.
+function pmOverview () {
+  if (!st.tasks && !st.pm) return []
+  const open = openTasks()
+  const wait = countTasks('awaitingReview')
+  return [
+    h('div', { class: 'pmHead side' }, pmAvatar(),
+      h('div', null,
+        h('h2', null, tr('PM กลาง'), ' ', st.pm ? h('span', { class: 'pmAdapter' }, st.pm.adapter) : h('span', { class: 'pmAdapter off' }, tr('ยังไม่เปิด'))),
+        h('p', { class: 'note' }, !st.tasks ? tr('ไม่ทราบจำนวนงาน — ระบบงานยังไม่เปิด') : wait ? tr('ตอนนี้ ') + wait + tr(' งานรอคุณตรวจ') : tr('ไม่มีงานรอคุณตรวจ')))),
+    st.tasks ? h('h3', null, tr('งานของ PM (') + open.length + ')') : null,
+    st.tasks ? (open.length ? open.slice(0, 5).map(taskRow) : h('p', { class: 'note' }, tr('ยังไม่มีงานที่เปิดอยู่'))) : null,
+    h('div', { class: 'pmSideActs' },
+      st.pm ? h('button', { type: 'button', class: 'pri', onclick: () => goView('pm') }, tr('คุยกับ PM')) : null,
+      st.tasks ? h('button', { type: 'button', onclick: () => goView('tasks') }, tr('กระดานงาน')) : null,
+      wait ? h('button', { type: 'button', onclick: () => goView('review') }, tr('ไปหน้ารีวิว')) : null)
+  ]
+}
+
+// ----- tasks on the map -----
+function taskSummary () {
+  const wait = countTasks('awaitingReview')
+  const run = countTasks('running') + countTasks('verifying')
+  return (wait ? wait + tr(' งานรอคุณตรวจ · ') : '') + (run ? run + tr(' งานกำลังทำ · ') : '')
+}
+
+function entranceTaskPills () {
+  const wait = countTasks('awaitingReview')
+  const run = countTasks('running') + countTasks('verifying')
+  return [
+    wait ? h('em', { class: 'pill review' }, '◆ ' + wait + tr(' งานรอคุณตรวจ')) : '',
+    run ? h('em', { class: 'pill work' }, run + tr(' งานกำลังทำ')) : ''
+  ]
+}
+
+// Chips on the rooms of the house: which task is at which step.
+function fillRoomTasks () {
+  const open = openTasks()
+  for (const key in rooms2) {
+    const el = rooms2[key].taskEl
+    if (!el || !el.isConnected) continue
+    const mine = open.filter(t => taskRoom[t.status] === key)
+    const sig = mine.map(t => t.taskId + t.status).join(',')
+    if (el.dataset.sig === sig) continue
+    el.dataset.sig = sig
+    el.replaceChildren(...mine.slice(0, 2).map(t => h('button', {
+      type: 'button',
+      class: 'rtChip s-' + t.status,
+      title: t.title,
+      onclick: e => { e.stopPropagation(); openTask(t) }
+    }, h('i', { class: 'dot' }), t.taskId + ' · ' + taskStatusLabel[t.status])),
+    ...(mine.length > 2 ? [h('span', { class: 'rtChip more' }, '+' + (mine.length - 2))] : []))
+  }
+}
+
+// The strip under the village: the tasks that moved last.
+function renderTaskStrip () {
+  const el = $('taskStrip')
+  const show = st.view === 'map' && !st.house && !!st.tasks && st.tasks.length > 0
+  const recent = show ? [...st.tasks].sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1)).slice(0, 2) : []
+  const key = show ? JSON.stringify(recent.map(t => [t.taskId, t.status, t.title, t.updatedAt])) : ''
+  if (el.hidden === !show && key === st.stripKey) return
+  st.stripKey = key
+  const was = el.hidden
+  el.hidden = !show
+  $('stage').classList.toggle('hasStrip', show)
+  if (show) {
+    el.replaceChildren(
+      h('div', { class: 'tsHead' }, h('b', null, tr('งานในหมู่บ้าน (ล่าสุด)')),
+        h('button', { type: 'button', class: 'ghost', onclick: () => goView('tasks') }, tr('ดูทั้งหมด ›'))),
+      ...recent.map(t => {
+        const room = taskRoom[t.status]
+        const go = () => openTask(t)
+        return h('div', {
+          class: 'tsRow',
+          tabindex: 0,
+          role: 'button',
+          onclick: go,
+          onkeydown: e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go() } }
+        },
+        h('span', { class: 'tid' }, t.taskId),
+        h('span', { class: 'tsTitle' }, t.title),
+        taskPill(t.status),
+        h('span', { class: 'tsRoom' }, room ? roomShort[room] : '—'),
+        h('span', { class: 'tmeta' }, tr('อัปเดต ') + fmtTime(t.updatedAt)),
+        h('span', { class: 'tsGo' }, '›'))
+      }))
+  }
+  // the village is fitted to the space the strip leaves it
+  if (was !== el.hidden) applyZoom()
+}
+
+// ----- the PM view -----
+function pmAvatar () {
+  return h('img', { class: 'pmAvatar', src: A('cx-cat'), alt: '' })
+}
+
+function renderPM () {
+  const box = $('pm')
+  const pm = st.pm
+  if (!pm) {
+    st.pmKey = ''
+    box.replaceChildren(h('div', { class: 'tasksEmpty' }, tr('PM กลางยังไม่เปิดบนเครื่องนี้ — อัปเดต aiagent แล้ว restart service')))
+    return
+  }
+  const msgs = pm.messages || []
+  // Rebuilding the thread on every poll would drop a text selection and an
+  // open edit form's focus, so nothing is touched while nothing has changed.
+  const key = JSON.stringify([pm, (st.tasks || []).map(t => [t.taskId, t.status, t.title]), st.pmEdit && st.pmEdit.id, pm.thinking && ago(pm.thinkingSince)])
+  if (key === st.pmKey && box.childElementCount) return
+  st.pmKey = key
+  const thread = h('div', { class: 'pmThread' },
+    msgs.length
+      ? msgs.map(pmMessage)
+      : h('div', { class: 'tasksEmpty' },
+        h('b', null, tr('เล่าให้ PM ฟังว่าอยากได้อะไร')),
+        h('div', null, tr('พิมพ์ที่ช่องด้านล่าง (ปลายทาง: PM กลาง) เช่น “อยากให้ส่งข้อความถึง agent ได้แน่นอน และไม่ส่งซ้ำ” — PM จะแตกเป็นงานพร้อมเกณฑ์ผ่านให้คุณตรวจ แล้วคุณเป็นคนกดยืนยันทีละงาน'))),
+    pm.thinking
+      ? h('div', { class: 'pmMsg' }, pmAvatar(), h('div', { class: 'pmBody' },
+        h('div', { class: 'pmBubble thinking' }, h('i', { class: 'dot' }), tr('PM กำลังคิด… เริ่ม ') + ago(pm.thinkingSince)),
+        h('div', { class: 'tmeta' }, tr('ใช้ claude ของเครื่องนี้ (subscription) — ปกติไม่เกินหนึ่งนาที'))))
+      : null)
+  const head = h('div', { class: 'pmHead' }, pmAvatar(),
+    h('div', null,
+      h('h2', null, tr('PM กลาง'), ' ', h('span', { class: 'pmAdapter' }, pm.adapter)),
+      h('p', { class: 'note' }, tr('วางแผนและติดตามงานกับทีมของคุณ · PM เสนอ คุณเป็นคนยืนยัน'))))
+  // On a desktop the thread and the side column each scroll, and both are
+  // rebuilt here: carry their positions over, or a poll would jump the page.
+  const keep = {}
+  for (const q of ['.pmMain', '.pmRail']) {
+    const el = box.querySelector(q)
+    keep[q] = el ? el.scrollTop : 0
+  }
+  box.replaceChildren(h('div', { class: 'pmCols' }, h('div', { class: 'pmMain' }, head, thread), pmRail(pm)))
+  for (const q in keep) box.querySelector(q).scrollTop = keep[q]
+  const n = msgs.length + (pm.thinking ? 1 : 0)
+  if (st.pmSeen !== n || st.pmStick) {
+    st.pmSeen = n
+    st.pmStick = false
+    // The last message, not the pane's scrollTop: on a tablet the pane sits in
+    // the page's flow and it is the page that scrolls — and there the composer
+    // is the row under the thread, so go all the way down to it.
+    const last = thread.lastElementChild
+    const toEnd = () => {
+      if (!last || !last.isConnected) return
+      last.scrollIntoView({ block: 'end' })
+      const page = document.scrollingElement
+      if (page && page.scrollHeight > page.clientHeight) page.scrollTop = page.scrollHeight
+    }
+    toEnd()
+    // The text is measured again once the web font arrives, and grows.
+    if (document.fonts && document.fonts.status !== 'loaded') document.fonts.ready.then(toEnd)
+  }
+}
+
+function pmMessage (m) {
+  if (m.role === 'user') {
+    return h('div', { class: 'pmMsg me' }, h('div', { class: 'pmBody' }, h('div', { class: 'pmBubble' }, m.text), h('time', null, fmtTime(m.at))))
+  }
+  const call = m.call
+  const props = m.proposals || []
+  return h('div', { class: 'pmMsg' }, pmAvatar(), h('div', { class: 'pmBody' },
+    m.failed
+      ? h('div', { class: 'pmBubble bad' },
+        h('b', null, tr('PM ตอบไม่สมบูรณ์')),
+        h('div', null, m.text || tr('ไม่ทราบสาเหตุ')),
+        h('div', { class: 'tmeta' }, tr('ไม่มีงานถูกสร้าง — ส่งคำขอใหม่ได้ หรือสร้างงานเองที่แท็บ งาน')))
+      : m.text ? h('div', { class: 'pmBubble' }, m.text) : null,
+    props.map((p, i) => proposalCard(p, i + 1, props)),
+    m.questions && m.questions.length
+      ? h('div', { class: 'pmAsk' }, h('b', null, tr('PM ถามกลับ')), h('ul', null, m.questions.map(q => h('li', null, q))))
+      : null,
+    h('div', { class: 'pmFoot' },
+      call && call.skill ? h('span', { class: 'pmSkill' }, tr('ทักษะ: ') + call.skill + ' ' + call.version + (call.tries > 1 ? tr(' · ลอง ') + call.tries + tr(' รอบ') : '') + (call.millis ? ' · ' + Math.round(call.millis / 1000) + tr(' วินาที') : '')) : null,
+      h('time', null, fmtTime(m.at)))))
+}
+
+function proposalCard (p, n, siblings) {
+  if (st.pmEdit && st.pmEdit.id === p.id && p.state === 'open') return st.pmEdit.form
+  const line = (label, value) => h('div', { class: 'ppLine' }, h('span', null, label), h('div', null, value))
+  const who = p.provider ? (providerTitle[p.provider] || p.provider) : tr('อัตโนมัติ (ตาม quota)')
+  const deps = (p.dependsOn || []).map(i => tr('ขั้นที่ ') + i + (siblings[i - 1] ? ' (' + siblings[i - 1].title + ')' : ''))
+    .concat(p.blockedBy || [])
+  let acts
+  if (p.state === 'open') {
+    acts = [
+      h('button', { type: 'button', class: 'pri', onclick: () => confirmProposal(p, null) }, tr('ยืนยันสร้างงาน')),
+      h('button', { type: 'button', onclick: () => { st.pmEdit = { id: p.id, form: proposalForm(p, n) }; renderPM() } }, tr('แก้ไข')),
+      h('button', { type: 'button', class: 'ghost', onclick: () => dismissProposal(p) }, tr('ไม่เอา'))
+    ]
+  } else if (p.state === 'confirmed') {
+    acts = [
+      h('span', { class: 'tok' }, tr('สร้างเป็นงาน ') + p.taskId + tr(' แล้ว')),
+      h('button', { type: 'button', onclick: () => { st.taskOpen = p.taskId; goView('tasks') } }, tr('เปิดงาน'))
+    ]
+  } else {
+    acts = [h('span', { class: 'tmeta' }, tr('ไม่เอาข้อเสนอนี้'))]
+  }
+  return h('section', { class: 'ppCard k-' + p.kind + ' p-' + p.state },
+    h('div', { class: 'ppTop' }, h('b', null, n + '. ' + p.title), h('span', { class: 'ppKind' }, p.kind)),
+    h('div', { class: 'ppGrid' },
+      h('div', { class: 'ppLines' },
+        line(tr('โครงการ'), p.projectId),
+        line(tr('ผู้ทำ'), who + (p.providerReason ? ' — ' + p.providerReason : '')),
+        line(tr('เกณฑ์ผ่าน'), h('ul', null, (p.acceptanceCriteria || []).map(c => h('li', null, c)))),
+        p.allowedPaths && p.allowedPaths.length ? line(tr('แก้ได้เฉพาะ'), p.allowedPaths.join(', ')) : null,
+        deps.length ? line(tr('ขึ้นกับ'), deps.join(', ')) : null,
+        p.riskLabels && p.riskLabels.length ? line(tr('ต้องดูใกล้ชิด'), h('span', { class: 'twarn' }, p.riskLabels.join(', '))) : null),
+      h('div', { class: 'ppActs' }, acts)))
+}
+
+async function confirmProposal (p, edits) {
+  const ok = await spaced(() => act('/pm/proposals/' + encodeURIComponent(p.id) + '/confirm', edits || {},
+    r => tr('สร้างงาน ') + ((r.task && r.task.taskId) || '') + tr(' แล้ว — ยังไม่ส่งให้ agent จนกว่าคุณจะอนุมัติเริ่มงานที่แท็บ งาน')))
+  if (ok && st.pmEdit && st.pmEdit.id === p.id) {
+    st.pmEdit = null
+    if (st.view === 'pm') renderPM()
+  }
+  return ok
+}
+
+async function dismissProposal (p) {
+  await spaced(() => act('/pm/proposals/' + encodeURIComponent(p.id) + '/dismiss', {}, () => tr('ไม่เอาข้อเสนอนี้แล้ว')))
+}
+
+// The edit form is built once and kept in st.pmEdit, so a poll that redraws
+// the thread puts the same node back and nothing typed is lost.
+function proposalForm (p, n) {
+  const pick = (name, opts, cur) => {
+    const sel = h('select', { name }, opts.map(([v, l]) => h('option', { value: v }, l)))
+    sel.value = cur || opts[0][0]
+    return sel
+  }
+  const area = (name, lines, rows) => {
+    const ta = h('textarea', { name, rows: String(rows) })
+    ta.value = (lines || []).join('\n')
+    return ta
+  }
+  const f = h('form', { class: 'ppCard ppForm k-' + p.kind },
+    h('div', { class: 'ppTop' }, h('b', null, n + '. ' + tr('แก้ข้อเสนอก่อนสร้างงาน'))),
+    h('label', { class: 'wide' }, tr('ชื่องาน'), h('input', { name: 'title', required: 'required', maxlength: '300', value: p.title })),
+    h('label', null, tr('โปรเจกต์'), h('input', { name: 'projectId', required: 'required', maxlength: '100', value: p.projectId })),
+    h('label', null, tr('ให้ใครทำ'), pick('provider', [['', tr('อัตโนมัติ (ตาม quota)')], ['claude', 'Claude'], ['codex', 'Codex'], ['gemini', 'Gemini']], p.provider)),
+    h('label', null, tr('ชนิดงาน'), pick('kind', taskKinds.map(k => [k, k]), p.kind)),
+    h('label', { class: 'wide' }, tr('เกณฑ์ผ่าน (บรรทัดละข้อ)'), area('criteria', p.acceptanceCriteria, 4)),
+    h('label', { class: 'wide' }, tr('แก้ได้เฉพาะ path (บรรทัดละข้อ · เว้นว่าง = ทั้ง repo)'), area('paths', p.allowedPaths, 2)),
+    h('div', { class: 'ppActs wide' },
+      h('button', { type: 'submit', class: 'pri' }, tr('ยืนยันสร้างงาน')),
+      h('button', { type: 'button', onclick: () => { st.pmEdit = null; renderPM() } }, tr('ยกเลิกการแก้'))))
+  f.addEventListener('submit', e => {
+    e.preventDefault()
+    const v = name => f.elements[name].value
+    const lines = s => s.split('\n').map(x => x.trim()).filter(Boolean)
+    confirmProposal(p, {
+      title: v('title'),
+      projectId: v('projectId'),
+      provider: v('provider'),
+      kind: v('kind'),
+      acceptanceCriteria: lines(v('criteria')),
+      allowedPaths: lines(v('paths'))
+    })
+  })
+  return f
+}
+
+function pmRail (pm) {
+  const ctx = pm.context || {}
+  const projects = ctx.projects || []
+  const agents = ctx.agents || []
+  const open = openTasks()
+  return h('aside', { class: 'pmRail' },
+    h('h3', null, tr('บริบทและแผนงาน')),
+    h('div', { class: 'pmCtx' },
+      h('div', { class: 'pmCtxRow' }, h('span', null, tr('โครงการที่ PM รู้จัก')), h('b', null, projects.length ? projects.join(', ') : tr('ยังไม่มี'))),
+      agents.map(a => h('div', { class: 'pmCtxRow' },
+        h('span', null, 'Worker: ' + (providerTitle[a.provider] || a.provider)),
+        h('b', { class: 'ag ' + a.state }, h('i', { class: 'dot' }), agentStateLabel[a.state] || tr('ไม่ทราบ'))))),
+    h('h3', null, tr('งานปัจจุบัน (') + (st.tasks ? open.length : '?') + ')'),
+    !st.tasks
+      ? h('p', { class: 'note' }, tr('ไม่ทราบ — ระบบงานยังไม่เปิดบนเครื่องนี้'))
+      : open.length ? open.slice(0, 6).map(taskRow) : h('p', { class: 'note' }, tr('ยังไม่มีงานที่เปิดอยู่')),
+    h('h3', null, tr('แจ้งเตือน')),
+    h('div', { class: 'pmNotice' },
+      h('b', null, tr('ต้องยืนยันก่อนส่ง worker')),
+      h('span', null, tr('PM แค่เสนอ — งานถูกสร้างเมื่อคุณกด “ยืนยันสร้างงาน” และถูกส่งให้ agent เมื่อคุณกด “อนุมัติเริ่มงาน” ที่แท็บ งาน'))),
+    h('p', { class: 'note' }, tr('PM อ่านรูปแนบและไฟล์ในเครื่องไม่ได้ — เห็นเฉพาะข้อความ รายชื่อโครงการ งานที่เปิดอยู่ และสถานะ agent')),
+    h('button', { type: 'button', class: 'ghost', disabled: pm.thinking || !(pm.messages || []).length, onclick: resetPM }, tr('เริ่มบทสนทนาใหม่')))
+}
+
+async function resetPM () {
+  const ok = await confirmBox(tr('เริ่มบทสนทนาใหม่กับ PM'), tr('PM จะลืมบทสนทนานี้ และข้อเสนอที่ยังไม่ยืนยันจะหายจากหน้านี้ · งานที่สร้างไปแล้วยังอยู่ครบ'), '', tr('เริ่มใหม่'))
+  if (!ok) return
+  st.pmEdit = null
+  await spaced(() => act('/pm/reset', {}, () => tr('เริ่มบทสนทนาใหม่แล้ว')))
+}
+
+// The composer with "PM กลาง" picked. Nothing is confirmed first: a message to
+// the PM creates nothing and reaches no agent.
+async function sendToPM (ta) {
+  const text = expandPastes(ta.value).trim()
+  if (!text) return
+  if ((st.attach || []).length) { toast(tr('PM ยังอ่านรูปแนบไม่ได้ — เอารูปออกก่อน หรือส่งรูปให้ agent โดยตรง'), true); return }
+  if (st.pm && st.pm.thinking) { toast(tr('PM ยังคิดคำตอบก่อนหน้าอยู่ — รอสักครู่'), true); return }
+  const ok = await spaced(() => act('/pm/messages', { text }, () => tr('ส่งถึง PM แล้ว — กำลังคิด')))
+  if (!ok) return
+  ta.value = ''
+  clearPastes()
+  clearDraft()
+  growText()
+  st.pmStick = true
+  if (st.view !== 'pm') goView('pm')
+}
+
+// ----- the review view -----
+// One task at a time: what changed, read from the checkout, and the decision
+// that only the user makes.
+function renderTaskReview () {
+  const box = $('review')
+  if (!st.tasks) {
+    st.rvKey = ''
+    box.replaceChildren(h('div', { class: 'tasksEmpty' }, tr('ระบบงานยังไม่เปิดบนเครื่องนี้ — อัปเดต aiagent แล้ว restart service')))
+    return
+  }
+  const byNew = (a, b) => (a.updatedAt < b.updatedAt ? 1 : -1)
+  const waiting = st.tasks.filter(t => t.status === 'awaitingReview').sort(byNew)
+  const done = st.tasks.filter(t => t.status === 'completed').sort(byNew).slice(0, 5)
+  if (st.rvOpen && !st.tasks.some(t => t.taskId === st.rvOpen)) st.rvOpen = null
+  if (!st.rvOpen && waiting.length) st.rvOpen = waiting[0].taskId
+  const cur = st.tasks.find(t => t.taskId === st.rvOpen)
+  const want = cur ? cur.taskId + '@' + cur.updatedAt : ''
+  const have = st.rvData && cur && st.rvData.task.taskId === cur.taskId ? st.rvData : null
+  const running = have && have.advisory && have.advisory.state === 'running'
+  // The diff is read from git, so it is fetched when the task changes and
+  // while a second opinion is on its way — not on every poll.
+  if (cur && !st.rvLoading && (st.rvFor !== want || running)) loadTaskReview(want, cur.taskId)
+  const key = JSON.stringify([waiting.map(t => [t.taskId, t.title]), done.map(t => t.taskId), st.rvOpen, st.rvErr, have, running && ago(have.advisory.at)])
+  if (key === st.rvKey && box.childElementCount) return
+  st.rvKey = key
+  const card = t => h('button', {
+    type: 'button',
+    class: 'tcard s-' + t.status + (st.rvOpen === t.taskId ? ' sel' : ''),
+    onclick: () => { st.rvOpen = t.taskId; renderTaskReview() }
+  },
+  h('div', { class: 'tcardTop' }, h('span', { class: 'tid' }, t.taskId), taskPill(t.status)),
+  h('div', { class: 'ttitle' }, t.title),
+  h('div', { class: 'tmeta' }, t.projectId + (t.provider ? ' · ' + t.provider : '') + ' · ' + ago(t.updatedAt)))
+  const list = h('div', { class: 'rvList' },
+    h('h2', null, tr('รอคุณตรวจ (') + waiting.length + ')'),
+    waiting.length ? waiting.map(card) : h('div', { class: 'tasksEmpty' }, tr('ไม่มีงานรอตรวจ — งานจะมาที่นี่เมื่อ agent รายงานว่าเสร็จและระบบตรวจขั้นแรกผ่าน')),
+    done.length ? h('h3', null, tr('อนุมัติแล้วล่าสุด')) : null,
+    done.map(card))
+  let detail
+  if (!cur) detail = h('div', { class: 'tasksEmpty' }, tr('เลือกงานทางซ้ายเพื่อดูสิ่งที่เปลี่ยน'))
+  else if (have) detail = reviewDetail(have)
+  else if (st.rvErr && st.rvFor === want) detail = h('div', { class: 'rvCard unknown' }, h('b', null, tr('ไม่ทราบ — อ่านหน้ารีวิวของงานนี้ไม่ได้')), h('div', null, st.rvErr))
+  else detail = h('div', { class: 'tasksEmpty' }, tr('กำลังอ่าน diff จาก checkout…'))
+  box.replaceChildren(h('div', { class: 'rvCols' }, list, h('div', { class: 'rvMain' }, detail)))
+}
+
+async function loadTaskReview (want, id) {
+  st.rvLoading = true
+  try {
+    st.rvData = await api('/tasks/' + encodeURIComponent(id) + '/review')
+    st.rvErr = ''
+  } catch (e) {
+    st.rvLoading = false
+    if (e.message === 'auth') return
+    st.rvData = null
+    st.rvErr = e.message
+  }
+  st.rvFor = want
+  st.rvLoading = false
+  if (st.view === 'review') renderTaskReview()
+}
+
+const baseLabel = {
+  current: ['ok', tr('ฐานตรงกับ mainline ล่าสุด')],
+  behind: ['warn', tr('ฐานเก่ากว่า mainline — มี commit ใหม่กว่าที่งานนี้ยังไม่มี')],
+  diverged: ['warn', tr('ฐานแยกจาก mainline')],
+  unknown: ['unknown', tr('ไม่ทราบ')]
+}
+const testsLabel = {
+  passed: ['ok', tr('เทสต์ผ่าน')],
+  notRun: ['warn', tr('ไม่ได้รันเทสต์')],
+  unknown: ['unknown', tr('ไม่ทราบ')]
+}
+const severityLabel = { info: tr('ข้อสังเกต'), warn: tr('ควรดู'), risk: tr('เสี่ยง') }
+const shortSha = s => (s ? s.slice(0, 10) : '—')
+
+function reviewDetail (d) {
+  const t = d.task
+  const a = d.attempt
+  const fact = (title, state, label, detail) => h('div', { class: 'rvCard ' + state }, h('small', null, title), h('b', null, label), detail ? h('div', { class: 'tmeta' }, detail) : null)
+  const [testCls, testText] = testsLabel[d.tests.state] || testsLabel.unknown
+  const [baseCls, baseText] = baseLabel[d.base.state] || baseLabel.unknown
+  const guarded = (d.files || []).filter(f => f.protected)
+  const baseDetail = [d.base.commit ? tr('ฐาน ') + shortSha(d.base.commit) : '', d.base.mainlineRef ? d.base.mainlineRef + ' ' + shortSha(d.base.mainlineCommit) : ''].filter(Boolean).join(' · ')
+  return h('section', { class: 'rvDetail' },
+    h('div', { class: 'tcardTop' }, h('span', { class: 'tid' }, t.taskId), taskPill(t.status), t.kind ? h('span', { class: 'ppKind' }, t.kind) : null),
+    h('h3', null, t.title),
+    h('div', { class: 'tmeta' }, t.projectId +
+      (a ? ' · ' + (providerTitle[a.provider] || a.provider || '—') + ' · ' + (a.workspace || '—') + ' · ' + a.attemptId + ' · commit ' + shortSha(a.commit) : tr(' · ยังไม่มีความพยายามที่รายงาน commit'))),
+    reviewDecision(d, guarded),
+    h('div', { class: 'rvFacts' },
+      fact(tr('เทสต์'), testCls, testText, d.tests.detail),
+      fact(tr('ฐานของงาน'), baseCls, baseText, baseDetail),
+      fact(tr('สแกนความปลอดภัย'), 'unknown', tr('ไม่ได้สแกน'), tr('ยังไม่มีตัวสแกนในระบบนี้ — ไม่ได้แปลว่าปลอดภัย')),
+      d.diffError
+        ? fact(tr('ไฟล์ที่ต้องให้คนดู'), 'unknown', tr('ไม่ทราบ'), tr('อ่าน diff ไม่ได้'))
+        : guarded.length
+          ? fact(tr('ไฟล์ที่ต้องให้คนดู'), 'warn', guarded.length + tr(' ไฟล์'), guarded.map(f => f.path).join(', '))
+          : fact(tr('ไฟล์ที่ต้องให้คนดู'), 'ok', tr('ไม่มี'), '')),
+    t.riskLabels && t.riskLabels.length ? h('div', { class: 'twarn' }, tr('งานนี้ติดป้ายความเสี่ยง: ') + t.riskLabels.join(', ')) : null,
+    h('h4', null, tr('เกณฑ์ผ่าน')),
+    h('ul', { class: 'rvCriteria' }, (t.acceptanceCriteria || []).map(c => h('li', null, c))),
+    t.allowedPaths && t.allowedPaths.length ? h('div', { class: 'tmeta' }, tr('แก้ได้เฉพาะ: ') + t.allowedPaths.join(', ')) : null,
+    advisoryCard(d),
+    reviewFiles(d),
+    reviewDiff(d))
+}
+
+// The reason box is one node kept across redraws, like the PM edit form.
+function reviewReason (id) {
+  if (!st.rvReason || st.rvReason.id !== id) {
+    st.rvReason = { id, el: h('textarea', { rows: '2', maxlength: '2000', placeholder: tr('เหตุผล — ต้องมีเมื่อขอแก้ · agent จะได้รู้ว่าต้องแก้อะไร') }) }
+  }
+  return st.rvReason.el
+}
+
+function reviewDecision (d, guarded) {
+  const t = d.task
+  if (t.status !== 'awaitingReview') {
+    return h('div', { class: 'rvDecide past' }, tr('งานนี้อยู่ในสถานะ “') + (taskStatusLabel[t.status] || t.status) + tr('” — ดูย้อนหลังได้ ไม่มีอะไรให้ตัดสิน'))
+  }
+  const reason = reviewReason(t.taskId)
+  const decide = async to => {
+    const why = reason.value.trim()
+    if (to === 'queued' && !why) {
+      toast(tr('ขอแก้ต้องบอกเหตุผล — agent จะได้รู้ว่าต้องแก้อะไร'), true)
+      reason.focus()
+      return
+    }
+    if (to === 'completed') {
+      const flags = [
+        d.diffError ? tr('• ไม่ทราบว่าเปลี่ยนอะไร — อ่าน diff ไม่ได้') : '',
+        d.tests.state !== 'passed' ? tr('• ไม่มีหลักฐานว่าเทสต์ผ่าน') : '',
+        d.base.state !== 'current' ? tr('• ฐานของงานไม่ตรงกับ mainline ล่าสุด หรือไม่ทราบ') : '',
+        guarded.length ? tr('• แตะไฟล์ที่ต้องให้คนดู: ') + guarded.map(f => f.path).join(', ') : '',
+        tr('• ไม่ได้สแกนความปลอดภัย')
+      ].filter(Boolean).join('\n')
+      const ok = await confirmBox(tr('อนุมัติว่างานนี้เสร็จแล้ว'), t.taskId + ' · ' + t.title + tr(' — การอนุมัติไม่ใช่การ deploy และไม่ merge ให้'), flags, tr('อนุมัติ'))
+      if (!ok) return
+    }
+    const sent = await spaced(() => act('/tasks/' + encodeURIComponent(t.taskId) + '/transition', { to, reason: why }, () => t.taskId + ' → ' + taskStatusLabel[to]))
+    if (sent) {
+      st.rvReason = null
+      st.rvOpen = null
+    }
+  }
+  return h('div', { class: 'rvDecide' },
+    h('h4', null, tr('การตัดสินใจของคุณ')),
+    reason,
+    h('div', { class: 'ppActs' },
+      h('button', { type: 'button', class: 'pri', onclick: () => decide('completed') }, tr('อนุมัติ — เสร็จแล้ว')),
+      h('button', { type: 'button', class: 'warn', onclick: () => decide('queued') }, tr('ขอแก้ — ส่งกลับเข้าคิว')),
+      h('span', { class: 'tmeta' }, tr('มีแต่คุณที่อนุมัติได้ · การอนุมัติไม่ใช่การ deploy'))))
+}
+
+function advisoryCard (d) {
+  const adv = d.advisory
+  const t = d.task
+  const ask = label => h('button', {
+    type: 'button',
+    disabled: !!d.diffError,
+    title: d.diffError ? tr('ไม่มี diff ให้อ่าน') : '',
+    onclick: async () => {
+      const ok = await spaced(() => act('/tasks/' + encodeURIComponent(t.taskId) + '/advisory', {}, () => tr('ขอความเห็นที่สองแล้ว — กำลังอ่าน diff')))
+      if (ok) st.rvFor = ''
+    }
+  }, label)
+  let body
+  if (!d.advisoryAvailable) {
+    body = [h('div', { class: 'tmeta' }, tr('ยังไม่เปิด — ต้องเปิด PM กลางบนเครื่องนี้ก่อน'))]
+  } else if (!adv) {
+    body = [h('div', { class: 'tmeta' }, tr('ยังไม่ได้ขอ — ให้ AI อีกตัวอ่าน diff แล้วบอกว่าควรดูตรงไหน')), ask(tr('ขอความเห็นที่สอง'))]
+  } else if (adv.state === 'running') {
+    body = [h('div', { class: 'pmBubble thinking' }, h('i', { class: 'dot' }), tr('กำลังอ่าน diff… เริ่ม ') + ago(adv.at))]
+  } else if (adv.state === 'failed') {
+    body = [h('div', { class: 'twarn' }, tr('ขอความเห็นไม่สำเร็จ: ') + (adv.error || tr('ไม่ทราบสาเหตุ'))), ask(tr('ขออีกครั้ง'))]
+  } else {
+    const adv2 = adv.advice || {}
+    const concerns = adv2.concerns || []
+    const checks = adv2.checks || []
+    body = [
+      h('p', null, adv2.summary || ''),
+      concerns.length
+        ? h('ul', { class: 'rvConcerns' }, concerns.map(c => h('li', { class: 'sev-' + c.severity },
+          h('span', { class: 'sev' }, severityLabel[c.severity] || c.severity), c.file ? h('code', null, c.file) : null, ' ', c.note)))
+        : h('div', { class: 'tmeta' }, tr('ไม่มีข้อสังเกต — ไม่ได้แปลว่าไม่มีปัญหา')),
+      checks.length ? h('div', null, h('b', null, tr('ลองเองก่อนตัดสินใจ')), h('ul', null, checks.map(c => h('li', null, c)))) : null,
+      h('div', { class: 'pmFoot' },
+        adv.call && adv.call.skill ? h('span', { class: 'pmSkill' }, tr('ทักษะ: ') + adv.call.skill + ' ' + adv.call.version) : null,
+        h('time', null, fmtTime(adv.at)),
+        ask(tr('ขอใหม่')))
+    ]
+  }
+  return h('div', { class: 'rvAdvisory' },
+    h('h4', null, tr('คำแนะนำ (advisory) — ไม่ใช่ผู้ตัดสิน')),
+    body,
+    h('div', { class: 'tmeta' }, tr('ความเห็นจาก AI ที่อ่าน diff อย่างเดียว ไม่ได้รันโค้ด · คุณเป็นคนตัดสิน')))
+}
+
+function reviewFiles (d) {
+  if (d.diffError) {
+    return h('div', { class: 'rvCard unknown wide' }, h('small', null, tr('ไฟล์ที่เปลี่ยน')), h('b', null, tr('ไม่ทราบ — อ่าน diff ไม่ได้')), h('div', { class: 'tmeta' }, d.diffError))
+  }
+  const files = d.files || []
+  const jump = path => {
+    for (const el of $('review').querySelectorAll('.rvDiff .f')) {
+      if (el.dataset.file === path) { el.scrollIntoView({ block: 'start' }); return }
+    }
+  }
+  return h('div', null,
+    h('h4', null, tr('ไฟล์ที่เปลี่ยน (') + files.length + ')'),
+    files.length
+      ? h('ul', { class: 'rvFiles' }, files.map(f => h('li', null,
+        h('button', { type: 'button', class: 'ghost', onclick: () => jump(f.path) }, h('code', null, f.path)),
+        f.binary ? h('span', { class: 'tmeta' }, 'binary') : [h('span', { class: 'add' }, '+' + f.added), h('span', { class: 'del' }, '−' + f.deleted)],
+        f.protected ? h('span', { class: 'sev' }, tr('ต้องให้คนดู')) : null)))
+      : h('div', { class: 'tmeta' }, tr('commit นี้ไม่ได้เปลี่ยนไฟล์ใด')))
+}
+
+function reviewDiff (d) {
+  if (d.diffError) return null
+  if (!d.diff) return h('div', { class: 'tmeta' }, tr('ไม่มีบรรทัดที่เปลี่ยน'))
+  const pre = h('pre', { class: 'rvDiff' })
+  for (const line of d.diff.split('\n')) {
+    let cls = ''
+    if (line.startsWith('diff --git ')) cls = 'f'
+    else if (line.startsWith('@@')) cls = 'hunk'
+    else if (line.startsWith('+++') || line.startsWith('---') || line.startsWith('index ')) cls = 'meta'
+    else if (line.startsWith('+')) cls = 'add'
+    else if (line.startsWith('-')) cls = 'del'
+    const row = h('span', { class: cls }, line || ' ')
+    if (cls === 'f') {
+      const at = line.lastIndexOf(' b/')
+      if (at > 0) row.dataset.file = line.slice(at + 3)
+    }
+    pre.append(row)
+  }
+  return h('div', null,
+    h('h4', null, 'diff'),
+    d.diffTruncated ? h('div', { class: 'twarn' }, tr('diff ยาวเกินที่หน้านี้แสดง — เห็นเฉพาะส่วนต้น ดูทั้งหมดด้วย git diff ใน workspace')) : null,
+    pre)
 }
 
 // Run last: these use the const bindings declared above them, which are in the
