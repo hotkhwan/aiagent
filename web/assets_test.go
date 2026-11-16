@@ -394,3 +394,49 @@ func TestAThrottledWriteIsNotASignOut(t *testing.T) {
 		t.Error("api() does not tell AIAGENT_SLOW_DOWN apart from AIAGENT_LOCKED")
 	}
 }
+
+// jsFunc is the source of one top-level function of app.js.
+func jsFunc(t *testing.T, src, name string) string {
+	t.Helper()
+	start := strings.Index(src, "function "+name+" (")
+	if start < 0 {
+		t.Fatalf("app.js has no `function %s (` — update this test with the rename", name)
+	}
+	end := strings.Index(src[start:], "\n}")
+	if end < 0 {
+		t.Fatalf("%s() is not closed by a `}` at column 0", name)
+	}
+	return src[start : start+end]
+}
+
+// TestApprovingATaskIsWithinReach guards where a task's buttons are.
+//
+// A ready task waits for one thing: the user pressing "approve — start". The
+// button once came last in the task's panel, under the acceptance criteria and
+// the timeline, and the card on the board said nothing. In a laptop window the
+// panel's head was all that showed: "ready", a title, and no way to start.
+func TestApprovingATaskIsWithinReach(t *testing.T) {
+	b, err := fs.ReadFile(FS, "app.js")
+	if err != nil {
+		t.Fatalf("read app.js: %v", err)
+	}
+	src := string(b)
+
+	detail := jsFunc(t, src, "taskDetail")
+	actions := strings.Index(detail, "class: 'tactions'")
+	long := strings.Index(detail, "class: 'tcols2'")
+	if actions < 0 || long < 0 {
+		t.Fatal("taskDetail() no longer has the tactions row and the tcols2 block — update this test")
+	}
+	if actions > long {
+		t.Error("the task's buttons come after the criteria and the timeline; they belong under the title, where they show without scrolling")
+	}
+
+	card := jsFunc(t, src, "taskCard")
+	if !regexp.MustCompile(`t\.status === 'ready' \? h\('div', \{ class: 'tcall' \}`).MatchString(card) {
+		t.Error("a ready card does not say that it waits for the user's approval")
+	}
+	if !strings.Contains(card, "scrollIntoView") {
+		t.Error("opening a card does not bring the task's panel into view; it opens below the board")
+	}
+}

@@ -3291,12 +3291,19 @@ function taskCard (t) {
   return h('button', {
     type: 'button',
     class: 'tcard s-' + t.status + (st.taskOpen === t.taskId ? ' sel' : ''),
-    onclick: () => { st.taskOpen = st.taskOpen === t.taskId ? null : t.taskId; renderTasks() }
+    onclick: async () => {
+      st.taskOpen = st.taskOpen === t.taskId ? null : t.taskId
+      await renderTasks()
+      // The panel opens under the board, which can be a screen away.
+      const panel = st.taskOpen && document.querySelector('.tdetail')
+      if (panel) panel.scrollIntoView({ block: 'start', behavior: 'smooth' })
+    }
   },
   h('div', { class: 'tcardTop' }, h('span', { class: 'tid' }, t.taskId), taskPill(t.status)),
   h('div', { class: 'ttitle' }, t.title),
   h('div', { class: 'tmeta' }, t.projectId + (t.provider ? ' · ' + t.provider : '') + (a ? ' · ' + tr('ครั้งที่ ') + t.attempts.length + '/' + t.maxAttempts : '') + ' · ' + ago(t.updatedAt)),
   a && a.status === 'unknown' ? h('div', { class: 'tcall' }, tr('ไม่ทราบว่า agent ได้รับหรือยัง — คลิกเพื่อยืนยัน')) : null,
+  t.status === 'ready' ? h('div', { class: 'tcall' }, tr('รอคุณอนุมัติเริ่มงาน — คลิกเพื่อเปิด')) : null,
   t.status === 'awaitingReview' ? h('div', { class: 'tcall' }, tr('รอคุณตรวจ — คลิกเพื่อดูหลักฐาน')) : null,
   t.blockedReason ? h('div', { class: 'tmeta' }, t.blockedReason) : null)
 }
@@ -3378,6 +3385,9 @@ function taskDetail (data) {
   return h('section', { class: 'tdetail' },
     h('div', { class: 'tcardTop' }, h('span', { class: 'tid' }, t.taskId), taskPill(t.status), h('span', { class: 'tmeta' }, tr('รุ่นที่ ') + t.taskRevision)),
     h('h3', {}, t.title),
+    // The buttons come before the long part: a task that waits for the user
+    // must show what it waits for without scrolling.
+    actions.length ? h('div', { class: 'tactions' }, actions) : null,
     h('div', { class: 'tcols2' },
       h('div', {},
         h('h4', {}, tr('เกณฑ์ผ่าน')),
@@ -3392,8 +3402,7 @@ function taskDetail (data) {
           : h('div', { class: 'tmeta' }, '—'),
         h('h4', {}, tr('หลักฐาน')),
         evRows,
-        t.status === 'awaitingReview' ? h('div', { class: 'tmeta' }, tr('การอนุมัติไม่ใช่การ deploy')) : null)),
-    actions.length ? h('div', { class: 'tactions' }, actions) : null)
+        t.status === 'awaitingReview' ? h('div', { class: 'tmeta' }, tr('การอนุมัติไม่ใช่การ deploy')) : null)))
 }
 
 function taskForm () {

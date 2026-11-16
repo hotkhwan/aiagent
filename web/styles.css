@@ -1377,7 +1377,7 @@ body:fullscreen .banner { padding: 6px 18px; font-size: 13px }
 .ttimeline li { padding: 3px 0; border-bottom: 1px dashed var(--line) }
 .twhen { color: var(--muted); font-size: 12px }
 .tok { color: var(--s-completed) } .twarn { color: var(--s-verifying) }
-.tactions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line) }
+.tactions { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 4px; padding-bottom: 12px; border-bottom: 1px solid var(--line) }
 .tform { display: grid; grid-template-columns: repeat(4, minmax(140px, 1fr)); gap: 10px; background: var(--sky2); border: 1px solid var(--line); border-radius: 14px; padding: 12px; margin-bottom: 12px }
 .tform label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted) }
 .tform label.wide { grid-column: span 2 }

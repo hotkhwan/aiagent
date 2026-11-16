@@ -366,6 +366,7 @@ var EN = {
   'ครั้งที่ ': 'attempt ',
   'ไม่ทราบว่า agent ได้รับหรือยัง — คลิกเพื่อยืนยัน': 'Not known whether the agent got it — click to confirm',
   'รอคุณตรวจ — คลิกเพื่อดูหลักฐาน': 'Awaiting your review — click to see the evidence',
+  'รอคุณอนุมัติเริ่มงาน — คลิกเพื่อเปิด': 'Waiting for your approval to start — click to open',
   'สร้างงาน': 'Create task',
   'เริ่ม ': 'Started ',
   ' — เหตุผล': ' — reason',
