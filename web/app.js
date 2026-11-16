@@ -2307,6 +2307,31 @@ const accountName = { claude: 'Claude Code', codex: 'Codex' }
 async function openAccounts () {
   $('accountsDlg').showModal()
   await drawAccounts()
+  await drawCLIs()
+}
+
+// ----- agent CLIs: one button updates every installed CLI, the model menu follows -----
+async function drawCLIs () {
+  clearTimeout(st.cliTimer)
+  if (!$('accountsDlg').open) return
+  let res
+  try { res = await api('/clis') } catch (e) { $('cliBody').replaceChildren(h('p', { class: 'note' }, tr('อ่านรายการ CLI ไม่ได้: ') + e.message)); return }
+  const { clis, update } = res
+  const busy = update.running
+  const run = async () => {
+    if (!await confirmBox(tr('อัปเดต CLI ทั้งหมด'), tr('รันตัวอัปเดตของแต่ละ CLI ที่ติดตั้งบนเครื่องนี้ ใช้เวลาหลายนาที'), '', tr('เริ่มอัปเดต'))) return
+    try { await api('/clis/update', { method: 'POST', body: {} }) } catch (e) { toast(tr('ไม่สำเร็จ: ') + e.message, true) }
+    drawCLIs()
+  }
+  const line = (name, text, note) => h('li', null, h('b', null, name), ' ' + text, note ? h('span', { class: 'note' }, ' · ' + note) : null)
+  $('cliBody').replaceChildren(h('div', { class: 'accCard' },
+    h('div', { class: 'accTop' }, h('b', null, tr('CLI บนเครื่องนี้')), h('button', { type: 'button', class: 'pri', disabled: busy, onclick: run }, busy ? tr('กำลังอัปเดต…') : tr('อัปเดตทุก CLI'))),
+    clis.length ? h('ul', null, ...clis.map(c => line(c.name, c.version || '?', c.method))) : h('p', { class: 'note' }, tr('ไม่พบ CLI ที่รู้จักบนเครื่องนี้')),
+    update.results.length ? h('ul', null, ...update.results.map(r => line(r.name, (r.before || '?') + ' → ' + (r.after || '?'), r.error || tr('เสร็จ')))) : null,
+    h('p', { class: 'note' }, tr('เมื่ออัปเดตเสร็จ รายการ model จะตามเวอร์ชันใหม่ของ CLI โดยไม่ต้องแก้โค้ด'))))
+  if (st.cliBusy && !busy) st.models = null
+  st.cliBusy = busy
+  if (busy) st.cliTimer = setTimeout(drawCLIs, 2500)
 }
 async function drawAccounts () {
   clearTimeout(st.accTimer)

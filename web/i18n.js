@@ -202,6 +202,18 @@ var EN = {
   'ส่งตรงไม่ได้ (session ไม่ได้รันอยู่หรือรับข้อความจากเว็บไม่ได้) — กดคัดลอกแล้ววางใน Claude / Codex เอง':
     'Cannot send directly (the session is not running, or cannot take messages from the web) — copy it and paste into Claude / Codex yourself',
 
+  // agent CLIs
+  'อ่านรายการ CLI ไม่ได้: ': 'Cannot read the CLI list: ',
+  'อัปเดต CLI ทั้งหมด': 'Update all CLIs',
+  'รันตัวอัปเดตของแต่ละ CLI ที่ติดตั้งบนเครื่องนี้ ใช้เวลาหลายนาที': 'Runs each installed CLI’s updater. Takes several minutes.',
+  'เริ่มอัปเดต': 'Start update',
+  'CLI บนเครื่องนี้': 'CLIs on this machine',
+  'กำลังอัปเดต…': 'Updating…',
+  'อัปเดตทุก CLI': 'Update all CLIs',
+  'ไม่พบ CLI ที่รู้จักบนเครื่องนี้': 'No known CLI found on this machine',
+  'เสร็จ': 'Done',
+  'เมื่ออัปเดตเสร็จ รายการ model จะตามเวอร์ชันใหม่ของ CLI โดยไม่ต้องแก้โค้ด': 'After an update the model list follows the new CLI version, no code change needed.',
+
   // accounts
   'อ่านสถานะบัญชีไม่ได้: ': 'Cannot read the account state: ',
   'สลับบัญชี = เปิดหน้า login ของผู้ให้บริการ (ใช้ขั้นตอนของ CLI เอง ไม่ผ่าน shell) · ทุกขั้นบันทึก audit':

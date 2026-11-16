@@ -90,12 +90,6 @@ func (c *Collector) SendToSession(ctx context.Context, id, message string) (stri
 // too, nothing else (claudeModelRE).
 var ModelAliases = []string{"opus", "sonnet", "haiku", "fable"}
 
-// ClaudeModels is the menu offered by the web (id, label).
-var ClaudeModels = [][2]string{
-	{"claude-fable-5-1", "Fable 5.1"}, {"claude-opus-5-5", "Opus 5.5"}, {"claude-sonnet-5-5", "Sonnet 5.5"}, {"claude-haiku-5-5", "Haiku 5.5"},
-	{"opus", "Opus (ล่าสุด)"}, {"sonnet", "Sonnet (ล่าสุด)"}, {"haiku", "Haiku (ล่าสุด)"},
-}
-
 // SetModel switches a Claude Code session's model by typing the /model
 // command through the session's normal channel (agcmd or relay). Only the
 // fixed aliases are accepted, so this cannot carry any other command.

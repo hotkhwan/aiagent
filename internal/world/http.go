@@ -232,6 +232,8 @@ func (s *Service) Mount(app *fiber.App) {
 	api.Post("/sessions/:id/pending/cancel", s.handleCancelPending)
 	api.Get("/reviews", s.handleReviews)
 	api.Get("/models", s.handleModels)
+	api.Get("/clis", s.handleCLIs)
+	api.Post("/clis/update", s.handleCLIUpdate)
 	api.Get("/policy", s.handlePolicy)
 	api.Post("/policy", s.handleSetPolicy)
 	api.Post("/policy/idle", s.handleSetIdle)
@@ -687,10 +689,21 @@ func (s *Service) handleModels(c fiber.Ctx) error {
 		Label string `json:"label"`
 	}
 	var cl []opt
-	for _, m := range ClaudeModels {
+	for _, m := range s.Collector.ClaudeModelMenu() {
 		cl = append(cl, opt{m[0], m[1]})
 	}
 	return c.JSON(okEnv(fiber.Map{"claude": cl, "codex": s.Collector.CodexModels(), "codexDefault": s.Collector.CodexDefaultModel()}))
+}
+
+func (s *Service) handleCLIs(c fiber.Ctx) error {
+	return c.JSON(okEnv(fiber.Map{"clis": s.Collector.InstalledCLIs(c.Context()), "update": s.Collector.CLIUpdateStatus()}))
+}
+
+func (s *Service) handleCLIUpdate(c fiber.Ctx) error {
+	return s.mutate(c, "aiagent.cliUpdate", nil, func() (any, error) {
+		_, err := s.Collector.StartCLIUpdate()
+		return fiber.Map{"update": s.Collector.CLIUpdateStatus()}, err
+	})
 }
 
 func (s *Service) handlePolicy(c fiber.Ctx) error {

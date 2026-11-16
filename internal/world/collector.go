@@ -39,6 +39,7 @@ type Collector struct {
 	Sleep       func(time.Duration)
 
 	mu             sync.Mutex
+	cli            cliState
 	transcripts    map[string]*transcriptState
 	transcriptPath map[string]string
 	cached         *Snapshot
