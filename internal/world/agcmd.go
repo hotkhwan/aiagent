@@ -301,9 +301,22 @@ var engReserved = map[string]bool{
 	"archive": true, "cleanup": true, "diff": true, "exec": true, "wait": true, "help": true,
 }
 
-// cleanText normalises operator text: CRLF→LF, control characters other than
-// newline/tab removed, trimmed, 1..maxTextRunes runes, no leading '-'.
+// cleanText normalises operator text that ends up as a command argument:
+// cleanProse, and no leading '-'.
 func cleanText(s string) (string, error) {
+	s, err := cleanProse(s)
+	if err != nil {
+		return "", err
+	}
+	if strings.HasPrefix(s, "-") {
+		return "", ErrBadRequest("text must not start with '-'")
+	}
+	return s, nil
+}
+
+// cleanProse normalises text a person typed: CRLF→LF, control characters
+// other than newline/tab removed, trimmed, 1..maxTextRunes runes.
+func cleanProse(s string) (string, error) {
 	if !utf8.ValidString(s) {
 		return "", ErrBadRequest("text must be valid UTF-8")
 	}
@@ -324,9 +337,6 @@ func cleanText(s string) (string, error) {
 	}
 	if n > maxTextRunes {
 		return "", ErrBadRequest(fmt.Sprintf("text is longer than %d characters", maxTextRunes))
-	}
-	if strings.HasPrefix(s, "-") {
-		return "", ErrBadRequest("text must not start with '-'")
 	}
 	return s, nil
 }

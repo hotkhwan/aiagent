@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+	"unsafe"
 )
 
 var t0 = time.Date(2026, 11, 14, 8, 0, 0, 0, time.UTC)
@@ -32,6 +33,26 @@ func outboxTask() NewTask {
 		Kind:               "bug",
 		AcceptanceCriteria: []string{"restart แล้วไม่ส่งซ้ำ", "มี test ครอบคลุม"},
 		AllowedPaths:       []string{"internal/world/**"},
+	}
+}
+
+// The HTTP layer hands in ids that live in a request buffer it reuses for the
+// next request. The store keeps its own copy, so a task's history does not
+// change when that buffer does.
+func TestTheStoreKeepsItsOwnCopyOfACallersID(t *testing.T) {
+	s, _ := newStore(t)
+	task, err := s.Create(outboxTask(), ActorUser, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	buf := []byte(task.ID)
+	borrowed := unsafe.String(&buf[0], len(buf))
+	if _, err := s.Transition(borrowed, StatusCancelled, ActorUser, Change{Reason: "ไม่ทำแล้ว"}, ""); err != nil {
+		t.Fatal(err)
+	}
+	copy(buf, "T-9999")
+	if n := len(s.Events(task.ID)); n != 2 {
+		t.Fatalf("history of %s has %d events after the caller's buffer was reused, want 2", task.ID, n)
 	}
 }
 
