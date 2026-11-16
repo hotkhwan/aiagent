@@ -36,16 +36,21 @@ func (c *Collector) AwaitDelivery(ctx context.Context, id, message string, sentA
 	if want == "" {
 		return DeliveryUnknown
 	}
+	// Find the transcript once. Looking it up builds a snapshot of the whole
+	// machine; doing that on every poll made each unacked send rescan
+	// everything twenty times.
+	d, err := c.Detail(ctx, id)
+	if err != nil || d.Session.sourcePath == "" {
+		return DeliveryUnknown
+	}
+	path, runtime := d.Session.sourcePath, d.Session.RuntimeType
 	for i := 0; i < deliveryPolls; i++ {
 		if ctx.Err() != nil {
 			break
 		}
-		msgs, err := c.Messages(ctx, id, 10)
-		if err == nil {
-			for _, m := range msgs {
-				if m.Role == "user" && !m.At.Before(sentAt.Add(-deliverySkew)) && sameMessage(deliveryKey(m.Text), want) {
-					return DeliveryAcked
-				}
+		for _, m := range transcriptMessages(path, runtime, 10) {
+			if m.Role == "user" && !m.At.Before(sentAt.Add(-deliverySkew)) && sameMessage(deliveryKey(m.Text), want) {
+				return DeliveryAcked
 			}
 		}
 		c.sleep(deliveryInterval)
