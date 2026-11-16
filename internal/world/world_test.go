@@ -796,6 +796,30 @@ func TestSubAgentsListed(t *testing.T) {
 	}
 }
 
+// A background session known only to the daemon has no pid registry entry
+// (macOS has no /proc to check one), so its helpers must come from the daemon path.
+func TestDaemonOnlySessionKeepsSubAgents(t *testing.T) {
+	e := newEnv(t)
+	e.now = time.Now()
+	const id = "bbbb2222-0000-0000-0000-000000000000"
+	e.runner.agentsJSON = `[{"id":"bbbb2222","sessionId":"` + id + `","name":"bg helper","kind":"background","state":"working"}]`
+	base := filepath.Join(e.home, ".claude", "projects", "-root")
+	writeFile(t, filepath.Join(base, id+".jsonl"), `{"type":"user","timestamp":"2026-11-04T03:00:00Z","message":{"content":"go"}}`+"\n")
+	sub := filepath.Join(base, id, "subagents")
+	writeFile(t, filepath.Join(sub, "agent-b1.meta.json"), `{"agentType":"Explore","description":"Map the bg job","finished":false}`)
+	writeFile(t, filepath.Join(sub, "agent-b1.jsonl"), `{"type":"user","isSidechain":true,"timestamp":"2026-11-04T03:00:00Z","message":{"role":"user","content":"Map the bg job"}}`+"\n")
+	snap := e.col.Snapshot(context.Background())
+	var got Session
+	for _, s := range snap.Sessions {
+		if s.SessionID == id {
+			got = s
+		}
+	}
+	if !got.Live || len(got.SubAgents) != 1 || got.SubAgents[0].ID != "b1" || got.SubAgents[0].Status != "running" {
+		t.Fatalf("daemon-only session = live %v, subagents %+v", got.Live, got.SubAgents)
+	}
+}
+
 // TestEveryEmbeddedAssetIsServable guards the asset allowlist against the
 // files actually shipped (a too-strict pattern silently 404s sprites).
 func TestEveryEmbeddedAssetIsServable(t *testing.T) {

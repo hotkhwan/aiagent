@@ -222,6 +222,12 @@ func (c *Collector) collectLocked(ctx context.Context) Snapshot {
 		}
 	}
 	snap.Sessions = c.mergeDaemon(ctx, snap.Sessions)
+	for i := range snap.Sessions {
+		s := &snap.Sessions[i]
+		if s.Live && s.RuntimeType == "claudeCode" && s.sourcePath != "" {
+			s.SubAgents = c.subAgents(s.sourcePath, s.SessionID)
+		}
+	}
 	snap.Sessions = codexPresence(procs, snap.Sessions)
 	c.forgetUnseen(snap.Sessions)
 
