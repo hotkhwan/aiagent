@@ -13,7 +13,11 @@ import (
 )
 
 // providerQuota maps a routable provider to its quota provider id.
-var providerQuota = map[string]string{"claude": "anthropic", "codex": "openai"}
+var providerQuota = map[string]string{"claude": "anthropic", "codex": "openai", "gemini": "google"}
+
+// routableProviders is the order "auto" starts from before sorting by plan
+// headroom; it is fixed so the result does not depend on map order.
+var routableProviders = []string{"claude", "codex", "gemini"}
 
 // Dispatch starts a mission in the named workspace, or with no workspace in
 // the one routing picks for the provider.
@@ -31,12 +35,15 @@ func (c *Collector) Dispatch(ctx context.Context, workspace, provider, task stri
 
 func (c *Collector) routeMission(ctx context.Context, provider string) (workspaceEntry, error) {
 	if provider != "auto" && providerQuota[provider] == "" {
-		return workspaceEntry{}, ErrBadRequest("name a workspace, or a provider: claude, codex or auto")
+		return workspaceEntry{}, ErrBadRequest("name a workspace, or a provider: claude, codex, gemini or auto")
 	}
 	tm := c.readTmux(ctx)
 	ready := func(w workspaceEntry) bool {
 		_, up := tm.sessions[w.session]
-		return up && agentReady(tm.agentCmd[w.session])
+		cmd := tm.agentCmd[w.session]
+		// The pane has to be running the provider's own CLI, not just any
+		// agent: readTmux has already named node panes by what they run.
+		return up && agentReady(cmd) && (w.provider == "" || paneAgent(nil, cmd, 0) == w.provider)
 	}
 	return pickWorkspace(c.Workspaces, provider, c.Snapshot(ctx).Quotas, ready)
 }
@@ -46,7 +53,7 @@ func (c *Collector) routeMission(ctx context.Context, provider string) (workspac
 func pickWorkspace(ws []workspaceEntry, provider string, quotas []Quota, ready func(workspaceEntry) bool) (workspaceEntry, error) {
 	order := []string{provider}
 	if provider == "auto" {
-		order = []string{"claude", "codex"}
+		order = append([]string(nil), routableProviders...)
 		sort.SliceStable(order, func(i, j int) bool {
 			return usedForRouting(quotas, order[i]) < usedForRouting(quotas, order[j])
 		})

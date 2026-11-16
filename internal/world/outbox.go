@@ -24,6 +24,8 @@ import (
 	"path/filepath"
 	"sync"
 	"time"
+
+	"github.com/hotkhwan/aiagent/internal/audit"
 )
 
 const (
@@ -37,6 +39,20 @@ const (
 )
 
 var outboxMu sync.Mutex
+
+// flushMu keeps flushes one at a time, so a message found mid-send when a flush
+// starts was left there by a process that died, not by a flush still running.
+var flushMu sync.Mutex
+
+// The life of a queued message. A message is only ever typed from
+// PendingWaiting, and it is marked PendingSending on disk before the text
+// reaches tmux, so a crash leaves evidence instead of a silent re-send.
+const (
+	PendingWaiting = ""        // queued, the agent was busy
+	PendingSending = "sending" // being typed right now
+	PendingUnknown = "unknown" // a send was interrupted; it may or may not have arrived
+	PendingFailed  = "failed"  // the session refused it; kept so the operator sees why
+)
 
 func pendingID(now time.Time) string {
 	var rb [6]byte
@@ -52,6 +68,7 @@ type Pending struct {
 	QueuedAt  time.Time `json:"queuedAt"`
 	Tries     int       `json:"tries"`
 	LastError string    `json:"lastError,omitempty"`
+	State     string    `json:"state,omitempty"`
 }
 
 func (s *Service) outboxPath() string { return filepath.Join(s.Store.dir, outboxFile) }
@@ -74,8 +91,22 @@ func (s *Service) saveOutbox(list []Pending) error {
 	if err != nil {
 		return err
 	}
+	// fsync before the rename: the PendingSending mark is only worth anything
+	// if it is on disk before the text is typed.
 	tmp := s.outboxPath() + ".tmp"
-	if err := os.WriteFile(tmp, b, 0o600); err != nil {
+	f, err := os.OpenFile(tmp, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
+	if err != nil {
+		return err
+	}
+	if _, err := f.Write(b); err != nil {
+		f.Close()
+		return err
+	}
+	if err := f.Sync(); err != nil {
+		f.Close()
+		return err
+	}
+	if err := f.Close(); err != nil {
 		return err
 	}
 	return os.Rename(tmp, s.outboxPath())
@@ -145,53 +176,145 @@ func (s *Service) CancelPending(sessionID, id string) int {
 	return gone
 }
 
-// FlushOutbox tries every waiting message once. One that is still refused stays
-// where it is; one that fails for any other reason is dropped, because retrying
-// a message the service cannot deliver would type it in at some unrelated later
-// moment. It returns how many were delivered.
+// FlushOutbox tries every waiting message once and returns how many were
+// delivered.
+//
+// Each message is marked PendingSending on disk before it is typed and settled
+// after, one at a time, so the file always says what may already be in a pane:
+//   - delivered: removed;
+//   - still refused as busy: back to waiting, tried again on the next tick;
+//   - refused for any other reason: kept as PendingFailed with the reason and
+//     never retried, because typing it at some unrelated later moment is worse
+//     than not typing it at all;
+//   - found still PendingSending when a flush starts: a previous process died
+//     mid-send, so it becomes PendingUnknown and the queue never types it
+//     again. The operator decides.
 func (s *Service) FlushOutbox(ctx context.Context, now time.Time) int {
+	flushMu.Lock()
+	defer flushMu.Unlock()
+
 	outboxMu.Lock()
 	list := fresh(s.loadOutbox(), now)
+	stranded := false
+	var ids []string
+	for i := range list {
+		switch list[i].State {
+		case PendingSending:
+			list[i].State = PendingUnknown
+			list[i].LastError = "the service stopped while typing this message; it may already have arrived"
+			stranded = true
+		case PendingWaiting:
+			ids = append(ids, list[i].ID)
+		}
+	}
+	if stranded {
+		_ = s.saveOutbox(list)
+	}
 	outboxMu.Unlock()
-	if len(list) == 0 {
-		return 0
-	}
+
 	sent := 0
-	done := map[string]bool{}
 	busy := map[string]bool{}
-	for _, p := range list {
-		// One refusal is enough: the rest for that session are refused too,
-		// and each attempt costs the relay's full readiness wait.
-		if busy[p.SessionID] {
+	for _, id := range ids {
+		p, ok := s.claimPending(id, now, busy)
+		if !ok {
 			continue
 		}
+		s.auditOutbox("intent", p, nil)
 		_, err := s.Collector.SendToSession(ctx, p.SessionID, p.Message)
-		if err == nil {
-			done[p.ID] = true
-			sent++
-			continue
-		}
-		if ae, ok := err.(*APIError); ok && ae.Code == "AIAGENT_RELAY_NOT_READY" {
+		if isRelayBusy(err) {
+			// One refusal is enough: the rest for that session are refused
+			// too, and each attempt costs the relay's full readiness wait.
 			busy[p.SessionID] = true
-			continue
+		} else if err == nil {
+			sent++
 		}
-		done[p.ID] = true
+		s.settlePending(id, err)
+		s.auditOutbox("result", p, err)
 	}
+	return sent
+}
+
+func isRelayBusy(err error) bool {
+	ae, ok := err.(*APIError)
+	return ok && ae.Code == "AIAGENT_RELAY_NOT_READY"
+}
+
+// claimPending marks one waiting message as being sent, on disk, and returns
+// it. It re-reads the queue under the lock, so a message cancelled since the
+// flush began is not typed.
+func (s *Service) claimPending(id string, now time.Time, busy map[string]bool) (Pending, bool) {
 	outboxMu.Lock()
 	defer outboxMu.Unlock()
-	cur := fresh(s.loadOutbox(), now)
-	kept := cur[:0]
-	for _, p := range cur {
-		if done[p.ID] {
+	list := fresh(s.loadOutbox(), now)
+	for i := range list {
+		if list[i].ID != id {
 			continue
 		}
-		if busy[p.SessionID] {
+		if list[i].State != PendingWaiting || busy[list[i].SessionID] {
+			return Pending{}, false
+		}
+		list[i].State = PendingSending
+		if err := s.saveOutbox(list); err != nil {
+			// Without the mark on disk a crash could re-send it; skip this
+			// tick rather than type without a record.
+			return Pending{}, false
+		}
+		return list[i], true
+	}
+	return Pending{}, false
+}
+
+// settlePending records how a send ended.
+func (s *Service) settlePending(id string, err error) {
+	outboxMu.Lock()
+	defer outboxMu.Unlock()
+	list := s.loadOutbox()
+	kept := list[:0]
+	for _, p := range list {
+		if p.ID == id {
+			if err == nil {
+				continue
+			}
 			p.Tries++
+			if isRelayBusy(err) {
+				p.State = PendingWaiting
+			} else {
+				p.State = PendingFailed
+				p.LastError = trimErr(err.Error())
+			}
 		}
 		kept = append(kept, p)
 	}
 	_ = s.saveOutbox(kept)
-	return sent
+}
+
+// auditOutbox records a queued send the way an HTTP write is recorded: the
+// intent before the text is typed, the result after.
+func (s *Service) auditOutbox(event string, p Pending, err error) {
+	if s.Auditor == nil {
+		return
+	}
+	r := audit.Record{Event: event, RPC: "aiagent.outbox", AdminSub: "outbox", ParamsHash: paramsHash(p.SessionID, p.ID)}
+	if event == "result" {
+		r.Result = "ok"
+		if err != nil {
+			r.Result = "error"
+			r.Err = trimErr(err.Error())
+		}
+	}
+	_ = s.Auditor.Write(r)
+}
+
+// trimErr shortens an error for the queue file, the API and the audit log, and
+// runs it through Redact: it carries CLI output, and the queue is served to
+// the browser.
+func trimErr(s string) string {
+	s = Redact(s)
+	const max = 200
+	if len(s) > max {
+		return s[:max] + "…"
+	}
+	return s
 }
 
 // StartOutbox retries the queue while the service is switched on.

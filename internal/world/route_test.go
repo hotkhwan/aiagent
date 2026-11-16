@@ -78,7 +78,7 @@ func TestLoadWorkspacesReadsAndChecksProvider(t *testing.T) {
 	if err != nil || len(ws) != 1 || ws[0].provider != "codex" {
 		t.Fatalf("provider not read: %+v, %v", ws, err)
 	}
-	bad := write("bad.json", `{"workspaces":[{"name":"lit","tmuxSession":"lit","dir":"/home/dev/lit","provider":"gemini"}]}`)
+	bad := write("bad.json", `{"workspaces":[{"name":"lit","tmuxSession":"lit","dir":"/home/dev/lit","provider":"llama"}]}`)
 	if _, err := LoadWorkspaces(bad); err == nil {
 		t.Fatal("an unknown provider must fail at startup")
 	}
@@ -107,11 +107,53 @@ func TestMissionByProviderRoutesToThatProvidersWorkspace(t *testing.T) {
 	}
 
 	time.Sleep(writeSpacing)
-	if code, m, _ := e.do(t, "POST", "/aiagent/api/missions", tok, `{"provider":"gemini","task":"x"}`); code != 400 {
+	if code, m, _ := e.do(t, "POST", "/aiagent/api/missions", tok, `{"provider":"llama","task":"x"}`); code != 400 {
 		t.Fatalf("unknown provider must be a 400: %d %v", code, m)
 	}
 	time.Sleep(writeSpacing)
 	if code, m, _ := e.do(t, "POST", "/aiagent/api/missions", tok, `{"task":"x"}`); code != 400 {
 		t.Fatalf("no workspace and no provider must be a 400: %d %v", code, m)
+	}
+}
+
+// A workspace configured for one provider can have a different CLI running in
+// its agent window. Routing by provider must go by what the pane actually
+// runs, or work the PM meant for Gemini lands in Claude without a word.
+func TestRoutingByProviderChecksWhatThePaneRuns(t *testing.T) {
+	e := newEnv(t)
+	tok, _ := e.store.Enable("test")
+	e.col.Workspaces = []workspaceEntry{{name: "lit-gem", session: "lit-gem", dir: "/home/dev/lit", provider: "gemini"}}
+	e.runner.sessions = "lit-gem\t1793750000\n"
+	e.runner.panes = "lit-gem\tagent\t1\t2.1.318\n"
+	time.Sleep(writeSpacing)
+
+	if code, m, _ := e.do(t, "POST", "/aiagent/api/missions", tok, `{"provider":"gemini","task":"x"}`); code != 409 {
+		t.Fatalf("a gemini workspace running claude must not take gemini work: %d %v", code, m)
+	}
+	if calls := e.runner.agcmdCalls(); len(calls) != 0 {
+		t.Fatalf("nothing should have been dispatched; agcmd calls: %q", calls)
+	}
+}
+
+// The PM picks among Claude, Codex and Gemini, all through their subscription
+// CLIs. A gemini workspace is routable by name, and with no quota reading for
+// Gemini yet, "auto" tries it last rather than inventing a number for it.
+func TestGeminiIsARoutableProviderTriedLastWhenItsQuotaIsUnknown(t *testing.T) {
+	ws := []workspaceEntry{
+		{name: "lit", session: "lit", provider: "claude"},
+		{name: "lit-gem", session: "lit-gem", provider: "gemini"},
+	}
+	all := func(workspaceEntry) bool { return true }
+	quotas := []Quota{usedRow("anthropic", 90)}
+
+	if w, err := pickWorkspace(ws, "gemini", quotas, all); err != nil || w.name != "lit-gem" {
+		t.Fatalf("provider gemini = %q, %v; want lit-gem", w.name, err)
+	}
+	if w, _ := pickWorkspace(ws, "auto", quotas, all); w.name != "lit" {
+		t.Fatalf("auto picked %q; a provider with no reading must go last", w.name)
+	}
+	claudeDown := func(w workspaceEntry) bool { return w.provider != "claude" }
+	if w, _ := pickWorkspace(ws, "auto", quotas, claudeDown); w.name != "lit-gem" {
+		t.Fatalf("auto picked %q with claude down; want lit-gem", w.name)
 	}
 }

@@ -50,6 +50,21 @@ jobs:
           go mod tidy
           git diff --exit-code -- go.mod go.sum
 
+  # The service runs on a Mac mini in practice, so the darwin build and the
+  # tests have to pass there too, not only on Linux.
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: go vet
+        run: go vet ./...
+      - name: test
+        run: go test -race -count=1 ./...
+
   security:
     runs-on: ubuntu-latest
     steps:

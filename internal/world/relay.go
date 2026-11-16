@@ -201,6 +201,7 @@ func (c *Collector) relayWait(ctx context.Context, name string) (bool, string) {
 func (c *Collector) relaySend(ctx context.Context, ss *Session, message string) error {
 	short := shortID(ss.SessionID)
 	name := relayName(short)
+	defer c.lockSend("relay:" + name)()
 	// Two goes. remain-on-exit leaves a dead pane behind when an attach ends,
 	// and a leftover one is not evidence that the CLI would refuse now — the
 	// first pass replaces it, and only a fresh attach that also dies is

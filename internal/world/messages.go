@@ -79,20 +79,26 @@ func (c *Collector) Messages(ctx context.Context, id string, limit int) ([]Messa
 	if err != nil {
 		return nil, err
 	}
-	path := d.Session.sourcePath
+	return transcriptMessages(d.Session.sourcePath, d.Session.RuntimeType, limit), nil
+}
+
+// transcriptMessages reads the last limit turns of one transcript file,
+// without looking anything else up — for a caller that already knows the
+// file and reads it repeatedly.
+func transcriptMessages(path, runtimeType string, limit int) []Message {
 	if path == "" {
-		return []Message{}, nil
+		return []Message{}
 	}
 	fi, err := os.Stat(path)
 	if err != nil {
-		return []Message{}, nil
+		return []Message{}
 	}
 	// same file, same size, same mtime → same answer (monitor polls often)
 	ck := msgCacheKey{path, fi.Size(), fi.ModTime().UnixNano(), limit}
 	msgCache.mu.Lock()
 	if v, ok := msgCache.m[ck]; ok {
 		msgCache.mu.Unlock()
-		return append([]Message(nil), v...), nil
+		return append([]Message(nil), v...)
 	}
 	msgCache.mu.Unlock()
 	// transcripts can end in megabytes of tool output (e.g. screenshots);
@@ -104,7 +110,7 @@ func (c *Collector) Messages(ctx context.Context, id string, limit int) ([]Messa
 	var out []Message
 	for window := start; ; window *= 4 {
 		lines := readTail(path, fi.Size(), window)
-		if d.Session.RuntimeType == "codexCli" {
+		if runtimeType == "codexCli" {
 			out = codexMessages(lines)
 		} else {
 			out = claudeMessages(lines)
@@ -125,7 +131,7 @@ func (c *Collector) Messages(ctx context.Context, id string, limit int) ([]Messa
 	}
 	msgCache.m[ck] = out
 	msgCache.mu.Unlock()
-	return append([]Message(nil), out...), nil
+	return append([]Message(nil), out...)
 }
 
 type msgCacheKey struct {
