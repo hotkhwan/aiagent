@@ -212,6 +212,13 @@ func (s *Store) appendEvents(build func() ([]Event, error)) ([]Event, error) {
 			if err != nil {
 				return err
 			}
+			// Keep what the log holds rather than what the caller passed: a
+			// caller's string may sit in a buffer that is reused after the call.
+			var own Event
+			if err := json.Unmarshal(b, &own); err != nil {
+				return err
+			}
+			evs[i] = own
 			buf.Write(b)
 			buf.WriteByte('\n')
 		}

@@ -26,6 +26,7 @@ import (
 	"github.com/gofiber/fiber/v3"
 
 	"github.com/hotkhwan/aiagent/internal/audit"
+	"github.com/hotkhwan/aiagent/internal/planner"
 	"github.com/hotkhwan/aiagent/internal/taskstore"
 	"github.com/hotkhwan/aiagent/internal/world"
 )
@@ -152,6 +153,13 @@ func serve(args []string) {
 		// An attempt that shows no transcript activity for this long is
 		// reported as expired; nothing is requeued by itself.
 		svc.Orch = world.NewOrchestrator(ts, col, 45*time.Minute)
+		// The central PM: a headless claude call on the subscription login,
+		// with no tools. It only proposes; without its log its routes stay off.
+		if th, err := planner.OpenThread(filepath.Join(dir, "pm.jsonl")); err != nil {
+			log.Printf("PM log unavailable, PM routes are off: %v", err)
+		} else {
+			svc.PM, svc.PMThread = &planner.Cloud{Exec: planner.OSExec{}, Path: col.ClaudePath}, th
+		}
 	}
 	svc.Mount(app)
 

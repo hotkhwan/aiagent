@@ -23,7 +23,9 @@ var protected = []string{
 	"package.json", "package-lock.json", ".golangci",
 }
 
-func isProtected(p string) bool {
+// IsProtected reports whether p is one of those paths. The review page marks
+// such files so the user looks at them first.
+func IsProtected(p string) bool {
 	if strings.HasSuffix(p, "_test.go") || strings.Contains(p, ".test.") || strings.Contains(p, ".spec.") {
 		return true
 	}
@@ -102,7 +104,7 @@ func (o *Orchestrator) verifyOne(ctx context.Context, t taskstore.Task) {
 		if !allowed(f, t.AllowedPaths) {
 			outside = append(outside, f)
 		}
-		if isProtected(f) {
+		if IsProtected(f) {
 			flagged = append(flagged, f)
 		}
 	}
