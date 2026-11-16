@@ -12,6 +12,8 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"reflect"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -37,9 +39,18 @@ type fakeRunner struct {
 	// rather than report: dead until the relay is started again.
 	paneDeadStale bool
 	agentsJSON    string
+	crashOnEnter  bool   // panic on the Enter that submits a typed message
+	psOut         string // what `ps` prints, for a host without /proc
+	gitHead       string // the HEAD of every checkout, the only commit that exists
+	// afterType runs, outside the lock, each time literal text is typed with
+	// send-keys -l. Set it before any goroutine starts.
+	afterType func()
 }
 
 func (f *fakeRunner) Run(_ context.Context, name string, args ...string) ([]byte, error) {
+	if f.afterType != nil && name == "tmux" && len(args) > 0 && args[0] == "send-keys" && slices.Contains(args, "-l") {
+		defer f.afterType()
+	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.calls = append(f.calls, append([]string{name}, args...))
@@ -101,6 +112,11 @@ func (f *fakeRunner) Run(_ context.Context, name string, args ...string) ([]byte
 				}
 			}
 			if args[0] == "send-keys" {
+				if f.crashOnEnter && args[len(args)-1] == "Enter" {
+					// The text is already in the pane; the process dies before
+					// it can record that.
+					panic("simulated crash after typing")
+				}
 				return nil, nil
 			}
 			if f.paneDead || f.paneDeadStale {
@@ -110,6 +126,23 @@ func (f *fakeRunner) Run(_ context.Context, name string, args ...string) ([]byte
 				return []byte("──\nesc to interrupt\n──"), nil
 			}
 			return []byte("──\n❯ \n──"), nil
+		}
+		return nil, nil
+	}
+	if name == "ps" {
+		return []byte(f.psOut), nil
+	}
+	if name == "git" {
+		switch {
+		case slices.Contains(args, "rev-parse"):
+			return []byte(f.gitHead + "\n"), nil
+		case slices.Contains(args, "cat-file"):
+			for _, a := range args {
+				if strings.HasPrefix(a, f.gitHead) && f.gitHead != "" {
+					return nil, nil
+				}
+			}
+			return nil, errors.New("fatal: Not a valid object name")
 		}
 		return nil, nil
 	}
@@ -396,7 +429,7 @@ func TestAnswerOnlyWhenWaiting(t *testing.T) {
 	e := newEnv(t)
 	tok, _ := e.store.Enable("test")
 	e.runner.sessions = "api\t1\n"
-	e.runner.panes = "api\tagent\t1\tnode\n"
+	e.runner.panes = "api\tagent\t1\tclaude\n"
 	writeFile(t, filepath.Join(e.runs, "ENG-20261104-002.json"), `{"id":"ENG-20261104-002","task":"t","workspace":"api","session":"api","status":"RUNNING","created_at":"2026-11-04T01:00:00Z","updated_at":"2026-11-04T01:00:00Z","decision":null}`)
 	if code, _, _ := e.do(t, "POST", "/aiagent/api/runs/ENG-20261104-002/answer", tok, `{"answer":"ok"}`); code != 409 {
 		t.Fatalf("answer to a non-waiting run: %d", code)
@@ -876,7 +909,7 @@ func TestLoadWorkspaces(t *testing.T) {
 	}
 	// The trailing slash must be cleaned, or prefix matching in workspaceFor
 	// would compare against "/home/dev/web//".
-	if ws[0] != (workspaceEntry{name: "web", session: "web", dir: "/home/dev/web"}) {
+	if !reflect.DeepEqual(ws[0], workspaceEntry{name: "web", session: "web", dir: "/home/dev/web"}) {
 		t.Errorf("first entry = %+v", ws[0])
 	}
 	if ws[1].session != "api-agent" {

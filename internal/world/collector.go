@@ -18,8 +18,11 @@ import (
 type Collector struct {
 	// Homes lists home directories to scan. Empty → /root plus every
 	// /home/* that contains .claude or .codex.
-	Homes      []string
-	ProcRoot   string
+	Homes    []string
+	ProcRoot string
+	// Loc is the zone ps prints start times in where there is no /proc;
+	// nil means time.Local.
+	Loc        *time.Location
 	RunsDir    string
 	AgcmdPath  string
 	TmuxPath   string
@@ -45,6 +48,7 @@ type Collector struct {
 	cachedAt       time.Time
 
 	daemonMu    sync.Mutex
+	sendLocks   sync.Map // tmux target → *sync.Mutex, see lockSend
 	daemonCache []daemonEntry
 	daemonAt    time.Time
 }
@@ -198,13 +202,14 @@ func (c *Collector) collectLocked(ctx context.Context) Snapshot {
 	host, _ := os.Hostname()
 	snap := Snapshot{GeneratedAt: now.UTC(), Host: host, Sessions: []Session{}, Runs: []Run{}, Warnings: []string{}}
 
+	pt := c.readProcTable(ctx)
 	open := openFiles(c.ProcRoot, ".jsonl")
 	procs := codexProcesses(c.ProcRoot)
 	var reading *codexReading
 	seen := map[string]bool{}
 	for _, h := range c.homes() {
 		owner := filepath.Base(h)
-		for _, s := range c.collectClaude(h, owner, since) {
+		for _, s := range c.collectClaude(h, owner, since, pt) {
 			if !seen[s.RuntimeType+s.SessionID] {
 				seen[s.RuntimeType+s.SessionID] = true
 				snap.Sessions = append(snap.Sessions, s)
@@ -235,10 +240,9 @@ func (c *Collector) collectLocked(ctx context.Context) Snapshot {
 	// panes running `claude attach <id>` deliver typed text to that session
 	attached := map[string]string{} // attach target → workspace
 	if len(tm.agentPid) > 0 {
-		kids := childMap(c.ProcRoot)
 		for _, w := range snap.Workspaces {
 			if pane := tm.agentPid[w.TmuxSession]; w.AgentReady && pane > 0 {
-				if t := attachTarget(c.ProcRoot, pane, kids); t != "" {
+				if t := pt.attachTarget(pane); t != "" {
 					attached[t] = w.Name
 				}
 			}
@@ -256,7 +260,7 @@ func (c *Collector) collectLocked(ctx context.Context) Snapshot {
 			continue
 		}
 		for _, w := range snap.Workspaces {
-			if pane := tm.agentPid[w.TmuxSession]; w.AgentReady && pane > 0 && descendsFrom(c.ProcRoot, ss.Pid, pane) {
+			if pane := tm.agentPid[w.TmuxSession]; w.AgentReady && pane > 0 && pt.descendsFrom(ss.Pid, pane) {
 				ss.DispatchVia = w.Name
 				ss.inPane = w.Name
 				break

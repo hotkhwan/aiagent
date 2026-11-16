@@ -254,7 +254,7 @@ func countClaudeUsage(path string, st *transcriptState) {
 
 // collectClaude returns live sessions from the registry plus sessions whose
 // transcript changed since `since` (ended, history only).
-func (c *Collector) collectClaude(home, owner string, since time.Time) []Session {
+func (c *Collector) collectClaude(home, owner string, since time.Time, pt procTable) []Session {
 	var out []Session
 	liveIDs := map[string]bool{}
 	regs, _ := filepath.Glob(filepath.Join(home, ".claude", "sessions", "*.json"))
@@ -267,7 +267,7 @@ func (c *Collector) collectClaude(home, owner string, since time.Time) []Session
 		if json.Unmarshal(b, &reg) != nil || reg.SessionID == "" || reg.Pid <= 0 {
 			continue
 		}
-		start, alive := procStartTime(c.ProcRoot, reg.Pid)
+		start, alive := pt.startTime(reg.Pid)
 		if !alive || (reg.ProcStart != "" && start != reg.ProcStart) {
 			continue // stale registry entry: the process is gone
 		}

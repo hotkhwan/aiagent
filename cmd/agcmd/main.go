@@ -24,6 +24,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -150,30 +151,29 @@ func tmux(args ...string) (string, error) {
 	return strings.TrimSpace(string(out)), err
 }
 
-// shellCommands are what a pane runs when it is NOT an agent. Typing into one
-// of these would execute the text as a command.
-var shellCommands = map[string]bool{
-	"bash": true, "sh": true, "zsh": true, "fish": true, "dash": true,
-	"login": true, "tmux": true, "": true,
-}
-
-// agentPane returns the target for a workspace's agent window and what it is
-// running, refusing anything that is not an agent CLI.
+// agentPane returns the pane id of a workspace's agent window and what it is
+// running, refusing anything that is not an agent CLI (world.PaneAgent).
+//
+// The session is matched exactly ("=name") so a session whose name merely
+// starts with the workspace's cannot receive the text, and the target is the
+// pane id rather than the window, so the pane that was checked is the pane
+// that is typed into even if another pane becomes active in between.
 func agentPane(w world.WorkspaceInfo) (target, running string, err error) {
-	out, err := tmux("list-panes", "-t", w.TmuxSession+":agent", "-F", "#{pane_active}\t#{pane_current_command}")
+	out, err := tmux("list-panes", "-t", "="+w.TmuxSession+":agent", "-F", "#{pane_active}\t#{pane_id}\t#{pane_pid}\t#{pane_current_command}")
 	if err != nil {
 		return "", "", fmt.Errorf("workspace %q: no tmux session %q with an \"agent\" window (%s)", w.Name, w.TmuxSession, out)
 	}
 	for _, line := range strings.Split(out, "\n") {
-		f := strings.SplitN(strings.TrimSpace(line), "\t", 2)
-		if len(f) != 2 || f[0] != "1" {
+		f := strings.SplitN(strings.TrimSpace(line), "\t", 4)
+		if len(f) != 4 || f[0] != "1" {
 			continue
 		}
-		running = f[1]
-		if shellCommands[running] {
-			return "", running, fmt.Errorf("workspace %q: the agent pane is running %q, not an agent CLI — refusing to type into a shell", w.Name, running)
+		running = f[3]
+		pid, _ := strconv.Atoi(f[2])
+		if world.PaneAgent(context.Background(), world.ExecRunner{}, "/proc", running, pid) == "" {
+			return "", running, fmt.Errorf("workspace %q: the agent pane is running %q, not an agent CLI — refusing to type into it", w.Name, running)
 		}
-		return w.TmuxSession + ":agent", running, nil
+		return f[1], running, nil
 	}
 	return "", "", fmt.Errorf("workspace %q: no active pane in %s:agent", w.Name, w.TmuxSession)
 }
@@ -328,9 +328,17 @@ func appendLog(id, line string) error {
 
 // nextRunID allocates ENG-<date>-NNN, counting only today's records so the
 // numbers stay short and readable.
+//
+// The id is reserved by creating its record file with O_EXCL, so two agcmd
+// processes started at the same moment cannot both take it: the loser sees the
+// file exists and moves to the next number. saveRun later replaces the empty
+// reservation; readers already skip a record they cannot parse.
 func nextRunID() (string, error) {
 	day := time.Now().Format("20060102")
 	prefix := "ENG-" + day + "-"
+	if err := os.MkdirAll(runsDir(), 0o700); err != nil {
+		return "", err
+	}
 	files, _ := filepath.Glob(filepath.Join(runsDir(), prefix+"*.json"))
 	high := 0
 	for _, p := range files {
@@ -339,7 +347,18 @@ func nextRunID() (string, error) {
 			high = n
 		}
 	}
-	return fmt.Sprintf("%s%03d", prefix, high+1), nil
+	for n := high + 1; n < high+1000; n++ {
+		id := fmt.Sprintf("%s%03d", prefix, n)
+		f, err := os.OpenFile(filepath.Join(runsDir(), id+".json"), os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
+		if errors.Is(err, os.ErrExist) {
+			continue
+		}
+		if err != nil {
+			return "", err
+		}
+		return id, f.Close()
+	}
+	return "", fmt.Errorf("no free run id after %s%03d", prefix, high)
 }
 
 // ---------- commands ----------
@@ -481,7 +500,7 @@ func engCreate(task, workspace string) error {
 		_ = appendLog(id, "could not send: "+err.Error())
 		return err
 	}
-	_ = appendLog(id, "sent to "+target)
+	_ = appendLog(id, "sent to "+w.TmuxSession+":agent (pane "+target+")")
 	// This line is the contract with AI Agent World: it reads the run id back
 	// out of stdout with the pattern `(ENG-\d{8}-\d{3,})\s+RUNNING`.
 	fmt.Printf("%s  %s  %s\n", id, statusRunning, w.Name)

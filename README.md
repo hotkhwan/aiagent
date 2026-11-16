@@ -10,7 +10,7 @@ for work that is not happening.
 
 > **Status: alpha.** It has been run by its author on one machine. The security
 > model below is real and tested, but this has not had an outside audit, and
-> the UI is in Thai. See [Known gaps](#known-gaps).
+> the UI defaults to Thai. See [Known gaps](#known-gaps).
 
 ## What you see
 
@@ -169,14 +169,15 @@ version, including what is **not** protected, is in
 
 ## Known gaps
 
-- **The UI is Thai only.** The code and docs are English; the interface is not.
-- **Linux-first, but not Linux-only.** Process discovery reads `/proc`, which
-  macOS and BSD do not have. Measured on macOS: sessions Claude Code's own
-  daemon reports (`claude agents`) *do* appear and the village populates, but
-  everything derived from the process table does not — pid-based liveness,
-  the pane-ancestry check that decides whether a session can be dispatched to,
-  and Codex process presence. Treat macOS as a usable read-only view, not as a
-  supported host.
+- **The UI is Thai first.** It ships Thai and English (`web/i18n.js`, `?lang=en`
+  or the TH|EN switch); server-side reason strings are still Thai only.
+- **Codex liveness needs `/proc`.** Process discovery reads `/proc` on Linux
+  and `ps` where there is none (macOS), so pid-based liveness of Claude
+  sessions, the pane-ancestry check behind dispatch, `claude attach` panes and
+  telling codex or gemini apart from a node REPL work on both. What still
+  needs `/proc` is Codex presence and the open-rollout check, which read a
+  process's working directory and file descriptors; on macOS Codex sessions
+  show from their rollout files only.
 - **No tests for the browser code.** The Go side has tests and the embedded
   art is checked against its spec (`go test ./...`), but `web/app.js` itself
   has none.

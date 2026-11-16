@@ -31,6 +31,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"net"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -41,6 +42,8 @@ import (
 	"github.com/gofiber/fiber/v3"
 
 	"github.com/hotkhwan/aiagent/internal/audit"
+	"github.com/hotkhwan/aiagent/internal/orchestrator"
+	"github.com/hotkhwan/aiagent/internal/taskstore"
 	"github.com/hotkhwan/aiagent/web"
 )
 
@@ -67,6 +70,10 @@ type Service struct {
 	Store     *Store
 	Collector *Collector
 	Auditor   *audit.Logger
+	// Tasks is the PM's task log; nil means the task routes are absent.
+	Tasks *taskstore.Store
+	// Orch dispatches and follows tasks; nil means dispatch is off.
+	Orch *orchestrator.Orchestrator
 
 	mu        sync.Mutex
 	failures  map[string][]time.Time
@@ -117,6 +124,29 @@ func (s *Service) recordFailure(ip string, now time.Time) {
 	s.mu.Unlock()
 }
 
+// clientAddr is the address wrong tokens are counted against.
+//
+// Through the Cloudflare tunnel every request arrives from loopback, so the
+// peer address alone would put every visitor in one bucket and let anyone lock
+// the owner out. When the peer is loopback, the visitor address the tunnel
+// adds (Cf-Connecting-Ip) is used instead. Only loopback may name it: a client
+// reaching the service directly is counted by its own address, or it could
+// pick a fresh one for every guess.
+func clientAddr(c fiber.Ctx) string {
+	return lockoutKey(c.IP(), c.Get("Cf-Connecting-Ip"))
+}
+
+// lockoutKey is clientAddr's decision on plain values, so it can be tested
+// without a socket.
+func lockoutKey(peer, cfConnectingIP string) string {
+	if ip := net.ParseIP(peer); ip != nil && ip.IsLoopback() {
+		if v := net.ParseIP(strings.TrimSpace(cfConnectingIP)); v != nil {
+			return "cf:" + v.String()
+		}
+	}
+	return peer
+}
+
 // hidden answers 404 so a disabled feature is indistinguishable from absent.
 func hidden(c fiber.Ctx) error {
 	return c.Status(fiber.StatusNotFound).JSON(failEnv("NOT_FOUND", "not found"))
@@ -127,7 +157,7 @@ func (s *Service) gate(c fiber.Ctx) error {
 		return hidden(c)
 	}
 	now := time.Now()
-	ip := c.IP()
+	ip := clientAddr(c)
 	if s.tooManyFailures(ip, now) {
 		return c.Status(fiber.StatusTooManyRequests).JSON(failEnv("AIAGENT_LOCKED", "too many wrong tokens — wait a few minutes"))
 	}
@@ -169,6 +199,7 @@ func (s *Service) Mount(app *fiber.App) {
 	s.policyOnce.Do(func() {
 		s.StartPolicy(context.Background())
 		s.StartOutbox(context.Background())
+		s.StartOrchestrator(context.Background())
 	})
 	page := s.asset("index.html", "html")
 	// On its own hostname — behind a tunnel or a reverse proxy — the /aiagent
@@ -218,6 +249,7 @@ func (s *Service) Mount(app *fiber.App) {
 	api.Post("/uploads", s.handleUpload)
 	api.Get("/uploads/:name", s.handleUploadGet)
 	api.Post("/sessions/:id/message", s.handleSessionMessage)
+	s.mountTasks(api)
 	api.Post("/sessions/:id/model", s.handleSessionModel)
 	api.Post("/sessions/:id/name", s.handleSessionName)
 	api.Post("/messages", s.handleMessage)
@@ -342,7 +374,7 @@ func (s *Service) mutate(c fiber.Ctx, rpc string, params []string, fn func() (an
 	s.lastWrite = time.Now()
 	s.mu.Unlock()
 
-	sub := "aiagent-token@" + c.IP()
+	sub := "aiagent-token@" + clientAddr(c)
 	ph := paramsHash(params...)
 	if err := s.Auditor.Write(audit.Record{Event: "intent", RPC: rpc, AdminSub: sub, ParamsHash: ph}); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(failEnv("AIAGENT_AUDIT_FAILED", "audit log unavailable — action not performed"))
@@ -432,7 +464,7 @@ func (s *Service) handleUpload(c fiber.Ctx) error {
 	}
 	body := c.Body()
 	sum := sha256.Sum256(body)
-	sub := "aiagent-token@" + c.IP()
+	sub := "aiagent-token@" + clientAddr(c)
 	ph := hex.EncodeToString(sum[:])[:32]
 	if err := s.Auditor.Write(audit.Record{Event: "intent", RPC: "aiagent.upload", AdminSub: sub, ParamsHash: ph}); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(failEnv("AIAGENT_AUDIT_FAILED", "audit log unavailable — upload refused"))
@@ -491,6 +523,7 @@ func (s *Service) handleSessionMessage(c fiber.Ctx) error {
 	}
 	id := c.Params("id")
 	return s.mutate(c, "aiagent.sessionMessage", []string{id, body.Message}, func() (any, error) {
+		sentAt := s.Collector.now()
 		how, err := s.Collector.SendToSession(c.Context(), id, body.Message)
 		// An agent that is mid-task cannot be typed into. Rather than lose
 		// the message — the picture it refers to is already uploaded — hold
@@ -502,7 +535,12 @@ func (s *Service) handleSessionMessage(c fiber.Ctx) error {
 			}
 			return fiber.Map{"sessionId": id, "queued": true, "pendingId": p.ID}, nil
 		}
-		return fiber.Map{"sessionId": id, "via": how}, err
+		if err != nil {
+			return fiber.Map{"sessionId": id, "via": how}, err
+		}
+		// tmux exiting 0 is not delivery; the transcript is the evidence.
+		delivery := s.Collector.AwaitDelivery(c.Context(), id, body.Message, sentAt)
+		return fiber.Map{"sessionId": id, "via": how, "delivery": delivery}, nil
 	})
 }
 
