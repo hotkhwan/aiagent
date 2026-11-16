@@ -228,6 +228,7 @@ function render () {
   renderStats()
   renderComposerTargets()
   if (st.view === 'map') renderMap()
+  else if (st.view === 'tasks') renderTasks()
   else renderList()
   renderInspector()
   followTick()
@@ -2647,17 +2648,18 @@ $('loginForm').addEventListener('submit', e => {
 $('login').addEventListener('cancel', e => e.preventDefault())
 function setView (view) {
   st.view = view
-  $('viewMap').classList.toggle('on', view === 'map')
-  $('viewList').classList.toggle('on', view === 'list')
-  $('viewMap').setAttribute('aria-pressed', String(view === 'map'))
-  $('viewList').setAttribute('aria-pressed', String(view === 'list'))
+  for (const [id, v] of [['viewMap', 'map'], ['viewList', 'list'], ['viewTasks', 'tasks']]) {
+    $(id).classList.toggle('on', view === v)
+    $(id).setAttribute('aria-pressed', String(view === v))
+  }
   $('village').classList.toggle('off', view !== 'map')
   $('sceneTools').hidden = view !== 'map'
   $('list').hidden = view !== 'list'
+  $('tasks').hidden = view !== 'tasks'
   // The stage carries the time-of-day sky and the village heading. Neither
-  // belongs behind a table, so the list view says so on the body and the
-  // stylesheet turns them off from there.
-  document.body.classList.toggle('listView', view === 'list')
+  // belongs behind a table, so the list and task views say so on the body
+  // and the stylesheet turns them off from there.
+  document.body.classList.toggle('listView', view !== 'map')
   if (st.snap) render()
 }
 $('viewMap').addEventListener('click', () => setView('map'))
@@ -2671,9 +2673,11 @@ $('stageBack').addEventListener('click', () => goBack())
 // The list is home on every screen now; the map is one tap away. A deliberate
 // switch still sticks, so someone who picks the map keeps landing on it.
 try {
-  setView(localStorage.getItem('aiagentView') === 'map' ? 'map' : 'list')
+  const saved = localStorage.getItem('aiagentView')
+  setView(saved === 'map' || saved === 'tasks' ? saved : 'list')
 } catch (e) { setView('list') }
-for (const [el, v] of [[$('viewMap'), 'map'], [$('viewList'), 'list']]) {
+$('viewTasks').addEventListener('click', () => setView('tasks'))
+for (const [el, v] of [[$('viewMap'), 'map'], [$('viewList'), 'list'], [$('viewTasks'), 'tasks']]) {
   el.addEventListener('click', () => {
     try { localStorage.setItem('aiagentView', v) } catch (e) { /* see above */ }
   })
@@ -3105,6 +3109,216 @@ function initLang () {
   if (!b) return
   b.textContent = currentLang() === 'en' ? 'ไทย' : 'EN'
   b.addEventListener('click', () => setLang(currentLang() === 'en' ? 'th' : 'en'))
+}
+
+// ---------- tasks: the PM's board ----------
+// Everything here reads /api/tasks and acts through the user's own moves.
+// Nothing shows a percentage: a task is in a state, on an attempt, with the
+// evidence the orchestrator recorded — never an invented progress figure.
+const taskStatusLabel = {
+  queued: tr('รอคิว'),
+  ready: tr('พร้อมเริ่ม'),
+  running: tr('กำลังทำ'),
+  verifying: tr('กำลังตรวจ'),
+  awaitingReview: tr('รอคุณตรวจ'),
+  completed: tr('เสร็จแล้ว'),
+  blocked: tr('ติดขัด'),
+  failed: tr('ล้มเหลว'),
+  cancelled: tr('ยกเลิก')
+}
+const attemptLabel = {
+  starting: tr('กำลังส่ง'),
+  running: tr('agent ได้รับงานแล้ว'),
+  unknown: tr('ไม่ทราบว่า agent ได้รับหรือยัง'),
+  reported: tr('agent รายงานว่าเสร็จ'),
+  failed: tr('ล้มเหลว'),
+  cancelled: tr('ยกเลิก'),
+  orphaned: tr('ขาดการติดต่อ')
+}
+const actorLabel = { user: tr('คุณ'), orchestrator: tr('ระบบ'), pm: 'PM', worker: 'agent' }
+const boardCols = ['queued', 'ready', 'running', 'verifying', 'awaitingReview', 'completed']
+const laneStatuses = ['blocked', 'failed', 'cancelled']
+let tasksSeq = 0
+
+function taskPill (status) {
+  return h('span', { class: 'tpill s-' + status }, taskStatusLabel[status] || status)
+}
+
+async function renderTasks () {
+  const seq = ++tasksSeq
+  const box = $('tasks')
+  let tasks
+  try {
+    tasks = (await api('/tasks')).tasks
+    st.taskDetailData = st.taskOpen ? await api('/tasks/' + encodeURIComponent(st.taskOpen)) : null
+  } catch (e) {
+    if (e.message === 'auth' || seq !== tasksSeq) return
+    box.replaceChildren(h('div', { class: 'tasksEmpty' }, tr('ระบบงานยังไม่เปิดบนเครื่องนี้ — อัปเดต aiagent แล้ว restart service')))
+    return
+  }
+  if (seq !== tasksSeq) return
+  if (!st.taskForm) st.taskForm = taskForm()
+  const head = h('div', { class: 'tasksHead' },
+    h('h2', {}, tr('กระดานงาน')),
+    h('button', { type: 'button', class: 'pri', onclick: () => { st.taskFormOpen = !st.taskFormOpen; renderTasks() } },
+      st.taskFormOpen ? tr('ปิดฟอร์ม') : tr('+ งานใหม่')))
+  const cols = boardCols.map(s => {
+    const mine = tasks.filter(t => t.status === s)
+    return h('div', { class: 'tcol' },
+      h('div', { class: 'tcolHead' }, taskPill(s), h('span', { class: 'tcount' }, String(mine.length))),
+      mine.length ? mine.map(taskCard) : h('div', { class: 'tnone' }, '—'))
+  })
+  const lane = tasks.filter(t => laneStatuses.includes(t.status))
+  // replaceChildren, unlike h(), would print a null as the text "null".
+  box.replaceChildren(...[
+    head,
+    st.taskFormOpen ? st.taskForm : null,
+    tasks.length ? null : h('div', { class: 'tasksEmpty' }, tr('ยังไม่มีงาน — กด + งานใหม่ เพื่อสร้างงานแรก')),
+    h('div', { class: 'tboard' }, cols),
+    lane.length ? h('div', { class: 'tlane' }, h('div', { class: 'tcolHead' }, tr('ติดขัด / ล้มเหลว / ยกเลิก')), h('div', { class: 'tlaneCards' }, lane.map(taskCard))) : null,
+    st.taskDetailData ? taskDetail(st.taskDetailData) : null
+  ].filter(Boolean))
+}
+
+function taskCard (t) {
+  const a = t.attempts[t.attempts.length - 1]
+  return h('button', {
+    type: 'button',
+    class: 'tcard s-' + t.status + (st.taskOpen === t.taskId ? ' sel' : ''),
+    onclick: () => { st.taskOpen = st.taskOpen === t.taskId ? null : t.taskId; renderTasks() }
+  },
+  h('div', { class: 'tcardTop' }, h('span', { class: 'tid' }, t.taskId), taskPill(t.status)),
+  h('div', { class: 'ttitle' }, t.title),
+  h('div', { class: 'tmeta' }, t.projectId + (t.provider ? ' · ' + t.provider : '') + (a ? ' · ' + tr('ครั้งที่ ') + t.attempts.length + '/' + t.maxAttempts : '') + ' · ' + ago(t.updatedAt)),
+  a && a.status === 'unknown' ? h('div', { class: 'tcall' }, tr('ไม่ทราบว่า agent ได้รับหรือยัง — คลิกเพื่อยืนยัน')) : null,
+  t.status === 'awaitingReview' ? h('div', { class: 'tcall' }, tr('รอคุณตรวจ — คลิกเพื่อดูหลักฐาน')) : null,
+  t.blockedReason ? h('div', { class: 'tmeta' }, t.blockedReason) : null)
+}
+
+// lastEvidence is what the orchestrator recorded when the task last moved
+// with evidence — the commit and, for review, the tests and changed files.
+function lastEvidence (events) {
+  for (let i = events.length - 1; i >= 0; i--) {
+    const d = events[i].data || {}
+    if (d.evidence) return d.evidence
+  }
+  return null
+}
+
+function eventLine (e) {
+  const d = e.data || {}
+  let what = e.type
+  if (e.type === 'taskCreated') what = tr('สร้างงาน')
+  else if (e.type === 'taskTransitioned') what = (taskStatusLabel[d.from] || d.from) + ' → ' + (taskStatusLabel[d.to] || d.to) + (d.reason ? ' · ' + d.reason : '')
+  else if (e.type === 'attemptStarting') what = tr('เริ่ม ') + e.attemptId + (d.workspace ? ' · ' + d.workspace : '')
+  else if (e.type === 'attemptRunning') what = attemptLabel.running
+  else if (e.type === 'attemptUnknown') what = attemptLabel.unknown
+  else if (e.type === 'attemptEnded') what = (attemptLabel[d.status] || d.status) + (d.reason ? ' · ' + d.reason : '')
+  return h('li', {}, h('span', { class: 'twhen' }, new Date(e.at).toLocaleString()), ' ', h('b', {}, actorLabel[e.actor] || e.actor), ' · ', what)
+}
+
+function taskDetail (data) {
+  const t = data.task
+  const a = t.attempts[t.attempts.length - 1]
+  const ev = lastEvidence(data.events)
+  const actions = []
+  const move = (to, label, needReason, cls) => actions.push(h('button', {
+    type: 'button',
+    class: cls || '',
+    onclick: async () => {
+      let reason = ''
+      if (needReason) {
+        reason = (window.prompt(label + tr(' — เหตุผล')) || '').trim()
+        if (!reason) return
+      }
+      await act('/tasks/' + encodeURIComponent(t.taskId) + '/transition', { to, reason }, () => t.taskId + ' → ' + taskStatusLabel[to])
+    }
+  }, label))
+  if (t.status === 'ready') {
+    actions.push(h('button', {
+      type: 'button',
+      class: 'pri',
+      onclick: async () => {
+        if (!window.confirm(tr('อนุมัติเริ่มงาน ') + t.taskId + tr('? ระบบจะพิมพ์คำสั่งเข้า session ของ agent ที่เลือก'))) return
+        await act('/tasks/' + encodeURIComponent(t.taskId) + '/dispatch', {}, r => tr('ส่งงานแล้ว · ') + (r.workspace || '') + ' · ' + (attemptLabel[r.status] || r.status))
+      }
+    }, tr('อนุมัติเริ่มงาน')))
+  }
+  if (a && a.status === 'unknown') {
+    actions.push(h('button', {
+      type: 'button',
+      class: 'pri',
+      onclick: () => act('/tasks/' + encodeURIComponent(t.taskId) + '/attempts/' + encodeURIComponent(a.attemptId) + '/confirm', {}, () => tr('ยืนยันแล้ว — agent ได้รับงาน'))
+    }, tr('ยืนยันว่า agent ได้รับงานแล้ว')))
+  }
+  if (t.status === 'awaitingReview') {
+    move('completed', tr('อนุมัติ — เสร็จแล้ว'), false, 'pri')
+    move('queued', tr('ขอแก้'), true)
+  }
+  if (t.status === 'blocked') move('queued', tr('ปลดบล็อก'), false)
+  if (t.status === 'failed') move('queued', tr('ส่งกลับเข้าคิว'), false)
+  if (t.status !== 'completed' && t.status !== 'cancelled') move('cancelled', tr('ยกเลิกงาน'), true, 'warn')
+
+  const evRows = ev
+    ? [
+        ev.tests ? h('div', { class: ev.tests.startsWith('passed') ? 'tok' : 'twarn' }, tr('ผลเทสต์: '), ev.tests) : null,
+        ev.commit ? h('div', {}, 'commit: ', h('code', {}, ev.commit)) : null,
+        ev.changedFiles ? h('div', {}, tr('ไฟล์ที่แก้: '), ev.changedFiles) : null,
+        ev.needsHumanReview ? h('div', { class: 'twarn' }, tr('แตะไฟล์ที่ต้องให้คนดู: '), ev.needsHumanReview) : null
+      ]
+    : [h('div', { class: 'tmeta' }, tr('ยังไม่มีหลักฐาน'))]
+
+  return h('section', { class: 'tdetail' },
+    h('div', { class: 'tcardTop' }, h('span', { class: 'tid' }, t.taskId), taskPill(t.status), h('span', { class: 'tmeta' }, tr('รุ่นที่ ') + t.taskRevision)),
+    h('h3', {}, t.title),
+    h('div', { class: 'tcols2' },
+      h('div', {},
+        h('h4', {}, tr('เกณฑ์ผ่าน')),
+        h('ul', {}, t.acceptanceCriteria.map(c => h('li', {}, c))),
+        t.allowedPaths && t.allowedPaths.length ? h('div', { class: 'tmeta' }, tr('แก้ได้เฉพาะ: ') + t.allowedPaths.join(', ')) : null,
+        h('h4', {}, tr('ไทม์ไลน์')),
+        h('ul', { class: 'ttimeline' }, data.events.filter(e => e.type !== 'attemptHeartbeat').map(eventLine))),
+      h('div', {},
+        h('h4', {}, tr('ความพยายาม')),
+        t.attempts.length
+          ? h('ul', {}, t.attempts.map(x => h('li', {}, x.attemptId + ' · ' + (x.provider || '') + ' ' + (x.workspace || '') + ' · ' + (attemptLabel[x.status] || x.status) + (x.exitReason ? ' · ' + x.exitReason : ''))))
+          : h('div', { class: 'tmeta' }, '—'),
+        h('h4', {}, tr('หลักฐาน')),
+        evRows,
+        t.status === 'awaitingReview' ? h('div', { class: 'tmeta' }, tr('การอนุมัติไม่ใช่การ deploy')) : null)),
+    actions.length ? h('div', { class: 'tactions' }, actions) : null)
+}
+
+function taskForm () {
+  const sel = (name, opts) => h('select', { name }, opts.map(([v, l]) => h('option', { value: v }, l)))
+  const f = h('form', { class: 'tform' },
+    h('label', {}, tr('ชื่องาน'), h('input', { name: 'title', required: 'required', maxlength: '300' })),
+    h('label', {}, tr('โปรเจกต์'), h('input', { name: 'projectId', required: 'required', maxlength: '100', value: 'aiagent' })),
+    h('label', {}, tr('ให้ใครทำ'), sel('provider', [['', tr('อัตโนมัติ (ตาม quota)')], ['claude', 'Claude'], ['codex', 'Codex'], ['gemini', 'Gemini']])),
+    h('label', {}, tr('ชนิดงาน'), sel('kind', [['feature', 'feature'], ['bug', 'bug'], ['ux', 'ux'], ['regression', 'regression'], ['chore', 'chore']])),
+    h('label', { class: 'wide' }, tr('เกณฑ์ผ่าน (บรรทัดละข้อ)'), h('textarea', { name: 'criteria', required: 'required', rows: '3' })),
+    h('label', { class: 'wide' }, tr('แก้ได้เฉพาะ path (บรรทัดละข้อ · เว้นว่าง = ทั้ง repo)'), h('textarea', { name: 'paths', rows: '2', placeholder: 'internal/world/**' })),
+    h('button', { type: 'submit', class: 'pri' }, tr('สร้างงาน')))
+  f.addEventListener('submit', async e => {
+    e.preventDefault()
+    const v = n => f.elements[n].value
+    const lines = s => s.split('\n').map(x => x.trim()).filter(Boolean)
+    const ok = await act('/tasks', {
+      title: v('title'),
+      projectId: v('projectId'),
+      provider: v('provider'),
+      kind: v('kind'),
+      acceptanceCriteria: lines(v('criteria')),
+      allowedPaths: lines(v('paths')),
+      idempotencyKey: 'web-' + Date.now() + '-' + Math.random().toString(36).slice(2)
+    }, r => tr('สร้างงาน ') + (r.taskId || '') + tr(' แล้ว'))
+    if (ok) {
+      f.reset()
+      f.elements.projectId.value = 'aiagent'
+      st.taskFormOpen = false
+    }
+  })
+  return f
 }
 
 // Run last: these use the const bindings declared above them, which are in the
