@@ -43,6 +43,33 @@ func TestASendIsAckedWhenTheTranscriptShowsIt(t *testing.T) {
 	}
 }
 
+// Waiting for the transcript must not rescan the whole machine on every poll.
+// It did: each of the twenty polls rebuilt the snapshot — every session file,
+// tmux, the daemon — which pushed an unacked send past fiber's one-second test
+// timeout on CI's slower macOS runner, and cost the same in production. The
+// session's transcript is found once and then only that file is read.
+func TestWaitingForDeliveryDoesNotRescanTheMachine(t *testing.T) {
+	e := outboxEnv(t)
+	writeFile(t, outboxTranscript(e), `{"type":"assistant","timestamp":"2026-11-04T10:00:00Z","message":{"role":"assistant","content":"พร้อม"}}`+"\n")
+	before := len(e.runner.callsTo("tmux"))
+	scans := func() int {
+		n := 0
+		for _, c := range e.runner.callsTo("tmux")[before:] {
+			if c[0] == "list-sessions" {
+				n++
+			}
+		}
+		return n
+	}
+
+	if got := sendAndReadDelivery(t, e, "แก้ outbox ให้เสร็จ"); got != "unknown" {
+		t.Fatalf("delivery = %v, want unknown", got)
+	}
+	if n := scans(); n > 4 {
+		t.Fatalf("an unacked send rescanned the machine %d times; it should find the transcript once", n)
+	}
+}
+
 // No user turn in the transcript means nobody can say whether the agent got
 // it: the answer is unknown, never a success it cannot prove.
 func TestASendWithNoTranscriptEvidenceIsUnknown(t *testing.T) {
