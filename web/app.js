@@ -1002,7 +1002,32 @@ const stillChars = [...Array(9).keys()].map(i => 'cx-kid' + i)
 const charPool = chars.concat(stillChars)
 const animSpec = { walkR: [6, 0.62], walkL: [6, 0.62], work: [4, 0.9], think: [4, 1.6], rest: [4, 2.4], cheer: [4, 1.2] }
 
-function charFor (id) { return chars[hash(id) % chars.length] }
+// A character the grown-up chose for one agent in this browser; otherwise the
+// one its id hashes to.
+const charKey = id => 'aiagentChar:' + id
+function charFor (id) {
+  let pick = ''
+  try { pick = localStorage.getItem(charKey(id)) || '' } catch (e) { pick = '' }
+  if (charPool.includes(pick)) return pick
+  return chars[hash(id) % chars.length]
+}
+
+function repaintActor (act) {
+  if (!act || !act.spr) return
+  act.char = charFor(act.id)
+  act.anim2 = ''
+  setAnim(act, act.walking ? act.walkDir || 'walkR' : act.mood || 'rest')
+}
+
+function chooseChar (id, c) {
+  try {
+    if (c) localStorage.setItem(charKey(id), c)
+    else localStorage.removeItem(charKey(id))
+  } catch (e) { /* private mode: the pick lasts this visit */ }
+  repaintActor(st.actors[id])
+  repaintActor(st.focus && st.focus.actors[id])
+  render()
+}
 
 function moodAnim (a) {
   if (a.mood === 'work') return a.label === activityLabel.planning || a.label === activityLabel.research ? 'think' : 'work'
@@ -1763,7 +1788,7 @@ function subList (sess) {
 }
 
 function sessionHeader (sess) {
-  const ava = h('div', { class: 'ava' }, avatarFace(sess))
+  const ava = h('button', { type: 'button', class: 'ava avaPick', title: tr('เปลี่ยนตัวละคร'), 'aria-label': tr('เปลี่ยนตัวละคร'), onclick: () => openCharPicker(sess) }, avatarFace(sess))
   ava.style.background = 'color-mix(in srgb, ' + agentColor(sess) + ' 18%, transparent)'
   const stateDot = h('i')
   stateDot.style.background = !sess.live ? 'var(--line)' : sess.status === 'running' ? 'var(--brand)' : sess.status === 'needsInput' ? 'var(--amber)' : 'var(--muted)'
@@ -2441,15 +2466,52 @@ const AVA_PX = 48      // .ava is 48px square
 const AVA_ZOOM = 2.3   // how much of the 128px frame the head should fill
 function avatarFace (sess) {
   const el = h('i', { class: 'avaFace' })
+  const c = charFor(sess.sessionId)
+  if (c.startsWith('cx-')) {
+    el.style.backgroundImage = 'url(' + A(c) + ')'
+    el.style.backgroundSize = 'contain'
+    el.style.backgroundPosition = 'center'
+    return el
+  }
   // One frame, scaled. Percentages cannot express this: a negative background
   // position in % is measured against (box - image), which walks the sheet the
   // wrong way and lands on an empty frame.
   const f = AVA_PX * AVA_ZOOM
-  el.style.backgroundImage = 'url(' + A('ch-' + charFor(sess.sessionId) + '-rest') + ')'
+  el.style.backgroundImage = 'url(' + A('ch-' + c + '-rest') + ')'
   el.style.backgroundSize = (f * 4) + 'px ' + f + 'px'
   el.style.backgroundPosition = (AVA_PX / 2 - f / 2) + 'px ' + (AVA_PX / 2 - f * 0.28) + 'px'
   return el
 }
+
+// ----- pick the character that stands for one agent -----
+let pickingFor = ''
+function charPreview (c) {
+  const el = h('i', { class: 'charImg' })
+  if (c.startsWith('cx-')) {
+    el.style.backgroundImage = 'url(' + A(c) + ')'
+    el.style.backgroundSize = 'contain'
+    el.style.backgroundPosition = 'center'
+  } else {
+    el.style.backgroundImage = 'url(' + A('ch-' + c + '-rest') + ')'
+    el.style.backgroundSize = '400% 100%'
+    el.style.backgroundPosition = '0 0'
+  }
+  return el
+}
+
+function openCharPicker (sess) {
+  pickingFor = sess.sessionId
+  const cur = charFor(sess.sessionId)
+  $('charGrid').replaceChildren(...charPool.map(c => h('button', {
+    type: 'button',
+    class: 'charOpt' + (c === cur ? ' on' : ''),
+    title: c,
+    'aria-pressed': String(c === cur),
+    onclick: () => { chooseChar(pickingFor, c); $('charPicker').close() }
+  }, charPreview(c))))
+  $('charPicker').showModal()
+}
+$('charReset').addEventListener('click', () => { chooseChar(pickingFor, ''); $('charPicker').close() })
 
 
 // ---------- actions ----------

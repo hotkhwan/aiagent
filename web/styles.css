@@ -113,6 +113,13 @@ code, pre, .mono { font-family: ui-monospace, 'IBM Plex Mono', monospace; font-s
 .ava { width: 48px; height: 48px; border-radius: 14px; display: grid; place-items: center; flex: none; overflow: hidden }
 /* the agent's own face, cropped out of its walking sheet (avatarFace) */
 .avaFace { width: 100%; height: 100%; display: block; background-repeat: no-repeat; image-rendering: auto }
+.avaPick { border: 0; padding: 0; cursor: pointer; font: inherit }
+.avaPick:hover, .avaPick:focus-visible { box-shadow: 0 0 0 2px var(--brand) }
+.charGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 10px }
+.charOpt { border: 2px solid var(--line); border-radius: 14px; background: transparent; padding: 8px; cursor: pointer; min-height: 92px }
+.charOpt.on { border-color: var(--brand) }
+.charImg { display: block; width: 72px; height: 72px; margin: 0 auto; background-repeat: no-repeat }
+.charFoot { margin-top: 12px; text-align: right }
 .who p { color: var(--muted); font-size: 13px }
 .state { display: inline-flex; align-items: center; gap: 8px; font-weight: 500 }
 .state i { width: 8px; height: 8px; border-radius: 50% }
