@@ -3246,6 +3246,24 @@ const boardCols = ['queued', 'ready', 'running', 'verifying', 'awaitingReview', 
 const laneStatuses = ['blocked', 'failed', 'cancelled']
 let tasksSeq = 0
 
+// stalledAttempt is the running task's attempt once its lease has run out.
+// The orchestrator renews the lease while the agent's transcript moves and
+// requeues nothing by itself, so a session stopped from a terminal leaves its
+// task "running" for good: this is what tells it from a task being worked on.
+function stalledAttempt (t) {
+  const a = t.attempts[t.attempts.length - 1]
+  if (t.status !== 'running' || !a || !a.leaseExpiresAt) return null
+  return new Date(a.leaseExpiresAt).getTime() < Date.now() ? a : null
+}
+
+// quietLine says only what is known. With a session, its transcript stopped
+// moving then. An attempt confirmed by hand names no session, so nothing
+// watches it and its lease runs out while the agent may be hard at work.
+function quietLine (a) {
+  if (!a.sessionId) return tr('ไม่รู้ว่า agent ยังทำอยู่หรือไม่ — งานนี้ไม่ได้ผูกกับ session')
+  return tr('agent เงียบตั้งแต่ ') + ago(a.heartbeatAt) + tr(' — อาจหยุดไปแล้ว')
+}
+
 function taskPill (status) {
   return h('span', { class: 'tpill s-' + status }, taskStatusLabel[status] || status)
 }
@@ -3288,6 +3306,7 @@ async function renderTasks () {
 
 function taskCard (t) {
   const a = t.attempts[t.attempts.length - 1]
+  const quiet = stalledAttempt(t)
   return h('button', {
     type: 'button',
     class: 'tcard s-' + t.status + (st.taskOpen === t.taskId ? ' sel' : ''),
@@ -3304,6 +3323,7 @@ function taskCard (t) {
   h('div', { class: 'tmeta' }, t.projectId + (t.provider ? ' · ' + t.provider : '') + (a ? ' · ' + tr('ครั้งที่ ') + t.attempts.length + '/' + t.maxAttempts : '') + ' · ' + ago(t.updatedAt)),
   a && a.status === 'unknown' ? h('div', { class: 'tcall' }, tr('ไม่ทราบว่า agent ได้รับหรือยัง — คลิกเพื่อยืนยัน')) : null,
   t.status === 'ready' ? h('div', { class: 'tcall' }, tr('รอคุณอนุมัติเริ่มงาน — คลิกเพื่อเปิด')) : null,
+  quiet ? h('div', { class: 'tcall' }, quietLine(quiet) + tr(' · คลิกเพื่อยกเลิกหรือรอ')) : null,
   t.status === 'awaitingReview' ? h('div', { class: 'tcall' }, tr('รอคุณตรวจ — คลิกเพื่อดูหลักฐาน')) : null,
   t.blockedReason ? h('div', { class: 'tmeta' }, t.blockedReason) : null)
 }
@@ -3334,6 +3354,7 @@ function taskDetail (data) {
   const t = data.task
   const a = t.attempts[t.attempts.length - 1]
   const ev = lastEvidence(data.events)
+  const quiet = stalledAttempt(t)
   const actions = []
   const move = (to, label, needReason, cls) => actions.push(h('button', {
     type: 'button',
@@ -3388,6 +3409,7 @@ function taskDetail (data) {
     // The buttons come before the long part: a task that waits for the user
     // must show what it waits for without scrolling.
     actions.length ? h('div', { class: 'tactions' }, actions) : null,
+    quiet ? h('div', { class: 'twarn' }, quietLine(quiet) + ' · ' + tr('งานนี้ไม่ย้ายเอง: ยกเลิกงาน หรือรอ agent กลับมารายงาน')) : null,
     h('div', { class: 'tcols2' },
       h('div', {},
         h('h4', {}, tr('เกณฑ์ผ่าน')),
