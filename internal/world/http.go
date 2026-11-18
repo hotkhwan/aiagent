@@ -43,6 +43,7 @@ import (
 
 	"github.com/hotkhwan/aiagent/internal/audit"
 	"github.com/hotkhwan/aiagent/internal/orchestrator"
+	"github.com/hotkhwan/aiagent/internal/planner"
 	"github.com/hotkhwan/aiagent/internal/taskstore"
 	"github.com/hotkhwan/aiagent/web"
 )
@@ -74,6 +75,10 @@ type Service struct {
 	Tasks *taskstore.Store
 	// Orch dispatches and follows tasks; nil means dispatch is off.
 	Orch *orchestrator.Orchestrator
+	// PM is the central planner and PMThread its conversation log; with either
+	// nil the PM routes are absent and review pages offer no second opinion.
+	PM       PMAgent
+	PMThread *planner.Thread
 
 	mu        sync.Mutex
 	failures  map[string][]time.Time
@@ -82,6 +87,12 @@ type Service struct {
 	tickets   map[string]viewTicket
 
 	policyOnce sync.Once
+
+	// bg tracks background PM calls so tests and shutdown can wait for them.
+	bg       sync.WaitGroup
+	agentsMu sync.Mutex
+	agentsAt time.Time
+	agents   []planner.AgentBrief
 }
 
 // viewTicket lets one iframe load one review page without the API token.
@@ -250,6 +261,7 @@ func (s *Service) Mount(app *fiber.App) {
 	api.Get("/uploads/:name", s.handleUploadGet)
 	api.Post("/sessions/:id/message", s.handleSessionMessage)
 	s.mountTasks(api)
+	s.mountPM(api)
 	api.Post("/sessions/:id/model", s.handleSessionModel)
 	api.Post("/sessions/:id/name", s.handleSessionName)
 	api.Post("/messages", s.handleMessage)

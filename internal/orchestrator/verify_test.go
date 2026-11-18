@@ -135,8 +135,8 @@ func TestAllowedPathsAndProtectedFiles(t *testing.T) {
 		"internal/world/outbox.go":      false,
 		"docs/README.md":                false,
 	} {
-		if got := isProtected(p); got != want {
-			t.Errorf("isProtected(%q) = %v, want %v", p, got, want)
+		if got := IsProtected(p); got != want {
+			t.Errorf("IsProtected(%q) = %v, want %v", p, got, want)
 		}
 	}
 }

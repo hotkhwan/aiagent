@@ -79,6 +79,17 @@ Vertical slice: task จริงใน repo aiagent → `claudeHeadless` ใน
 
 ## Phase D — PM schema + adapters + eval
 
+**สถานะ (2026-11-16):** D1 และ D2 เสร็จบางส่วนใน branch `feat/pm-review-tabs`; D3, D4 ยังไม่เริ่ม
+
+| id | สถานะ |
+|---|---|
+| D1 | เสร็จ 2 จาก 3 skill: `planProject` v1 และ `summarizeReview` v1 (prompt + JSON Schema ใน `internal/planner/skills.go`, ตรวจผลด้วย Go ใน `plan.go`) — `intakeFeedback` ยังไม่ทำ |
+| D2 | เสร็จ: `planner.Cloud` เรียก `claude -p` แบบ headless บน subscription login (ไม่มี API key, ปิด tools), คำตอบที่ไม่ผ่าน schema ถูกส่งกลับพร้อมเหตุผล สูงสุด 3 ครั้งแล้วแจ้งผู้ใช้; ทุกการเรียกบันทึกใน `pm.jsonl` (adapter, skill, version, tries, millis, outcome) |
+| D3 | ยังไม่เริ่ม — ยังไม่มี eval set จึงยังไม่มีตัวเลขคุณภาพของ PM |
+| D4 | ยังไม่เริ่ม (รอ D3 + model pilot) |
+
+ข้อจำกัดของ PM v1: รับข้อความอย่างเดียว (ยังแนบรูปไม่ได้); การส่งงานเลือก workspace จาก provider ไม่ใช่จาก project; ฟอร์มสร้างงานยังไม่มี kind `security` ให้เลือก
+
 | id | task | owner | depends | acceptance | tests | effort |
 |---|---|---|---|---|---|---|
 | D1 | skill spec format + 3 skills v0.1 (`planProject`, `intakeFeedback`, `summarizeReview`; อีก 3 ตัวเก็บ spec) (input/output JSON Schema, examples, limits, version) | C | B2 | schema validate ด้วย Go | golden tests | 6–8 ชม. |
@@ -87,6 +98,16 @@ Vertical slice: task จริงใน repo aiagent → `claudeHeadless` ใน
 | D4 | `localPM` adapter (หลัง model pilot ผ่าน) | C | D3, pilot | ผ่านเกณฑ์ eval | eval run | 4–6 ชม. |
 
 ## Phase E — reviewer handoff + task UI + feedback
+
+**สถานะ (2026-11-16):** E1 เสร็จ (PR #5 + `feat/pm-review-tabs`); E2 เสร็จแบบ "คำแนะนำ"; E3 เสร็จบางส่วน
+
+| id | สถานะ |
+|---|---|
+| E1 | เสร็จ: แท็บ **งาน** (PR #5), แท็บ **PM** (คุยกับ PM, ข้อเสนองานพร้อมปุ่ม "ยืนยันสร้างงาน"), แท็บ **รีวิว** (diff, ฐานของงานเทียบ mainline, ผลเทสต์, ไฟล์ที่ต้องให้คนดู, ปุ่มอนุมัติ/ขอแก้), แผง **PM กลาง** + ป้ายงานบนห้องในหมู่บ้าน, เป้าหมาย "PM กลาง" ในช่องส่งข้อความ — ไทย/อังกฤษครบ |
+| E2 | เสร็จเป็น **คำแนะนำ (advisory)**: `POST /tasks/:id/advisory` ให้ claude แบบ headless อ่าน diff แล้วให้ความเห็น — ไม่มีผลตัดสิน, ไม่เปลี่ยนสถานะงาน, คนเท่านั้นที่กดอนุมัติ ยังไม่บังคับ reviewer ≠ provider ของผู้ทำ (เป็นคนละ session แต่อาจเป็น provider เดียวกัน) |
+| E3 | บางส่วน: "ขอแก้" พร้อมเหตุผลส่งงานกลับเข้าคิวเป็นรุ่นถัดไป (ผูก taskId/attempt/commit); skill `intakeFeedback` ที่ให้ PM แปลง feedback เป็นงานใหม่ยังไม่ทำ |
+
+หน้ารีวิวแสดง "ไม่ได้สแกนความปลอดภัย" เสมอจนกว่า Phase F จะมี scanner — ไม่ได้แปลว่าปลอดภัย
 
 | id | task | owner | depends | acceptance | effort |
 |---|---|---|---|---|---|

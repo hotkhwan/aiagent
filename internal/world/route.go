@@ -37,15 +37,20 @@ func (c *Collector) routeMission(ctx context.Context, provider string) (workspac
 	if provider != "auto" && providerQuota[provider] == "" {
 		return workspaceEntry{}, ErrBadRequest("name a workspace, or a provider: claude, codex, gemini or auto")
 	}
+	return pickWorkspace(c.Workspaces, provider, c.Snapshot(ctx).Quotas, c.workspaceReady(ctx))
+}
+
+// workspaceReady reads tmux once and answers, per workspace, whether its
+// session is up and running the CLI the workspace is configured for.
+func (c *Collector) workspaceReady(ctx context.Context) func(workspaceEntry) bool {
 	tm := c.readTmux(ctx)
-	ready := func(w workspaceEntry) bool {
+	return func(w workspaceEntry) bool {
 		_, up := tm.sessions[w.session]
 		cmd := tm.agentCmd[w.session]
 		// The pane has to be running the provider's own CLI, not just any
 		// agent: readTmux has already named node panes by what they run.
 		return up && agentReady(cmd) && (w.provider == "" || paneAgent(nil, cmd, 0) == w.provider)
 	}
-	return pickWorkspace(c.Workspaces, provider, c.Snapshot(ctx).Quotas, ready)
 }
 
 // pickWorkspace is the routing decision on plain values, so it can be tested
