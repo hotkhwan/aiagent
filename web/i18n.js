@@ -245,6 +245,7 @@ var EN = {
   'ยกเลิก login': 'Cancel the login',
   'สลับบัญชี': 'Switch account',
   'ยืนยัน': 'Confirm',
+  'เปลี่ยนตัวละคร': 'Change character',
 
   // sending work
   'ส่งไม่สำเร็จ: ': 'Could not send: ',
