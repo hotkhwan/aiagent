@@ -73,11 +73,18 @@ type TestRun struct {
 	Output string // the tail, for the reason or the evidence
 }
 
+// Budget says whether a provider may take new work right now.
+type Budget interface {
+	Admit(ctx context.Context, provider string) error
+}
+
 // Orchestrator is the control loop over the task store.
 type Orchestrator struct {
 	Store  *taskstore.Store
 	Agents Agents
 	Git    Git
+	// Budget gates dispatch; nil admits everything.
+	Budget Budget
 	// Lease is how long an attempt may go without activity before it is
 	// reported as expired.
 	Lease time.Duration
@@ -153,6 +160,11 @@ func (o *Orchestrator) Dispatch(ctx context.Context, taskID string) (taskstore.A
 	provider := t.Provider
 	if provider == "" {
 		provider = "auto"
+	}
+	if o.Budget != nil {
+		if err := o.Budget.Admit(ctx, provider); err != nil {
+			return taskstore.Attempt{}, err
+		}
 	}
 	ws, err := o.Agents.Pick(ctx, provider)
 	if err != nil {
@@ -299,4 +311,37 @@ func clip(s string, n int) string {
 		return string(r[:n]) + "…"
 	}
 	return s
+}
+
+// CheckBase runs before a reviewed task can complete. If the workspace's base
+// has moved since the attempt started, the reviewed work is sent back to
+// verifying, so its tests run again before anyone can complete it. It reports
+// whether it did.
+func (o *Orchestrator) CheckBase(ctx context.Context, taskID string) (bool, error) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	t, ok := o.Store.Get(taskID)
+	if !ok {
+		return false, fmt.Errorf("no task %s", taskID)
+	}
+	if t.Status != taskstore.StatusAwaitingReview || len(t.Attempts) == 0 {
+		return false, nil
+	}
+	a := t.Attempts[len(t.Attempts)-1]
+	ws, ok := o.Agents.Lookup(a.Workspace)
+	if !ok {
+		return false, fmt.Errorf("workspace %s is no longer configured", a.Workspace)
+	}
+	head, err := o.Git.Head(ws.Dir)
+	if err != nil {
+		return false, fmt.Errorf("workspace %s: %w", ws.Name, err)
+	}
+	if head == a.BaseCommit {
+		return false, nil
+	}
+	reason := fmt.Sprintf("base moved from %s to %s since review; tests run again", a.BaseCommit, head)
+	if _, err := o.Store.Transition(t.ID, taskstore.StatusVerifying, taskstore.ActorOrchestrator, taskstore.Change{Reason: reason}, ""); err != nil {
+		return false, err
+	}
+	return true, nil
 }

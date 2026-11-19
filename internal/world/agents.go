@@ -27,7 +27,7 @@ import (
 // NewOrchestrator wires the orchestrator to this collector's sessions and
 // checkouts.
 func NewOrchestrator(ts *taskstore.Store, c *Collector, lease time.Duration) *orchestrator.Orchestrator {
-	return &orchestrator.Orchestrator{Store: ts, Agents: AgentSessions{C: c}, Git: RepoGit{R: c.Runner}, Lease: lease}
+	return &orchestrator.Orchestrator{Store: ts, Agents: AgentSessions{C: c}, Git: RepoGit{R: c.Runner}, Budget: QuotaBudget{C: c}, Lease: lease}
 }
 
 // AgentSessions implements orchestrator.Agents over the collector.
