@@ -1,0 +1,8 @@
+{"_comment": "Hand-written fixture for internal/scan tests, not captured from a live govulncheck run. Shape follows govulncheck -json."}
+{"config": {"protocol_version": "v1.0.0", "scanner_name": "govulncheck", "scanner_version": "v1.10.0", "db": "https://vuln.go.dev", "db_last_modified": "2026-11-19T01:00:00Z", "scan_level": "symbol", "scan_mode": "source"}}
+{"progress": {"message": "Fetching vulnerabilities from the database..."}}
+{"osv": {"id": "GO-2026-0001", "aliases": ["CVE-2026-0001"], "summary": "Parse panics on crafted input"}}
+{"osv": {"id": "GO-2026-0002", "summary": "Module-level issue with no fix released"}}
+{"finding": {"osv": "GO-2026-0001", "fixed_version": "v1.2.3", "trace": [{"module": "golang.org/x/net", "version": "v0.1.0", "package": "golang.org/x/net/html", "function": "Parse", "position": {"filename": "html/parse.go", "offset": 56336, "line": 2321, "column": 6}}, {"module": "example.com/app", "package": "example.com/app", "function": "main", "position": {"filename": "main.go", "offset": 92, "line": 10, "column": 20}}]}}
+{"finding": {"osv": "GO-2026-0001", "fixed_version": "v1.2.3", "trace": [{"module": "golang.org/x/net", "version": "v0.1.0", "package": "golang.org/x/net/html", "function": "Parse", "position": {"filename": "html/parse.go", "offset": 56336, "line": 2321, "column": 6}}, {"module": "example.com/app", "package": "example.com/app", "function": "handle", "position": {"filename": "handler.go", "offset": 410, "line": 22, "column": 3}}]}}
+{"finding": {"osv": "GO-2026-0002", "trace": [{"module": "example.com/old", "version": "v0.0.9"}]}}

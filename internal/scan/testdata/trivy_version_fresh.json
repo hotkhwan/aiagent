@@ -1,0 +1,5 @@
+{
+  "_comment": "Hand-written fixture for internal/scan tests, not captured from a live trivy run. Shape follows trivy version --format json.",
+  "Version": "0.76.2",
+  "VulnerabilityDB": {"Version": 2, "NextUpdate": "2026-11-20T01:00:00Z", "UpdatedAt": "2026-11-19T01:00:00Z", "DownloadedAt": "2026-11-19T02:00:00Z"}
+}

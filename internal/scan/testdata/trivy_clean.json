@@ -1,0 +1,14 @@
+{
+  "_comment": "Hand-written fixture for internal/scan tests, not captured from a live trivy run. Shape follows trivy fs --format json.",
+  "SchemaVersion": 2,
+  "ArtifactName": ".",
+  "ArtifactType": "filesystem",
+  "Results": [
+    {
+      "Target": "go.mod",
+      "Class": "lang-pkgs",
+      "Type": "gomod",
+      "Vulnerabilities": null
+    }
+  ]
+}
