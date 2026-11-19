@@ -89,7 +89,7 @@ func (o *Orchestrator) verifyOne(ctx context.Context, t taskstore.Task) {
 	if a == nil {
 		return
 	}
-	ws, ok := o.Agents.Lookup(a.Workspace)
+	ws, ok := o.lookup(a.Workspace)
 	if !ok {
 		return
 	}

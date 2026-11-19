@@ -56,6 +56,27 @@ type Agents interface {
 	LastActivity(ctx context.Context, sessionID string) (time.Time, bool)
 }
 
+// HeadlessWorkspace names the workspace of an attempt run by the headless
+// worker, which has no terminal session.
+const HeadlessWorkspace = "headless"
+
+// ErrWorkerMissing means the worker CLI is not installed. The task is blocked
+// with missingCli, not failed, so it can run once the CLI is there.
+var ErrWorkerMissing = errors.New("worker CLI not installed")
+
+// Headless runs an attempt as a worker process in a checkout of its own.
+type Headless interface {
+	// Workspace is the repository the workers branch from.
+	Workspace() Workspace
+	// Start begins the attempt's worker at base with prompt. It returns
+	// ErrWorkerMissing when no CLI can run.
+	Start(ctx context.Context, a taskstore.Attempt, base, prompt string) error
+	// Running reports whether the attempt's worker is still going.
+	Running(attemptID string) bool
+	// Outcome is the attempt's result once its worker has stopped.
+	Outcome(attemptID string) (Result, bool)
+}
+
 // Git answers what the orchestrator asks of a checkout.
 type Git interface {
 	Head(dir string) (string, error)
@@ -73,11 +94,21 @@ type TestRun struct {
 	Output string // the tail, for the reason or the evidence
 }
 
+// Budget says whether a provider may take new work right now.
+type Budget interface {
+	Admit(ctx context.Context, provider string) error
+}
+
 // Orchestrator is the control loop over the task store.
 type Orchestrator struct {
 	Store  *taskstore.Store
 	Agents Agents
 	Git    Git
+	// Headless, when set, runs dispatched tasks as worker processes instead of
+	// typing them into Agents.
+	Headless Headless
+	// Budget gates dispatch; nil admits everything.
+	Budget Budget
 	// Lease is how long an attempt may go without activity before it is
 	// reported as expired.
 	Lease time.Duration
@@ -154,9 +185,19 @@ func (o *Orchestrator) Dispatch(ctx context.Context, taskID string) (taskstore.A
 	if provider == "" {
 		provider = "auto"
 	}
-	ws, err := o.Agents.Pick(ctx, provider)
-	if err != nil {
-		return taskstore.Attempt{}, err
+	if o.Budget != nil {
+		if err := o.Budget.Admit(ctx, provider); err != nil {
+			return taskstore.Attempt{}, err
+		}
+	}
+	var ws Workspace
+	if o.Headless != nil {
+		ws = o.Headless.Workspace()
+	} else {
+		var err error
+		if ws, err = o.Agents.Pick(ctx, provider); err != nil {
+			return taskstore.Attempt{}, err
+		}
 	}
 	base, err := o.Git.Head(ws.Dir)
 	if err != nil {
@@ -172,6 +213,9 @@ func (o *Orchestrator) Dispatch(ctx context.Context, taskID string) (taskstore.A
 		return a, fmt.Errorf("attempt id %s, expected %s", a.ID, attemptID)
 	}
 
+	if o.Headless != nil {
+		return o.startHeadless(ctx, t, a, base)
+	}
 	d, err := o.Agents.Send(ctx, ws, Envelope(t, a))
 	if err != nil {
 		reason := "dispatch failed: " + err.Error()
@@ -184,6 +228,24 @@ func (o *Orchestrator) Dispatch(ctx context.Context, taskID string) (taskstore.A
 		return o.Store.MarkRunning(a.ID, d.SessionID)
 	}
 	return o.Store.MarkUnknown(a.ID)
+}
+
+func (o *Orchestrator) startHeadless(ctx context.Context, t taskstore.Task, a taskstore.Attempt, base string) (taskstore.Attempt, error) {
+	err := o.Headless.Start(ctx, a, base, HeadlessEnvelope(t, a))
+	if err == nil {
+		return o.Store.MarkRunning(a.ID, "")
+	}
+	reason, target := "dispatch failed: "+err.Error(), taskstore.StatusQueued
+	if errors.Is(err, ErrWorkerMissing) {
+		reason, target = "missingCli: "+err.Error(), taskstore.StatusBlocked
+	}
+	if _, e := o.Store.EndAttempt(a.ID, taskstore.AttemptFailed, reason, ""); e == nil {
+		_, _ = o.Store.Transition(t.ID, taskstore.StatusQueued, taskstore.ActorOrchestrator, taskstore.Change{Reason: reason}, "")
+		if target == taskstore.StatusBlocked {
+			_, _ = o.Store.Transition(t.ID, target, taskstore.ActorOrchestrator, taskstore.Change{Reason: reason}, "")
+		}
+	}
+	return a, err
 }
 
 // ConfirmDelivery records that the agent has the work after all — the user
@@ -212,6 +274,10 @@ func (o *Orchestrator) Tick(ctx context.Context) {
 		if a == nil {
 			continue
 		}
+		if o.Headless != nil && a.Workspace == HeadlessWorkspace {
+			o.tickHeadless(t, *a)
+			continue
+		}
 		if ws, ok := o.Agents.Lookup(a.Workspace); ok {
 			if o.applyResult(t, *a, ws) {
 				continue
@@ -223,6 +289,23 @@ func (o *Orchestrator) Tick(ctx context.Context) {
 			}
 		}
 	}
+}
+
+func (o *Orchestrator) tickHeadless(t taskstore.Task, a taskstore.Attempt) {
+	if r, done := o.Headless.Outcome(a.ID); done {
+		o.applyOutcome(t, a, r, o.Headless.Workspace().Dir)
+		return
+	}
+	if o.Headless.Running(a.ID) {
+		_, _ = o.Store.Heartbeat(a.ID)
+	}
+}
+
+func (o *Orchestrator) lookup(name string) (Workspace, bool) {
+	if o.Headless != nil && name == HeadlessWorkspace {
+		return o.Headless.Workspace(), true
+	}
+	return o.Agents.Lookup(name)
 }
 
 // Result is what an agent writes to .aiagent/results/<attemptId>.json.
@@ -250,10 +333,21 @@ func (o *Orchestrator) applyResult(t taskstore.Task, a taskstore.Attempt, ws Wor
 	if err != nil {
 		return false
 	}
+	return o.applyOutcome(t, a, r, ws.Dir)
+}
+
+// LoadResult reads the result file an attempt left in its checkout at dir.
+func LoadResult(dir, attemptID string) (Result, error) {
+	return readResult(ResultPath(dir, attemptID))
+}
+
+// applyOutcome moves a task on from what its attempt reported. The commit a
+// "done" names is looked up in the repository at dir.
+func (o *Orchestrator) applyOutcome(t taskstore.Task, a taskstore.Attempt, r Result, dir string) bool {
 	summary := clip(r.Summary, 500)
 	switch r.Status {
 	case "done":
-		if !commitRE.MatchString(r.Commit) || !o.Git.HasCommit(ws.Dir, r.Commit) {
+		if !commitRE.MatchString(r.Commit) || !o.Git.HasCommit(dir, r.Commit) {
 			return false
 		}
 		if _, err := o.Store.ReportAttempt(a.ID, r.Commit, summary); err != nil {
@@ -299,4 +393,37 @@ func clip(s string, n int) string {
 		return string(r[:n]) + "…"
 	}
 	return s
+}
+
+// CheckBase runs before a reviewed task can complete. If the workspace's base
+// has moved since the attempt started, the reviewed work is sent back to
+// verifying, so its tests run again before anyone can complete it. It reports
+// whether it did.
+func (o *Orchestrator) CheckBase(ctx context.Context, taskID string) (bool, error) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	t, ok := o.Store.Get(taskID)
+	if !ok {
+		return false, fmt.Errorf("no task %s", taskID)
+	}
+	if t.Status != taskstore.StatusAwaitingReview || len(t.Attempts) == 0 {
+		return false, nil
+	}
+	a := t.Attempts[len(t.Attempts)-1]
+	ws, ok := o.lookup(a.Workspace)
+	if !ok {
+		return false, fmt.Errorf("workspace %s is no longer configured", a.Workspace)
+	}
+	head, err := o.Git.Head(ws.Dir)
+	if err != nil {
+		return false, fmt.Errorf("workspace %s: %w", ws.Name, err)
+	}
+	if head == a.BaseCommit {
+		return false, nil
+	}
+	reason := fmt.Sprintf("base moved from %s to %s since review; tests run again", a.BaseCommit, head)
+	if _, err := o.Store.Transition(t.ID, taskstore.StatusVerifying, taskstore.ActorOrchestrator, taskstore.Change{Reason: reason}, ""); err != nil {
+		return false, err
+	}
+	return true, nil
 }

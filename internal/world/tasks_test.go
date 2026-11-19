@@ -140,3 +140,48 @@ func TestTaskRoutesAreAbsentWithoutAStore(t *testing.T) {
 		t.Fatalf("want 404 with no task store, got %d", code)
 	}
 }
+
+// Completing reviewed work checks the base first: when HEAD has moved since
+// the attempt started, the completion is refused and the work goes back to
+// verifying; when it has not, the user's completion goes through.
+func TestCompletionWaitsForAnUnchangedBase(t *testing.T) {
+	e, tok := taskEnv(t)
+	e.col.Workspaces = routeWorkspaces()
+	e.runner.sessions = "lit\t1793750000\nlit-codex\t1793750000\n"
+	e.runner.panes = "lit\tagent\t1\tclaude\nlit-codex\tagent\t1\tcodex\n"
+	e.runner.gitHead = "9a79130"
+	e.svc.Orch = NewOrchestrator(e.svc.Tasks, e.col, time.Hour)
+
+	body := `{"projectId":"aiagent","title":"แก้ outbox","provider":"codex","acceptanceCriteria":["ไม่ส่งซ้ำ"]}`
+	if code, m, _ := e.do(t, "POST", "/aiagent/api/tasks", tok, body); code != 200 {
+		t.Fatalf("create: %d %v", code, m)
+	}
+	e.svc.Orch.Promote()
+	time.Sleep(writeSpacing)
+	if code, m, _ := e.do(t, "POST", "/aiagent/api/tasks/T-0001/dispatch", tok, ""); code != 200 {
+		t.Fatalf("dispatch: %d %v", code, m)
+	}
+	time.Sleep(writeSpacing)
+	if code, m, _ := e.do(t, "POST", "/aiagent/api/tasks/T-0001/attempts/T-0001-A1/confirm", tok, `{}`); code != 200 {
+		t.Fatalf("confirm: %d %v", code, m)
+	}
+	ts := e.svc.Tasks
+	if _, err := ts.ReportAttempt("T-0001-A1", "9a79130", "done"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ts.Transition("T-0001", taskstore.StatusVerifying, taskstore.ActorOrchestrator, taskstore.Change{Evidence: map[string]string{"commit": "9a79130"}}, ""); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ts.Transition("T-0001", taskstore.StatusAwaitingReview, taskstore.ActorOrchestrator, taskstore.Change{Evidence: map[string]string{"tests": "passed"}}, ""); err != nil {
+		t.Fatal(err)
+	}
+
+	e.runner.gitHead = "b1c2d3e"
+	time.Sleep(writeSpacing)
+	if code, m, _ := e.do(t, "POST", "/aiagent/api/tasks/T-0001/transition", tok, `{"to":"completed"}`); code != 409 {
+		t.Fatalf("completing over a moved base must be refused, got %d %v", code, m)
+	}
+	if task, _ := ts.Get("T-0001"); task.Status != taskstore.StatusVerifying {
+		t.Fatalf("after a moved base the task is %s, want verifying", task.Status)
+	}
+}

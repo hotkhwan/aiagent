@@ -53,6 +53,7 @@ var Transitions = []rule{
 
 	// Only the user completes; a revision request starts the task over at
 	// the next revision.
+	{from: StatusAwaitingReview, to: StatusVerifying, actors: orch, reason: true},
 	{from: StatusAwaitingReview, to: StatusCompleted, actors: user},
 	{from: StatusAwaitingReview, to: StatusQueued, actors: user, reason: true},
 

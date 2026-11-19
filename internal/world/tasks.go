@@ -91,6 +91,15 @@ func (s *Service) handleTaskTransition(c fiber.Ctx) error {
 		if _, ok := s.Tasks.Get(id); !ok {
 			return nil, ErrNotFound("no such task")
 		}
+		if body.To == taskstore.StatusCompleted && s.Orch != nil {
+			moved, err := s.Orch.CheckBase(c.Context(), id)
+			if err != nil {
+				return nil, ErrConflict(err.Error())
+			}
+			if moved {
+				return nil, ErrConflict("the base moved since this work was reviewed; it is verified again before it can complete")
+			}
+		}
 		t, err := s.Tasks.Transition(id, body.To, taskstore.ActorUser, taskstore.Change{Reason: body.Reason}, body.IdempotencyKey)
 		if err != nil {
 			return nil, ErrConflict(err.Error())

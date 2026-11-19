@@ -27,7 +27,7 @@ import (
 // NewOrchestrator wires the orchestrator to this collector's sessions and
 // checkouts.
 func NewOrchestrator(ts *taskstore.Store, c *Collector, lease time.Duration) *orchestrator.Orchestrator {
-	return &orchestrator.Orchestrator{Store: ts, Agents: AgentSessions{C: c}, Git: RepoGit{R: c.Runner}, Lease: lease}
+	return &orchestrator.Orchestrator{Store: ts, Agents: AgentSessions{C: c}, Git: RepoGit{R: c.Runner}, Budget: QuotaBudget{C: c}, Lease: lease}
 }
 
 // AgentSessions implements orchestrator.Agents over the collector.
@@ -177,11 +177,12 @@ func (g RepoGit) RunTests(ctx context.Context, dir, commit string, argv []string
 }
 
 // RunTestIn runs argv in dir with a fixed argv and keeps the last 64 KiB of
-// its combined output.
+// its combined output. The subscription token is withheld: the code under test
+// is an agent's commit.
 func (ExecRunner) RunTestIn(ctx context.Context, dir string, argv []string) ([]byte, error) {
 	cmd := exec.CommandContext(ctx, argv[0], argv[1:]...)
 	cmd.Dir = dir
-	cmd.Env = append(os.Environ(), "TERM=dumb")
+	cmd.Env = append(withoutEnv(os.Environ(), "CLAUDE_CODE_OAUTH_TOKEN"), "TERM=dumb")
 	out, err := cmd.CombinedOutput()
 	if len(out) > 64<<10 {
 		out = out[len(out)-64<<10:]
@@ -258,4 +259,14 @@ func (s *Service) StartOrchestrator(ctx context.Context) {
 			}
 		}
 	}()
+}
+
+func withoutEnv(env []string, name string) []string {
+	out := env[:0:0]
+	for _, kv := range env {
+		if k, _, _ := strings.Cut(kv, "="); k != name {
+			out = append(out, kv)
+		}
+	}
+	return out
 }
