@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"slices"
@@ -45,6 +46,22 @@ func TestFilterEnvPassesOnlyTheAllowlist(t *testing.T) {
 	}
 	if strings.Contains(joined, "secret") {
 		t.Fatalf("a secret leaked into the worker env: %q", joined)
+	}
+}
+
+// The worker logs in with the subscription token from `claude setup-token`,
+// not with the keychain, so the token is the one credential that crosses over.
+func TestWorkerEnvCarriesOnlyTheSubscriptionToken(t *testing.T) {
+	parent := []string{
+		"CLAUDE_CODE_OAUTH_TOKEN=oauth-token-value",
+		"ANTHROPIC_API_KEY=sk-ant-api-value",
+		"ANTHROPIC_AUTH_TOKEN=bearer-value",
+		"GITHUB_TOKEN=ghp-value",
+	}
+	got := FilterEnv(parent, WorkerEnvAllow)
+	want := []string{"CLAUDE_CODE_OAUTH_TOKEN=oauth-token-value"}
+	if !slices.Equal(got, want) {
+		t.Fatalf("worker env = %q, want %q", got, want)
 	}
 }
 
@@ -112,5 +129,22 @@ echo '{"type":"result","subtype":"success","is_error":false,"result":"done"}'
 	env, _ := os.ReadFile(filepath.Join(dir, "env"))
 	if strings.Contains(string(env), "GITHUB_TOKEN") {
 		t.Fatal("the worker environment carried GITHUB_TOKEN")
+	}
+}
+
+func TestWorkerToolsDoNotAllowGoCommands(t *testing.T) {
+	for _, tool := range DefaultTools.Allowed {
+		if strings.HasPrefix(tool, "Bash(go") || strings.HasPrefix(tool, "Bash(gofmt") {
+			t.Fatalf("worker may run %s; the token process must not execute test code", tool)
+		}
+	}
+}
+
+func TestWorkerGitDoesNotRunAutomaticMaintenance(t *testing.T) {
+	cmd := exec.Command("git", "config", "--get", "maintenance.auto")
+	cmd.Env = workerEnv(os.Environ(), "")
+	out, _ := cmd.Output()
+	if strings.TrimSpace(string(out)) != "false" {
+		t.Fatalf("maintenance.auto = %q under the worker environment; want false", out)
 	}
 }

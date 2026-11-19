@@ -72,7 +72,7 @@ func TestDefaultPolicyWritesOnlyTheAttemptAndDeniesSecrets(t *testing.T) {
 	if !slices.Equal(p.Writable, []string{"/Users/op/.aiagent/worktrees/A1", "/var/tmp/A1"}) {
 		t.Fatalf("writable = %v", p.Writable)
 	}
-	for _, want := range []string{"/Users/op/.ssh", "/Users/op/.cloudflared", "/Users/op/.aiagent", "/Users/op/Library/Keychains"} {
+	for _, want := range []string{"/Users/op/.ssh", "/Users/op/.cloudflared", "/Users/op/.aiagent", "/Users/op/Library/Keychains", "/Users/op/littledays-keys"} {
 		if !slices.Contains(p.Denied, want) {
 			t.Fatalf("%s is not denied: %v", want, p.Denied)
 		}

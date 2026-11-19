@@ -15,10 +15,20 @@ import (
 // into blocked{missingCli}, not into a crash.
 var ErrMissingCLI = errors.New("worker CLI not installed")
 
-// WorkerEnvAllow names the only variables a worker inherits. Credentials for
-// GitHub, cloud providers or the API are left out on purpose: the CLI runs on
-// its own subscription login.
-var WorkerEnvAllow = []string{"PATH", "HOME", "USER", "LOGNAME", "LANG", "LC_ALL", "TERM", "TMPDIR", "SHELL"}
+// WorkerEnvAllow names the only variables a worker inherits. The subscription
+// token from `claude setup-token` is the one credential that crosses over, so
+// the worker never needs the keychain. API keys and GitHub or cloud credentials
+// stay out on purpose.
+var WorkerEnvAllow = []string{"PATH", "HOME", "USER", "LOGNAME", "LANG", "LC_ALL", "TERM", "TMPDIR", "SHELL", "CLAUDE_CODE_OAUTH_TOKEN"}
+
+// gitNoMaintenance turns off the background `git maintenance run --auto` that
+// every commit starts. Its gc would prune the shared repository from inside a
+// worker, and it cannot run under the sandbox anyway.
+var gitNoMaintenance = []string{
+	"GIT_CONFIG_COUNT=2",
+	"GIT_CONFIG_KEY_0=maintenance.auto", "GIT_CONFIG_VALUE_0=false",
+	"GIT_CONFIG_KEY_1=gc.auto", "GIT_CONFIG_VALUE_1=0",
+}
 
 // gitIdentity lets the worker commit without touching the operator's git
 // config. It is not a person's identity.
@@ -38,14 +48,15 @@ type Tools struct {
 }
 
 // DefaultTools is the profile every attempt runs with: edit and inspect the
-// worktree, commit on the attempt's branch, run the Go checks. Pushing,
-// merging, rebasing, resetting and changing remotes are refused.
+// worktree, commit on the attempt's branch. Go commands are not allowed: the
+// worker process holds the subscription token, and the orchestrator runs the
+// tests on the commit outside the worker. Pushing, merging, rebasing,
+// resetting and changing remotes are refused.
 var DefaultTools = Tools{
 	Allowed: []string{
 		"Read", "Edit", "Write",
 		"Bash(git status:*)", "Bash(git diff:*)", "Bash(git log:*)",
 		"Bash(git add:*)", "Bash(git commit:*)", "Bash(git switch:*)",
-		"Bash(go test:*)", "Bash(go vet:*)", "Bash(gofmt:*)",
 	},
 	Disallowed: []string{
 		"Bash(git push:*)", "Bash(git merge:*)", "Bash(git rebase:*)",
@@ -64,6 +75,28 @@ func ClaudeArgs(t Tools) []string {
 		"--allowedTools", strings.Join(t.Allowed, ","),
 		"--disallowedTools", strings.Join(t.Disallowed, ","),
 	}
+}
+
+// workerEnv is the environment a worker process starts with.
+func workerEnv(parent []string, tmpDir string) []string {
+	env := FilterEnv(parent, WorkerEnvAllow)
+	if tmpDir != "" {
+		env = withEnv(env, "TMPDIR", tmpDir)
+		env = withEnv(env, "CLAUDE_CODE_TMPDIR", tmpDir)
+	}
+	env = append(env, gitIdentity...)
+	return append(env, gitNoMaintenance...)
+}
+
+// withEnv replaces name in env, or adds it.
+func withEnv(env []string, name, value string) []string {
+	out := make([]string, 0, len(env)+1)
+	for _, kv := range env {
+		if k, _, _ := strings.Cut(kv, "="); k != name {
+			out = append(out, kv)
+		}
+	}
+	return append(out, name+"="+value)
 }
 
 // FilterEnv keeps the entries of parent whose names are in allow.
@@ -87,6 +120,10 @@ type Claude struct {
 	Bin     string
 	Tools   Tools
 	Sandbox sandbox.Policy
+	// TmpDir is the worker's scratch directory (TMPDIR and CLAUDE_CODE_TMPDIR).
+	// It must be one of Sandbox.Writable: the CLI's shell tool writes there,
+	// not in the shared /tmp.
+	TmpDir string
 	// Parent is the environment to filter. Nil means this process's.
 	Parent []string
 }
@@ -117,11 +154,10 @@ func (c Claude) Run(ctx context.Context, dir, prompt string, onEvent func(Event)
 	if parent == nil {
 		parent = os.Environ()
 	}
-	env := append(FilterEnv(parent, WorkerEnvAllow), gitIdentity...)
 	return Run(ctx, Process{
 		Argv:    argv,
 		Dir:     dir,
-		Env:     env,
+		Env:     workerEnv(parent, c.TmpDir),
 		Stdin:   prompt,
 		OnEvent: onEvent,
 	})

@@ -87,6 +87,8 @@ func serve(args []string) {
 	wsFile := fs.String("workspaces", "", "JSON file listing dispatchable workspaces (default: <state-dir>/workspaces.json)")
 	certFile := fs.String("tls-cert", "", "TLS certificate (PEM)")
 	keyFile := fs.String("tls-key", "", "TLS private key (PEM)")
+	workerRepo := fs.String("worker-repo", "", "git checkout that headless workers branch from; empty leaves headless dispatch off")
+	workerTest := fs.String("worker-test", "go test ./...", "command that verifies a worker's commit in --worker-repo")
 	_ = fs.Parse(args)
 
 	if (*certFile == "") != (*keyFile == "") {
@@ -153,6 +155,13 @@ func serve(args []string) {
 		// An attempt that shows no transcript activity for this long is
 		// reported as expired; nothing is requeued by itself.
 		svc.Orch = world.NewOrchestrator(ts, col, 45*time.Minute)
+		if *workerRepo != "" {
+			home, err := os.UserHomeDir()
+			if err != nil {
+				log.Fatalf("worker: home directory: %v", err)
+			}
+			svc.Orch.Headless = &world.Headless{Repo: *workerRepo, TestCommand: strings.Fields(*workerTest), StateDir: dir, Home: home}
+		}
 		// The central PM: a headless claude call on the subscription login,
 		// with no tools. It only proposes; without its log its routes stay off.
 		if th, err := planner.OpenThread(filepath.Join(dir, "pm.jsonl")); err != nil {

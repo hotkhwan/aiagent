@@ -92,6 +92,7 @@ func DefaultPolicy(home, stateDir, worktree, tmp string) Policy {
 			filepath.Join(home, ".ssh"),
 			filepath.Join(home, ".cloudflared"),
 			filepath.Join(home, "Library", "Keychains"),
+			filepath.Join(home, "littledays-keys"),
 			stateDir,
 		},
 	}
