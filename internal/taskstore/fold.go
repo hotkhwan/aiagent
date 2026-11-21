@@ -45,6 +45,7 @@ type Attempt struct {
 const (
 	evTaskCreated     = "taskCreated"
 	evTaskTransition  = "taskTransitioned"
+	evTaskDeleted     = "taskDeleted"
 	evAttemptStarting = "attemptStarting"
 	evAttemptRunning  = "attemptRunning"
 	evAttemptBeat     = "attemptHeartbeat"

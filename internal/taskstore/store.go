@@ -63,6 +63,7 @@ type Task struct {
 	CreatedAt     time.Time `json:"createdAt"`
 	UpdatedAt     time.Time `json:"updatedAt"`
 	Attempts      []Attempt `json:"attempts"`
+	deleted       bool
 }
 
 // Event is one line of the log.
@@ -308,20 +309,22 @@ func (s *Store) Get(id string) (Task, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.refresh()
-	if _, ok := s.tasks[id]; !ok {
+	if t, ok := s.tasks[id]; !ok || t.deleted {
 		return Task{}, false
 	}
 	return s.copyOf(id), true
 }
 
-// List returns every task, oldest first.
+// List returns every task that has not been deleted, oldest first.
 func (s *Store) List() []Task {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.refresh()
 	out := make([]Task, 0, len(s.tasks))
-	for id := range s.tasks {
-		out = append(out, s.copyOf(id))
+	for id, t := range s.tasks {
+		if !t.deleted {
+			out = append(out, s.copyOf(id))
+		}
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
 	return out

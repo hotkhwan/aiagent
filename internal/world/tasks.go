@@ -20,6 +20,7 @@ func (s *Service) mountTasks(api fiber.Router) {
 	api.Get("/tasks/:id", s.handleTaskGet)
 	api.Post("/tasks", s.handleTaskCreate)
 	api.Post("/tasks/:id/transition", s.handleTaskTransition)
+	api.Post("/tasks/:id/delete", s.handleTaskDelete)
 	api.Post("/tasks/:id/dispatch", s.handleTaskDispatch)
 	api.Post("/tasks/:id/attempts/:aid/confirm", s.handleAttemptConfirm)
 	api.Get("/tasks/:id/review", s.handleTaskReview)
@@ -105,6 +106,22 @@ func (s *Service) handleTaskTransition(c fiber.Ctx) error {
 			return nil, ErrConflict(err.Error())
 		}
 		return t, nil
+	})
+}
+
+func (s *Service) handleTaskDelete(c fiber.Ctx) error {
+	if s.Tasks == nil {
+		return hidden(c)
+	}
+	id := c.Params("id")
+	return s.mutate(c, "aiagent.taskDelete", []string{id}, func() (any, error) {
+		if _, ok := s.Tasks.Get(id); !ok {
+			return nil, ErrNotFound("no such task")
+		}
+		if err := s.Tasks.Delete(id, taskstore.ActorUser); err != nil {
+			return nil, ErrConflict(err.Error())
+		}
+		return fiber.Map{"taskId": id, "deleted": true}, nil
 	})
 }
 

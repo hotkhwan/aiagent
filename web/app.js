@@ -3434,6 +3434,7 @@ function taskDetail (data) {
   if (t.status === 'blocked') move('queued', tr('ปลดบล็อก'), false)
   if (t.status === 'failed') move('queued', tr('ส่งกลับเข้าคิว'), false)
   if (t.status !== 'completed' && t.status !== 'cancelled') move('cancelled', tr('ยกเลิกงาน'), true, 'warn')
+  if (t.status === 'cancelled') actions.push(h('button', { type: 'button', class: 'warn', onclick: () => deleteTask(t) }, tr('ลบงาน')))
 
   const evRows = ev
     ? [
@@ -3557,6 +3558,12 @@ function openProposals () {
 function goView (v) {
   try { localStorage.setItem('aiagentView', v) } catch (e) { /* the view is still switched */ }
   setView(v)
+}
+
+async function deleteTask (t) {
+  if (!await confirmBox(tr('ลบงานนี้?'), t.taskId + ' · ' + t.title + tr(' จะหายจากกระดาน ประวัติยังเก็บไว้ในบันทึก'), '', tr('ลบเลย'))) return
+  st.taskOpen = null
+  await act('/tasks/' + encodeURIComponent(t.taskId) + '/delete', {}, () => tr('ลบงานแล้ว'))
 }
 
 // A task waiting for the user opens on the review page, where the diff is;

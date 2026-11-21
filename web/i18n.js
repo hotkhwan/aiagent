@@ -567,6 +567,11 @@ var EN = {
   'ตอบ': 'Answer',
   'อนุมัติ (ตั้งเป็น READY)': 'Approve (set to READY)',
   'ยกเลิกงาน': 'Cancel the job',
+  'ลบงาน': 'Delete job',
+  'ลบงานนี้?': 'Delete this job?',
+  'ลบเลย': 'Delete',
+  'ลบงานแล้ว': 'Job deleted',
+  ' จะหายจากกระดาน ประวัติยังเก็บไว้ในบันทึก': ' leaves the board; its history stays in the log',
   'อนุมัติ/ยกเลิก เปลี่ยนสถานะใน agcmd เท่านั้น — ไม่ merge, ไม่ deploy และไม่ปิด process':
     'Approve and cancel change the state in agcmd and nothing else — no merge, no deploy, no process killed',
   'บันทึกของงาน': 'Job notes',

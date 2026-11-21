@@ -106,6 +106,24 @@ func (s *Store) Transition(taskID string, to Status, actor Actor, ch Change, ide
 	return s.copyOf(taskID), nil
 }
 
+// Delete takes a cancelled task off the board and out of the PM's view. Its
+// history stays in the log.
+func (s *Store) Delete(taskID string, actor Actor) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	_, err := s.appendEvents(func() ([]Event, error) {
+		t, ok := s.tasks[taskID]
+		if !ok || t.deleted {
+			return nil, fmt.Errorf("no task %s", taskID)
+		}
+		if t.Status != StatusCancelled {
+			return nil, fmt.Errorf("task %s is %s: only a cancelled task can be deleted", taskID, t.Status)
+		}
+		return []Event{{Actor: actor, Type: evTaskDeleted, TaskID: taskID}}, nil
+	})
+	return err
+}
+
 // checkTransition is the state machine's judgement on one move.
 func checkTransition(t *Task, d transitionData, actor Actor) error {
 	if d.From != t.Status {
@@ -156,6 +174,11 @@ func (s *Store) applyLifecycle(e Event) error {
 		if d.To == StatusBlocked {
 			t.BlockedReason = d.Reason
 		}
+	case evTaskDeleted:
+		if e.Actor != ActorUser || t.Status != StatusCancelled || t.deleted {
+			return fmt.Errorf("task %s cannot be deleted by %s while %s", t.ID, e.Actor, t.Status)
+		}
+		t.deleted = true
 	default:
 		if err := s.applyAttempt(t, e); err != nil {
 			return err
