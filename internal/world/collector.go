@@ -201,7 +201,7 @@ func (c *Collector) collectLocked(ctx context.Context) Snapshot {
 	now := c.now()
 	since := startOfDay(now.In(time.Local))
 	host, _ := os.Hostname()
-	snap := Snapshot{GeneratedAt: now.UTC(), Host: host, Sessions: []Session{}, Runs: []Run{}, Warnings: []string{}}
+	snap := Snapshot{GeneratedAt: now.UTC(), Host: host, Version: Version, Sessions: []Session{}, Runs: []Run{}, Warnings: []string{}}
 
 	pt := c.readProcTable(ctx)
 	open := openFiles(c.ProcRoot, ".jsonl")

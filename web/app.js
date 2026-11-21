@@ -214,7 +214,7 @@ function renderBanner () {
 // ---------- render ----------
 function render () {
   const snap = st.snap
-  $('host').textContent = snap.host || ''
+  $('host').textContent = (snap.host || '') + (snap.version ? ' · v' + snap.version : '')
   const live = snap.sessions.filter(x => x.live)
   const reach = live.filter(x => x.dispatchVia).length
   const hs = st.house ? { name: tr('บ้าน Agent'), sub: live.length + tr(' agent บนเครื่องนี้') } : null

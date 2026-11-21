@@ -182,6 +182,7 @@ type Summary struct {
 type Snapshot struct {
 	GeneratedAt time.Time   `json:"generatedAt"`
 	Host        string      `json:"host"`
+	Version     string      `json:"version"`
 	Summary     Summary     `json:"summary"`
 	Sessions    []Session   `json:"sessions"`
 	Runs        []Run       `json:"runs"`
