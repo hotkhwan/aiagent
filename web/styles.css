@@ -1403,6 +1403,13 @@ body:fullscreen .banner { padding: 6px 18px; font-size: 13px }
 .tcall { font-size: 12px; color: var(--s-awaitingReview) }
 .tlane { margin-top: 12px; border: 1px solid var(--line); border-radius: 14px; padding: 8px }
 .tlaneCards { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; margin-top: 8px }
+.tlaneItem { display: flex; flex-direction: column; gap: 6px }
+.tfilters { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 8px }
+.tfilter { border: 1px solid var(--line); background: var(--sky3); border-radius: 999px; padding: 4px 12px; font-size: 13px; color: var(--muted) }
+.tfilter.on { border-color: var(--ink); color: var(--ink); font-weight: 600 }
+.tfilter span { font-variant-numeric: tabular-nums }
+.tpager { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 10px; font-size: 13px; color: var(--muted) }
+.tpager label { margin-left: auto; display: flex; align-items: center; gap: 6px }
 .tdetail { margin-top: 14px; background: var(--sky2); border: 1px solid var(--line); border-radius: 16px; padding: 14px 16px }
 .tdetail h3 { margin: 8px 0 10px; font-size: 17px }
 .tdetail h4 { margin: 12px 0 6px; font-size: 13px; color: var(--muted); font-weight: 600 }

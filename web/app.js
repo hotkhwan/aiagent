@@ -3444,26 +3444,58 @@ async function renderTasks () {
   }
   if (seq !== tasksSeq) return
   if (!st.taskForm) st.taskForm = taskForm()
+  const newestFirst = [...tasks].sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1))
+  const filterKey = st.taskFilter || 'all'
+  const matched = filterTasks(newestFirst, filterKey)
+  const perPage = st.taskPerPage || 10
+  const pg = pageTasks(matched, st.taskPage || 1, perPage)
+  st.taskPage = pg.page
   const head = h('div', { class: 'tasksHead' },
     h('h2', {}, tr('กระดานงาน')),
     h('button', { type: 'button', class: 'pri', onclick: () => { st.taskFormOpen = !st.taskFormOpen; renderTasks() } },
       st.taskFormOpen ? tr('ปิดฟอร์ม') : tr('+ งานใหม่')))
+  const filters = h('div', { class: 'tfilters' }, [['all', tr('ทั้งหมด')], ['active', tr('กำลังทำ')], ['done', tr('เสร็จแล้ว')], ['cancelled', tr('ยกเลิก')]].map(([k, label]) =>
+    h('button', { type: 'button', class: 'tfilter' + (k === filterKey ? ' on' : ''), onclick: () => { st.taskFilter = k; st.taskPage = 1; renderTasks() } }, label, ' ', h('span', {}, String(filterTasks(newestFirst, k).length)))))
+  const pager = h('div', { class: 'tpager' },
+    h('button', { type: 'button', class: 'ghost', disabled: pg.page <= 1, onclick: () => { st.taskPage = pg.page - 1; renderTasks() } }, tr('ก่อนหน้า')),
+    h('span', {}, tr('หน้า ') + pg.page + ' / ' + pg.pages),
+    h('button', { type: 'button', class: 'ghost', disabled: pg.page >= pg.pages, onclick: () => { st.taskPage = pg.page + 1; renderTasks() } }, tr('ถัดไป')),
+    h('label', {}, tr('ต่อหน้า '), h('select', { onchange: e => { st.taskPerPage = Number(e.target.value); st.taskPage = 1; renderTasks() } },
+      [10, 20, 50].map(n => h('option', { value: n, selected: n === perPage }, String(n))))))
   const cols = boardCols.map(s => {
-    const mine = tasks.filter(t => t.status === s)
+    const mine = pg.items.filter(t => t.status === s)
     return h('div', { class: 'tcol' },
-      h('div', { class: 'tcolHead' }, taskPill(s), h('span', { class: 'tcount' }, String(mine.length))),
+      h('div', { class: 'tcolHead' }, taskPill(s), h('span', { class: 'tcount' }, String(matched.filter(t => t.status === s).length))),
       mine.length ? mine.map(taskCard) : h('div', { class: 'tnone' }, '—'))
   })
-  const lane = tasks.filter(t => laneStatuses.includes(t.status))
+  const lane = pg.items.filter(t => laneStatuses.includes(t.status))
   // replaceChildren, unlike h(), would print a null as the text "null".
   box.replaceChildren(...[
     head,
     st.taskFormOpen ? st.taskForm : null,
     tasks.length ? null : h('div', { class: 'tasksEmpty' }, tr('ยังไม่มีงาน — กด + งานใหม่ เพื่อสร้างงานแรก')),
+    tasks.length ? filters : null,
+    tasks.length ? pager : null,
+    tasks.length && !matched.length ? h('div', { class: 'tasksEmpty' }, tr('ไม่มีงานในตัวกรองนี้')) : null,
     h('div', { class: 'tboard' }, cols),
-    lane.length ? h('div', { class: 'tlane' }, h('div', { class: 'tcolHead' }, tr('ติดขัด / ล้มเหลว / ยกเลิก')), h('div', { class: 'tlaneCards' }, lane.map(taskCard))) : null,
+    lane.length ? h('div', { class: 'tlane' }, h('div', { class: 'tcolHead' }, tr('ติดขัด / ล้มเหลว / ยกเลิก')), h('div', { class: 'tlaneCards' }, lane.map(t => h('div', { class: 'tlaneItem' },
+      taskCard(t),
+      t.status === 'cancelled' ? h('button', { type: 'button', class: 'warn', onclick: () => deleteTask(t) }, tr('ลบงาน')) : null)))) : null,
     st.taskDetailData ? taskDetail(st.taskDetailData) : null
   ].filter(Boolean))
+}
+
+function filterTasks (list, key) {
+  if (key === 'active') return list.filter(t => openStatuses.includes(t.status))
+  if (key === 'done') return list.filter(t => t.status === 'completed')
+  if (key === 'cancelled') return list.filter(t => t.status === 'cancelled')
+  return list
+}
+
+function pageTasks (list, page, perPage) {
+  const pages = Math.max(1, Math.ceil(list.length / perPage))
+  const at = Math.min(Math.max(1, page), pages)
+  return { page: at, pages, items: list.slice((at - 1) * perPage, at * perPage) }
 }
 
 function taskCard (t) {
