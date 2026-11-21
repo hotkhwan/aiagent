@@ -1373,7 +1373,15 @@ function monitorCards (want, msgsById, big) {
     h('div', { class: 'scrTop' }, h('b', null, a.name), h('em', null, a.kind === 'sub' ? 'sub-agent' : a.label)),
     ...(big && a.kind === 'session' ? openReviewsOf(a.id).map(r => h('button', { type: 'button', class: 'pri revOpen', onclick: e => { e.stopPropagation(); $('screenPop').close(); openReview(r.id) } }, tr('🧪 เปิดตรวจงาน: ') + r.title)) : []),
     ...((a.watches || []).filter(w => w.ci).slice(0, big ? 6 : 2).map(w => h('div', { class: 'scrJob' }, h('i'), h('b', null, w.label), h('span', null, (w.event || tr('รอผล…')) + (w.eventAt && !w.eventAt.startsWith('0001') ? ' · ' + fmtTime(w.eventAt) : ''))))),
-    ...((msgsById[a.id] || []).slice(big ? -3 : -1).map(m => h('div', { class: 'scrMsg ' + m.role }, h('span', null, (m.role === 'user' ? tr('ผู้ใช้') : 'agent') + ' · ' + fmtTime(m.at)), big ? mdBody(m.text) : h('p', null, m.text.slice(0, 160)))))))
+    ...((msgsById[a.id] || []).slice(big ? -3 : -1).map(m => h('div', { class: 'scrMsg ' + m.role }, h('span', null, (m.role === 'user' ? tr('ผู้ใช้') : 'agent') + ' · ' + fmtTime(m.at)), big ? mdBody(m.text) : h('p', null, m.text.slice(0, 160)), big ? msgImages(m.text) : null)))))
+}
+
+// The live wall shows two lines in the room, so the Testing room puts the
+// waiting reviews first and the agents after them.
+function liveWallCards (key, want) {
+  const open = key === 'test' ? (st.reviews || []).filter(r => r.status === 'open') : []
+  const head = open.length ? [h('div', { class: 'scrItem revWall' }, h('b', null, '🧪 ' + tr('งานรอตรวจ (') + open.length + ')'), h('p', null, open[0].title))] : []
+  return [...head, ...monitorCards(want, st.monMsgs, false)]
 }
 
 async function updateMonitor (want) {
@@ -1395,7 +1403,7 @@ async function updateMonitor (want) {
     } catch (e) { /* keep last */ }
   }
   const body = document.querySelector('.wallScreen.live .scrBody')
-  if (body) body.replaceChildren(...monitorCards(want, st.monMsgs, false))
+  if (body) body.replaceChildren(...liveWallCards(st.roomFocus, want))
   if ($('screenPop').open && st.popRoom === st.roomFocus) {
     $('screenPopBody').replaceChildren(...popContent(st.popRoom, want))
     drawPopComposer(want)
@@ -1405,6 +1413,15 @@ async function updateMonitor (want) {
 // popContent: the Testing room's screen always starts with the reviews
 function popContent (key, want) {
   return [...(key === 'test' ? [reviewList(true)] : []), ...monitorCards(want, st.monMsgs || {}, true)]
+}
+
+// A picture copied to the clipboard is attached like a picked file; text pastes
+// through untouched.
+function pasteImages (e, thumbs) {
+  const files = [...(e.clipboardData ? e.clipboardData.items : [])].filter(i => i.kind === 'file').map(i => i.getAsFile())
+  if (!files.length) return
+  e.preventDefault()
+  addFiles(files, thumbs)
 }
 
 // The monitor's own composer. It is built into the dialog footer and left alone
@@ -1432,6 +1449,7 @@ function drawPopComposer (want) {
   const targetOf = () => (pick ? targets.find(s => s.sessionId === pick.value) : targets[0]) || targets[0]
   const file = h('input', { type: 'file', accept: 'image/png,image/jpeg,image/gif,image/webp', multiple: true, hidden: true })
   file.addEventListener('change', () => { addFiles(file.files, thumbs); file.value = '' })
+  ta.addEventListener('paste', e => pasteImages(e, thumbs))
   const send = () => { sendChat(targetOf(), ta, thumbs); ta.style.height = ''; return false }
   ta.addEventListener('keydown', e => {
     if (e.key === 'Enter' && !e.shiftKey && !isPhone()) { e.preventDefault(); send() }
@@ -1466,6 +1484,7 @@ function drawSheetComposer () {
   const thumbs = h('div', { class: 'thumbs' })
   const file = h('input', { type: 'file', accept: 'image/png,image/jpeg,image/gif,image/webp', multiple: true, hidden: true })
   file.addEventListener('change', () => { addFiles(file.files, thumbs); file.value = '' })
+  ta.addEventListener('paste', e => pasteImages(e, thumbs))
   const send = () => {
     const now = composerSession()
     if (now) sendChat(now, ta, thumbs)
