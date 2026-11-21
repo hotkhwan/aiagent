@@ -1027,7 +1027,7 @@ function chooseChar (id, c) {
     if (c) localStorage.setItem(charKey(id), c)
     else localStorage.removeItem(charKey(id))
   } catch (e) { /* private mode: the pick lasts this visit */ }
-  repaintActor(st.actors[id])
+  repaintActor(st.actors && st.actors[id])
   repaintActor(st.focus && st.focus.actors[id])
   render()
 }
@@ -2625,11 +2625,11 @@ function openCharPicker (sess) {
     class: 'charOpt' + (c === cur ? ' on' : ''),
     title: c,
     'aria-pressed': String(c === cur),
-    onclick: () => { chooseChar(pickingFor, c); $('charPicker').close() }
+    onclick: () => { $('charPicker').close(); chooseChar(pickingFor, c) }
   }, charPreview(c))))
   $('charPicker').showModal()
 }
-$('charReset').addEventListener('click', () => { chooseChar(pickingFor, ''); $('charPicker').close() })
+$('charReset').addEventListener('click', () => { $('charPicker').close(); chooseChar(pickingFor, '') })
 
 
 // ---------- actions ----------
