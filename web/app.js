@@ -2625,11 +2625,25 @@ function openCharPicker (sess) {
     class: 'charOpt' + (c === cur ? ' on' : ''),
     title: c,
     'aria-pressed': String(c === cur),
-    onclick: () => { $('charPicker').close(); chooseChar(pickingFor, c) }
+    onclick: () => pickChar(c)
   }, charPreview(c))))
   $('charPicker').showModal()
 }
-$('charReset').addEventListener('click', () => { $('charPicker').close(); chooseChar(pickingFor, '') })
+function pickChar (c) {
+  markCharOption(c)
+  chooseChar(pickingFor, c)
+}
+function markCharOption (c) {
+  for (const o of $('charGrid').children) {
+    const on = o.title === c
+    o.classList.toggle('on', on)
+    o.setAttribute('aria-pressed', String(on))
+  }
+}
+$('charReset').addEventListener('click', () => {
+  chooseChar(pickingFor, '')
+  markCharOption(charFor(pickingFor))
+})
 
 
 // ---------- actions ----------

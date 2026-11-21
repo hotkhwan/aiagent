@@ -5,17 +5,23 @@ import (
 	"testing"
 )
 
-// Picking a character must always close the picker and apply the choice, even
-// when the agent has no actor in the view that is open (the village is not
-// drawn yet, or only the room focus is). A throw here leaves the picker open
-// and the new character unshown.
-func TestPickingACharacterClosesThePickerFirst(t *testing.T) {
+// The picker stays open after a pick so the owner sees the frame move to the
+// character chosen; only ✕ closes it. The choice must apply even when the agent
+// has no actor in the view that is open (the village is not drawn yet).
+func TestPickingACharacterMovesTheFrameAndKeepsThePickerOpen(t *testing.T) {
 	app := readWebFile(t, "app.js")
-	open := jsFunc(t, app, "openCharPicker")
-	close := strings.Index(open, "$('charPicker').close()")
-	apply := strings.Index(open, "chooseChar(pickingFor, c)")
-	if close < 0 || apply < 0 || close > apply {
-		t.Errorf("openCharPicker must close the picker before it applies the character")
+	pick := jsFunc(t, app, "markCharOption")
+	if !strings.Contains(pick, "classList.toggle('on'") || !strings.Contains(pick, "aria-pressed") {
+		t.Errorf("markCharOption must move the selected frame and aria-pressed to the chosen character")
+	}
+	if !strings.Contains(jsFunc(t, app, "pickChar"), "chooseChar(pickingFor, c)") {
+		t.Errorf("pickChar must apply the chosen character")
+	}
+	if strings.Contains(jsFunc(t, app, "openCharPicker"), "close()") {
+		t.Errorf("a pick must not close the picker; only ✕ does")
+	}
+	if strings.Contains(app, "charReset').addEventListener('click', () => { $('charPicker').close()") {
+		t.Errorf("the reset button must not close the picker either")
 	}
 	if !strings.Contains(jsFunc(t, app, "chooseChar"), "st.actors && st.actors[id]") {
 		t.Errorf("chooseChar must not read st.actors when no village is drawn yet")
