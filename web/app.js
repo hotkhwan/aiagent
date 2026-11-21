@@ -2857,6 +2857,15 @@ $('ask').addEventListener('dragover', e => { e.preventDefault(); $('ask').classL
 $('ask').addEventListener('dragleave', () => $('ask').classList.remove('drop'))
 $('ask').addEventListener('drop', e => { e.preventDefault(); $('ask').classList.remove('drop'); addFiles(e.dataTransfer.files) })
 
+function fitLightbox () {
+  const img = $('lightboxImg')
+  if (!img.naturalWidth) return
+  const k = Math.min(innerWidth * 0.92 / img.naturalWidth, innerHeight * 0.88 / img.naturalHeight)
+  img.style.width = Math.round(img.naturalWidth * k) + 'px'
+  img.style.height = Math.round(img.naturalHeight * k) + 'px'
+}
+$('lightboxImg').addEventListener('load', fitLightbox)
+addEventListener('resize', () => { if ($('lightbox').open) fitLightbox() })
 function openLightbox (src) {
   $('lightboxImg').src = src
   $('lightboxImg').hidden = false
@@ -3480,7 +3489,7 @@ async function renderTasks () {
     h('div', { class: 'tboard' }, cols),
     lane.length ? h('div', { class: 'tlane' }, h('div', { class: 'tcolHead' }, tr('ติดขัด / ล้มเหลว / ยกเลิก')), h('div', { class: 'tlaneCards' }, lane.map(t => h('div', { class: 'tlaneItem' },
       taskCard(t),
-      t.status === 'cancelled' ? h('button', { type: 'button', class: 'warn', onclick: () => deleteTask(t) }, tr('ลบงาน')) : null)))) : null,
+      t.status === 'cancelled' ? h('button', { type: 'button', class: 'warn tdelBadge', onclick: () => deleteTask(t) }, tr('ลบงาน')) : null)))) : null,
     st.taskDetailData ? taskDetail(st.taskDetailData) : null
   ].filter(Boolean))
 }

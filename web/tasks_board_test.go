@@ -35,3 +35,29 @@ func TestCancelledTaskDeleteIsOnItsLaneCard(t *testing.T) {
 		t.Errorf("renderTasks must put a delete button on a cancelled card in the lane")
 	}
 }
+
+// Every card is the same size so the board does not look ragged, and the
+// delete badge sits on the card's top-right corner.
+func TestTaskCardsAreEqualAndDeleteIsABadge(t *testing.T) {
+	app := readWebFile(t, "app.js")
+	css := readWebFile(t, "styles.css")
+	if !strings.Contains(jsFunc(t, app, "renderTasks"), "tdelBadge") {
+		t.Errorf("the cancelled card's delete must be a tdelBadge on the card")
+	}
+	rule := func(sel string) string {
+		i := strings.Index(css, sel+" {")
+		if i < 0 {
+			t.Fatalf("styles.css has no %s rule", sel)
+		}
+		return css[i : i+strings.Index(css[i:], "}")]
+	}
+	if !strings.Contains(rule(".tcard"), "height: 128px") {
+		t.Errorf(".tcard needs one fixed height so every card is the same size")
+	}
+	if !strings.Contains(rule(".ttitle"), "line-clamp: 2") {
+		t.Errorf(".ttitle must clamp to two lines so a long title cannot stretch its card")
+	}
+	if !strings.Contains(rule(".tdelBadge"), "position: absolute") {
+		t.Errorf(".tdelBadge must sit over the card's top-right corner")
+	}
+}

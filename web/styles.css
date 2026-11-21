@@ -1391,19 +1391,20 @@ body:fullscreen .banner { padding: 6px 18px; font-size: 13px }
 .tpill.s-queued { background: var(--s-queued) } .tpill.s-ready { background: var(--s-ready) } .tpill.s-running { background: var(--s-running); color: #fff }
 .tpill.s-verifying { background: var(--s-verifying) } .tpill.s-awaitingReview { background: var(--s-awaitingReview); color: #fff } .tpill.s-completed { background: var(--s-completed) }
 .tpill.s-blocked { background: var(--s-blocked) } .tpill.s-failed { background: var(--s-failed); color: #fff } .tpill.s-cancelled { background: var(--s-cancelled) }
-.tcard { text-align: left; width: 100%; display: flex; flex-direction: column; gap: 4px; padding: 9px 10px; border-radius: 12px; background: var(--sky3); border: 1px solid var(--line); border-left: 4px solid var(--muted) }
+.tcard { text-align: left; width: 100%; height: 128px; overflow: hidden; display: flex; flex-direction: column; gap: 4px; padding: 9px 10px; border-radius: 12px; background: var(--sky3); border: 1px solid var(--line); border-left: 4px solid var(--muted) }
 .tcard:hover, .tcard.sel { border-color: var(--ink) }
 .tcard.s-queued { border-left-color: var(--s-queued) } .tcard.s-ready { border-left-color: var(--s-ready) } .tcard.s-running { border-left-color: var(--s-running) }
 .tcard.s-verifying { border-left-color: var(--s-verifying) } .tcard.s-awaitingReview { border-left-color: var(--s-awaitingReview); box-shadow: 0 0 0 1px color-mix(in srgb, var(--s-awaitingReview) 45%, transparent) }
 .tcard.s-completed { border-left-color: var(--s-completed); opacity: .8 } .tcard.s-blocked { border-left-color: var(--s-blocked) } .tcard.s-failed { border-left-color: var(--s-failed) } .tcard.s-cancelled { border-left-color: var(--s-cancelled); opacity: .7 }
 .tcardTop { display: flex; align-items: center; gap: 8px; flex-wrap: wrap }
 .tid { font-family: ui-monospace, Menlo, monospace; font-size: 12px; color: var(--muted); white-space: nowrap; flex: none }
-.ttitle { font-weight: 600; line-height: 1.35 }
-.tmeta { color: var(--muted); font-size: 12px; line-height: 1.4 }
+.ttitle { font-weight: 600; line-height: 1.35; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden }
+.tmeta { color: var(--muted); font-size: 12px; line-height: 1.4; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden }
 .tcall { font-size: 12px; color: var(--s-awaitingReview) }
 .tlane { margin-top: 12px; border: 1px solid var(--line); border-radius: 14px; padding: 8px }
 .tlaneCards { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; margin-top: 8px }
-.tlaneItem { display: flex; flex-direction: column; gap: 6px }
+.tlaneItem { position: relative }
+.tdelBadge { position: absolute; top: -8px; right: -8px; z-index: 1; padding: 2px 10px; border-radius: 999px; font-size: 12px; box-shadow: 0 2px 6px rgba(0,0,0,.35) }
 .tfilters { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 8px }
 .tfilter { border: 1px solid var(--line); background: var(--sky3); border-radius: 999px; padding: 4px 12px; font-size: 13px; color: var(--muted) }
 .tfilter.on { border-color: var(--ink); color: var(--ink); font-weight: 600 }
