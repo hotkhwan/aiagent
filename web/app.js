@@ -949,6 +949,9 @@ function drawInterior () {
     r.doorEl = door
     card.append(door)
     card.append(h('div', { class: 'roomCaption' }, roomDesc[key]))
+    r.cardEl = card
+    r.sigEl = h('button', { type: 'button', class: 'roomSig', hidden: true, title: tr('เปิดห้องดูรายละเอียด'), onclick: e => { e.stopPropagation(); openRoom(key) } })
+    card.append(r.sigEl)
     // the tasks at this step of the flow; fillRoomTasks keeps it current
     r.taskEl = h('div', { class: 'roomTasks' })
     card.append(r.taskEl)
@@ -1498,6 +1501,7 @@ function renderInterior () {
     st.actorLayer = drawInterior()
   }
   fillRoomTasks()
+  fillRoomSignals()
   const layer = st.actorLayer
   const want = actorsFor()
   const taken = {}
@@ -2308,28 +2312,123 @@ async function openReview (id) {
   const r = (st.reviews || []).find(x => x.id === id)
   if (!r) return
   const sess = sessOfReview(r)
+  const open = r.status === 'open'
+  const canSend = !!(sess && sess.live && sess.messageVia && open)
+  let items = null
+  let confirmed = false
+  let ready = false
+  let timer = 0
+  let seq = 0
   $('reviewTitle').textContent = tr('🧪 ตรวจงาน · ') + r.title
   $('reviewFrame').removeAttribute('src')
-  try {
-    const t = await api('/reviews/' + encodeURIComponent(id) + '/view', { method: 'POST' })
-    $('reviewFrame').src = t.url
-  } catch (e) { toast(tr('เปิดหน้าตรวจไม่ได้: ') + e.message, true) }
-  const note = h('textarea', { rows: 5, placeholder: tr('หมายเหตุ / สิ่งที่ต้องแก้ (ถ้าขอแก้ต้องใส่)') })
+
+  const note = h('textarea', { rows: 2 })
+  const checks = h('ul', { class: 'revChecks' })
+  const status = h('p', { class: 'note' }, tr('กำลังอ่านหน้าตรวจ…'))
+  const queue = h('pre', { class: 'revQueue' }, tr('ยังไม่ได้ยืนยันผลตรวจ — ตรวจทุกข้อในหน้าแล้วกดยืนยัน'))
   const out = h('pre', { class: 'revReply', hidden: true })
-  const canSend = sess && sess.live && sess.messageVia && r.status === 'open'
-  const decide = async (decision, send) => {
+  const confirmBtn = h('button', { type: 'button', class: 'pri', disabled: true, onclick: () => confirmItems() }, tr('ยืนยันผลตรวจ'))
+  const sendBtn = h('button', { type: 'button', class: 'pri', disabled: true, onclick: () => finish(true) }, tr('ส่งให้ agent'))
+  const copyBtn = h('button', { type: 'button', class: 'ghost', disabled: true, onclick: () => finish(false) }, tr('คัดลอกและปิดงาน'))
+  const itemsBox = h('div', { class: 'revItems', hidden: true },
+    h('p', { class: 'note' }, tr('ตรวจทีละข้อในหน้า (ผ่าน / ต้องแก้ไข) แล้วกดยืนยันผลตรวจ')),
+    checks,
+    confirmBtn,
+    h('h3', null, tr('ข้อความรอส่ง')),
+    queue,
+    h('p', { class: 'note' }, tr('แก้ผลข้อไหน ข้อความรอส่งจะอัปเดตให้เอง')),
+    h('div', { class: 'revBtns' }, sendBtn, copyBtn))
+  const decideLegacy = async (decision, sendIt) => {
     if (decision === 'revise' && !note.value.trim()) { note.focus(); toast(tr('บอกสิ่งที่ต้องแก้ก่อน'), true); return }
     try {
-      const res = await api('/reviews/' + encodeURIComponent(id) + '/decision', { method: 'POST', body: { decision, note: note.value, send } })
+      const res = await call('/decision', { decision, note: note.value, send: sendIt })
       out.hidden = false
       out.textContent = res.reply
-      if (send) for (const b of $('reviewSide').querySelectorAll('button.pri, button.warn')) b.disabled = true
-      if (!send) copyText(res.reply, { textContent: '' })
-      toast(send ? tr('ส่งให้ ') + sess.displayName + tr(' แล้ว (') + res.via + ')' : tr('คัดลอกข้อความตอบกลับแล้ว — วางใน session ได้เลย'))
+      if (sendIt) for (const b of legacyBox.querySelectorAll('button.pri, button.warn')) b.disabled = true
+      if (!sendIt) copyText(res.reply, { textContent: '' })
+      toast(sendIt ? tr('ส่งให้ ') + sess.displayName + tr(' แล้ว (') + res.via + ')' : tr('คัดลอกข้อความตอบกลับแล้ว — วางใน session ได้เลย'))
       st.revAt = 0
       poll()
     } catch (e) { toast(tr('ไม่สำเร็จ: ') + e.message, true) }
   }
+  const legacyBox = h('div', { hidden: true },
+    h('div', { class: 'revBtns' },
+      h('b', null, tr('✅ ตกลง ปิดงาน')),
+      h('button', { type: 'button', class: 'ghost', onclick: () => decideLegacy('approve', false) }, tr('คัดลอกข้อความ')),
+      h('button', { type: 'button', class: 'pri', disabled: !canSend, onclick: () => decideLegacy('approve', true) }, tr('ส่งให้ agent'))),
+    h('div', { class: 'revBtns' },
+      h('b', null, tr('✏️ ขอแก้ไขเพิ่มเติม')),
+      h('button', { type: 'button', class: 'ghost', onclick: () => decideLegacy('revise', false) }, tr('คัดลอกข้อความ')),
+      h('button', { type: 'button', class: 'warn', disabled: !canSend, onclick: () => decideLegacy('revise', true) }, tr('ส่งให้ agent'))))
+
+  const call = (path, body) => api('/reviews/' + encodeURIComponent(id) + path, { method: 'POST', body })
+  const paint = () => {
+    if (items === null) { status.hidden = false; itemsBox.hidden = true; legacyBox.hidden = true; return }
+    status.hidden = true
+    const list = items.length > 0
+    itemsBox.hidden = !list
+    legacyBox.hidden = list
+    note.placeholder = list ? tr('หมายเหตุรวมถึงผู้ทำงาน (ไม่บังคับ)') : tr('หมายเหตุ / สิ่งที่ต้องแก้ (ถ้าขอแก้ต้องใส่)')
+    if (!list) return
+    checks.replaceChildren(...items.map((it, i) => h('li', { class: 'revCheck ' + (it.verdict || 'todo') },
+      h('b', null, (i + 1) + '. ' + it.title),
+      h('span', null, it.verdict === 'approve' ? '✅ ' + tr('ผ่าน') : it.verdict === 'revise' ? '✏️ ' + tr('ต้องแก้ไข') : tr('ยังไม่ตรวจ')),
+      it.verdict === 'revise' && it.note ? h('small', null, it.note) : null)))
+    const judged = items.every(it => it.verdict)
+    confirmBtn.disabled = !judged || !open || confirmed
+    confirmBtn.textContent = confirmed ? tr('ยืนยันผลตรวจแล้ว') : tr('ยืนยันผลตรวจ')
+    sendBtn.disabled = !canSend || !ready
+    copyBtn.disabled = !open || !ready
+  }
+  const composeNow = async () => {
+    timer = 0
+    const mine = ++seq
+    const missing = items.findIndex(it => it.verdict === 'revise' && !(it.note || '').trim())
+    if (missing >= 0) {
+      ready = false
+      queue.textContent = tr('ใส่สิ่งที่ต้องแก้ในข้อ ') + (missing + 1) + tr(' ก่อน')
+      paint()
+      return
+    }
+    try {
+      const res = await call('/compose', { items, note: note.value })
+      if (mine !== seq) return
+      ready = true
+      queue.textContent = res.reply
+    } catch (e) {
+      if (mine !== seq) return
+      ready = false
+      queue.textContent = tr('ร่างข้อความไม่ได้: ') + e.message
+    }
+    paint()
+  }
+  const later = () => { clearTimeout(timer); timer = setTimeout(composeNow, 250) }
+  const confirmItems = () => { confirmed = true; composeNow() }
+  const finish = async (sendIt) => {
+    if (!ready) return
+    try {
+      const res = await call('/decision', { items, note: note.value, send: sendIt })
+      queue.textContent = res.reply
+      sendBtn.disabled = true
+      copyBtn.disabled = true
+      confirmBtn.disabled = true
+      if (sendIt) toast(tr('ส่งให้ ') + sess.displayName + tr(' แล้ว (') + res.via + ')')
+      else { copyText(res.reply, { textContent: '' }); toast(tr('คัดลอกข้อความตอบกลับแล้ว — วางใน session ได้เลย')) }
+      st.revAt = 0
+      poll()
+    } catch (e) { toast(tr('ไม่สำเร็จ: ') + e.message, true) }
+  }
+  note.addEventListener('input', () => { if (confirmed) later() })
+
+  if (st.reviewMsg) window.removeEventListener('message', st.reviewMsg)
+  st.reviewMsg = e => {
+    if (e.source !== $('reviewFrame').contentWindow || !e.data || e.data.aiagentReview !== true) return
+    items = e.data.items || []
+    paint()
+    if (confirmed) later()
+  }
+  window.addEventListener('message', st.reviewMsg)
+
   $('reviewSide').replaceChildren(...[
     h('dl', { class: 'kv' },
       h('dt', null, tr('จาก')), h('dd', null, sess ? sess.displayName : (r.runtime === 'codexCli' ? 'Codex' : tr('ไม่ระบุ session'))),
@@ -2337,17 +2436,17 @@ async function openReview (id) {
       h('dt', null, tr('สถานะ')), h('dd', null, r.status === 'open' ? tr('รอตรวจ') : r.status === 'approved' ? tr('ตกลงแล้ว') : tr('ขอแก้แล้ว')),
       r.cwd ? h('dt', null, tr('โฟลเดอร์')) : null, r.cwd ? h('dd', { class: 'mono' }, r.cwd) : null),
     r.summary ? h('p', null, r.summary) : null,
+    status,
     note,
-    h('div', { class: 'revBtns' },
-      h('b', null, tr('✅ ตกลง ปิดงาน')),
-      h('button', { type: 'button', class: 'ghost', onclick: () => decide('approve', false) }, tr('คัดลอกข้อความ')),
-      h('button', { type: 'button', class: 'pri', disabled: !canSend, onclick: () => decide('approve', true) }, tr('ส่งให้ agent'))),
-    h('div', { class: 'revBtns' },
-      h('b', null, tr('✏️ ขอแก้ไขเพิ่มเติม')),
-      h('button', { type: 'button', class: 'ghost', onclick: () => decide('revise', false) }, tr('คัดลอกข้อความ')),
-      h('button', { type: 'button', class: 'warn', disabled: !canSend, onclick: () => decide('revise', true) }, tr('ส่งให้ agent'))),
-    canSend ? null : h('p', { class: 'note' }, r.status !== 'open' ? tr('งานนี้ตรวจไปแล้ว — ส่งซ้ำไม่ได้ (คัดลอกข้อความได้)') : tr('ส่งตรงไม่ได้ (session ไม่ได้รันอยู่หรือรับข้อความจากเว็บไม่ได้) — กดคัดลอกแล้ววางใน Claude / Codex เอง')),
+    itemsBox,
+    legacyBox,
+    canSend ? null : h('p', { class: 'note' }, open ? tr('ส่งตรงไม่ได้ (session ไม่ได้รันอยู่หรือรับข้อความจากเว็บไม่ได้) — กดคัดลอกแล้ววางใน Claude / Codex เอง') : tr('งานนี้ตรวจไปแล้ว — ส่งซ้ำไม่ได้ (คัดลอกข้อความได้)')),
     out].filter(Boolean))
+  paint()
+  try {
+    const t = await api('/reviews/' + encodeURIComponent(id) + '/view', { method: 'POST' })
+    $('reviewFrame').src = t.url
+  } catch (e) { toast(tr('เปิดหน้าตรวจไม่ได้: ') + e.message, true) }
   $('reviewDlg').showModal()
 }
 
@@ -3638,6 +3737,32 @@ function entranceTaskPills () {
     wait ? h('em', { class: 'pill review' }, '◆ ' + wait + tr(' งานรอคุณตรวจ')) : '',
     run ? h('em', { class: 'pill work' }, run + tr(' งานกำลังทำ')) : ''
   ]
+}
+
+// Lights and symbols on the house rooms: a room is lit when it has a review
+// waiting (Testing), a task at its step, or an agent working in it.
+function fillRoomSignals () {
+  const open = openTasks()
+  const agents = actorsFor()
+  const reviews = (st.reviews || []).filter(r => r.status === 'open').length
+  for (const key in rooms2) {
+    const r = rooms2[key]
+    if (!r.sigEl || !r.sigEl.isConnected) continue
+    const parts = []
+    if (key === 'test' && reviews) parts.push(['🧪', reviews, tr('งานรอตรวจ')])
+    const tasks = open.filter(t => taskRoom[t.status] === key).length
+    if (tasks) parts.push(['📋', tasks, tr('งานที่ค้างในห้องนี้')])
+    const busy = agents.filter(a => a.room === key && (a.mood === 'work' || a.mood === 'ask')).length
+    if (busy) parts.push(['🤖', busy, tr('agent ทำงานอยู่ในห้องนี้')])
+    const sig = parts.map(p => p.join(':')).join('|')
+    r.cardEl.classList.toggle('lit', parts.length > 0)
+    r.cardEl.classList.toggle('pending', !!reviews && key === 'test')
+    if (r.sigEl.dataset.sig === sig) continue
+    r.sigEl.dataset.sig = sig
+    r.sigEl.hidden = !parts.length
+    r.sigEl.title = parts.map(p => p[0] + ' ' + p[1] + ' ' + p[2]).join('\n')
+    r.sigEl.replaceChildren(...parts.map(p => h('span', { class: 'sigChip' }, p[0] + ' ' + p[1])))
+  }
 }
 
 // Chips on the rooms of the house: which task is at which step.

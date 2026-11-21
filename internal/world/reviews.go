@@ -159,16 +159,78 @@ func ReviewReply(r *Review, decision, note string) string {
 	return b.String()
 }
 
+// ReviewItem is one section of a review page and the operator's verdict on it.
+type ReviewItem struct {
+	Title   string `json:"title"`
+	Verdict string `json:"verdict"` // approve | revise
+	Note    string `json:"note,omitempty"`
+}
+
+const reviewMaxItems = 50
+
+// composeItems turns per-section verdicts into the decision and the reply the
+// agent gets. Any revise makes the whole answer a revise.
+func composeItems(r *Review, items []ReviewItem, note string) (string, string, error) {
+	if len(items) == 0 || len(items) > reviewMaxItems {
+		return "", "", &APIError{400, "AIAGENT_ITEMS", "judge every section of the page"}
+	}
+	decision := "approve"
+	lines := make([]string, 0, len(items))
+	for i, it := range items {
+		title := truncateRunes(Redact(strings.TrimSpace(it.Title)), 200)
+		if title == "" {
+			title = fmt.Sprintf("ข้อ %d", i+1)
+		}
+		n := strings.TrimSpace(it.Note)
+		if len(n) > 4000 {
+			return "", "", &APIError{400, "AIAGENT_NOTE_TOO_LONG", "note is too long"}
+		}
+		switch it.Verdict {
+		case "approve":
+			lines = append(lines, fmt.Sprintf("%d. %s — ผ่าน", i+1, title))
+		case "revise":
+			if n == "" {
+				return "", "", &APIError{400, "AIAGENT_NOTE_REQUIRED", fmt.Sprintf("say what to change in item %d", i+1)}
+			}
+			decision = "revise"
+			lines = append(lines, fmt.Sprintf("%d. %s — ต้องแก้ไข: %s", i+1, title, n))
+		default:
+			return "", "", &APIError{400, "AIAGENT_BAD_DECISION", "every section needs approve or revise"}
+		}
+	}
+	var b strings.Builder
+	if decision == "approve" {
+		fmt.Fprintf(&b, "✅ ตรวจแล้ว ตกลง ปิดงานได้: %s (review %s)", r.Title, r.ID)
+	} else {
+		fmt.Fprintf(&b, "✏️ ตรวจแล้ว ขอแก้ไขเพิ่มเติม: %s (review %s)", r.Title, r.ID)
+	}
+	b.WriteString("\n\n" + strings.Join(lines, "\n"))
+	if note = strings.TrimSpace(note); note != "" {
+		fmt.Fprintf(&b, "\n\nหมายเหตุ: %s", note)
+	}
+	if decision == "revise" {
+		b.WriteString("\n\nแก้ตามข้อที่ขอแก้ แล้วส่งหน้าตรวจใหม่ด้วย aiagent review")
+	}
+	return decision, b.String(), nil
+}
+
+// ComposeReview previews the reply for per-section verdicts. It changes nothing.
+func (c *Collector) ComposeReview(id string, items []ReviewItem, note string) (string, string, error) {
+	r, err := c.review(id)
+	if err != nil {
+		return "", "", err
+	}
+	if len(strings.TrimSpace(note)) > 4000 {
+		return "", "", &APIError{400, "AIAGENT_NOTE_TOO_LONG", "note is too long"}
+	}
+	return composeItems(r, items, note)
+}
+
 // DecideReview records the operator's answer and, when send is set, types the
-// reply into the session through its normal channel.
-func (c *Collector) DecideReview(ctx context.Context, id, decision, note string, send bool) (string, string, error) {
-	if decision != "approve" && decision != "revise" {
-		return "", "", &APIError{400, "AIAGENT_BAD_DECISION", "decision must be approve or revise"}
-	}
+// reply into the session through its normal channel. With items, the decision
+// follows from the per-section verdicts; without, decision is approve or revise.
+func (c *Collector) DecideReview(ctx context.Context, id, decision, note string, items []ReviewItem, send bool) (string, string, error) {
 	note = strings.TrimSpace(note)
-	if decision == "revise" && note == "" {
-		return "", "", &APIError{400, "AIAGENT_NOTE_REQUIRED", "say what to change"}
-	}
 	if len(note) > 4000 {
 		return "", "", &APIError{400, "AIAGENT_NOTE_TOO_LONG", "note is too long"}
 	}
@@ -176,7 +238,20 @@ func (c *Collector) DecideReview(ctx context.Context, id, decision, note string,
 	if err != nil {
 		return "", "", err
 	}
-	reply := ReviewReply(r, decision, note)
+	var reply string
+	if len(items) > 0 {
+		if decision, reply, err = composeItems(r, items, note); err != nil {
+			return "", "", err
+		}
+	} else {
+		if decision != "approve" && decision != "revise" {
+			return "", "", &APIError{400, "AIAGENT_BAD_DECISION", "decision must be approve or revise"}
+		}
+		if decision == "revise" && note == "" {
+			return "", "", &APIError{400, "AIAGENT_NOTE_REQUIRED", "say what to change"}
+		}
+		reply = ReviewReply(r, decision, note)
+	}
 	if r.Status != "open" {
 		// already answered: never type the reply into the session twice;
 		// copying it again is fine and changes nothing

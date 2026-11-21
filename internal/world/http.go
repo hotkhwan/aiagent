@@ -283,6 +283,7 @@ func (s *Service) Mount(app *fiber.App) {
 	api.Post("/policy/idle", s.handleSetIdle)
 	api.Post("/codex/model", s.handleCodexModel)
 	api.Post("/reviews/:id/view", s.handleReviewTicket)
+	api.Post("/reviews/:id/compose", s.handleReviewCompose)
 	api.Post("/reviews/:id/decision", s.handleReviewDecision)
 	// anything else under /aiagent stays 404 (never the webinit SPA)
 	app.All("/aiagent/*", hidden)
@@ -714,21 +715,37 @@ func (s *Service) handleReviewView(c fiber.Ctx) error {
 	c.Set("X-Frame-Options", "SAMEORIGIN")
 	c.Set("Cache-Control", "no-store")
 	c.Status(fiber.StatusOK).Type("html")
-	return c.Send(page)
+	return c.Send(withReviewFrame(page))
+}
+
+func (s *Service) handleReviewCompose(c fiber.Ctx) error {
+	var body struct {
+		Items []ReviewItem `json:"items"`
+		Note  string       `json:"note"`
+	}
+	if err := c.Bind().Body(&body); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(failEnv("AIAGENT_BAD_REQUEST", "invalid JSON body"))
+	}
+	decision, reply, err := s.Collector.ComposeReview(c.Params("id"), body.Items, body.Note)
+	if err != nil {
+		return s.fail(c, err)
+	}
+	return c.JSON(okEnv(fiber.Map{"decision": decision, "reply": reply}))
 }
 
 func (s *Service) handleReviewDecision(c fiber.Ctx) error {
 	var body struct {
-		Decision string `json:"decision"`
-		Note     string `json:"note"`
-		Send     bool   `json:"send"`
+		Decision string       `json:"decision"`
+		Note     string       `json:"note"`
+		Items    []ReviewItem `json:"items"`
+		Send     bool         `json:"send"`
 	}
 	if err := c.Bind().Body(&body); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(failEnv("AIAGENT_BAD_REQUEST", "invalid JSON body"))
 	}
 	id := c.Params("id")
-	return s.mutate(c, "aiagent.reviewDecision", []string{id, body.Decision, body.Note, fmt.Sprint(body.Send)}, func() (any, error) {
-		reply, via, err := s.Collector.DecideReview(c.Context(), id, body.Decision, body.Note, body.Send)
+	return s.mutate(c, "aiagent.reviewDecision", []string{id, body.Decision, body.Note, fmt.Sprint(body.Items), fmt.Sprint(body.Send)}, func() (any, error) {
+		reply, via, err := s.Collector.DecideReview(c.Context(), id, body.Decision, body.Note, body.Items, body.Send)
 		return fiber.Map{"reviewId": id, "reply": reply, "via": via}, err
 	})
 }
