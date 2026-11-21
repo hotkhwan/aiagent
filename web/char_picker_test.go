@@ -27,3 +27,22 @@ func TestPickingACharacterMovesTheFrameAndKeepsThePickerOpen(t *testing.T) {
 		t.Errorf("chooseChar must not read st.actors when no village is drawn yet")
 	}
 }
+
+// The panel header is rebuilt only when its key changes, so the key must carry
+// the character or a new pick waits until the agent is opened again.
+func TestInspectorRebuildsHeaderWhenCharacterChanges(t *testing.T) {
+	app := readWebFile(t, "app.js")
+	if !strings.Contains(jsFunc(t, app, "renderInspector"), "charFor(sess.sessionId)") {
+		t.Errorf("renderInspector's key must include the character")
+	}
+}
+
+// A still character is a whole figure; the avatar must crop to the head the way
+// the walking sprites do, not fit the whole figure into the circle.
+func TestStillCharacterAvatarShowsTheHead(t *testing.T) {
+	app := readWebFile(t, "app.js")
+	face := jsFunc(t, app, "avatarFace")
+	if strings.Contains(face, "'contain'") {
+		t.Errorf("avatarFace must zoom a still character to its head, not fit the whole figure")
+	}
+}

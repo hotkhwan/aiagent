@@ -1746,7 +1746,7 @@ function renderInspector () {
     const sess = st.snap.sessions.find(x => x.sessionId === sel.id)
     if (sess) {
       const tab = st.tab || 'chat'
-      const key = [sess.sessionId, tab, sess.status, sess.activityType, sess.messageVia, sess.stopVia, sess.live].join('|')
+      const key = [sess.sessionId, charFor(sess.sessionId), tab, sess.status, sess.activityType, sess.messageVia, sess.stopVia, sess.live].join('|')
       if (tab === 'chat' && st.inspKey === key && box.querySelector('.chatLog')) {
         updateChat()
         return
@@ -2587,8 +2587,8 @@ function avatarFace (sess) {
   const c = charFor(sess.sessionId)
   if (c.startsWith('cx-')) {
     el.style.backgroundImage = 'url(' + A(c) + ')'
-    el.style.backgroundSize = 'contain'
-    el.style.backgroundPosition = 'center'
+    el.style.backgroundSize = (AVA_PX * 1.5) + 'px auto'
+    el.style.backgroundPosition = 'center 25%'
     return el
   }
   // One frame, scaled. Percentages cannot express this: a negative background
