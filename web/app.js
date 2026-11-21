@@ -1822,7 +1822,9 @@ function sessionHeader (sess) {
         h('h2', { class: 'nameRow' }, h('span', null, sess.displayName),
           h('button', { type: 'button', class: 'ghost renameBtn', title: tr('เปลี่ยนชื่อที่แสดงในเว็บ'), 'aria-label': tr('เปลี่ยนชื่อ'), onclick: () => renameSession(sess) }, '✎')),
         h('p', null, runtimeName[sess.runtimeType] + ' · ' + (sess.repoId || '—')))),
-      h('div', { class: 'state' }, stateDot, stateText(sess), (sess.subAgents || []).length
+      h('div', { class: 'state' }, stateDot, stateText(sess),
+        !sess.live && sess.runtimeType === 'claudeCode' && sess.cwd ? h('button', { type: 'button', class: 'pill work', title: tr('เปิดบทสนทนานี้ต่อ โดยไม่พิมพ์ข้อความเข้าไป'), onclick: () => doResume(sess) }, tr('เปิดต่อ')) : null,
+        (sess.subAgents || []).length
         ? h('button', { type: 'button', class: 'pill work subToggle' + (st.subsOpen ? ' on' : ''), 'aria-expanded': String(!!st.subsOpen), onclick: () => { st.subsOpen = !st.subsOpen; st.inspKey = ''; renderInspector() } }, '+' + sess.subAgents.length + ' sub-agent ' + (st.subsOpen ? '▴' : '▾'))
         : null),
       modelRow(sess)),
@@ -2902,6 +2904,11 @@ async function doStop (sess) {
   const self = sess.dispatchVia ? tr('\nหมายเหตุ: agent นี้คือตัวที่รับงานจากเว็บผ่าน ') + sess.dispatchVia + tr(' หยุดแล้วจะสั่งงานจากเว็บไม่ได้จนกว่าจะเปิดใหม่') : ''
   if (!await confirmBox(tr('หยุด ') + sess.displayName + '?', how + self, sess.title || '', tr('หยุด agent'))) return
   act('/sessions/' + encodeURIComponent(sess.sessionId) + '/stop', null, r => tr('หยุด ') + sess.displayName + tr(' แล้ว (') + (r.via || '') + ')')
+}
+
+async function doResume (sess) {
+  if (!await confirmBox(tr('เปิดต่อ') + ' ' + sess.displayName + '?', tr('จะเปิดบทสนทนานี้ต่อด้วย claude --resume ในโฟลเดอร์เดิม โดยไม่พิมพ์ข้อความใดเข้าไป'), sess.cwd || '', tr('เปิดต่อ'))) return
+  act('/sessions/' + encodeURIComponent(sess.sessionId) + '/resume', null, r => (r.state === 'running' ? tr('ทำงานอยู่แล้ว') : tr('เปิดต่อแล้ว')) + ' · ' + sess.displayName)
 }
 
 async function doRunStatus (run, action) {

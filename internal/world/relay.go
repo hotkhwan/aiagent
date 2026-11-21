@@ -129,6 +129,57 @@ func (c *Collector) RenameInCLI(ctx context.Context, id, name string) (string, e
 	return c.SendToSession(ctx, id, "/rename "+name)
 }
 
+// ResumeSession starts a Claude Code session that is not running, on its own
+// conversation in its own folder, and types nothing into it. The state says
+// whether it was started now or was already running.
+func (c *Collector) ResumeSession(ctx context.Context, id string) (string, error) {
+	c.invalidate()
+	snap := c.Snapshot(ctx)
+	var target *Session
+	for i := range snap.Sessions {
+		if snap.Sessions[i].SessionID == id {
+			target = &snap.Sessions[i]
+		}
+	}
+	if target == nil {
+		return "", ErrNotFound("no session with that id")
+	}
+	if target.Live {
+		return "running", nil
+	}
+	if target.RuntimeType != "claudeCode" || target.home != c.serviceHome() {
+		return "", ErrConflict("resume works for this machine's Claude Code sessions only")
+	}
+	if target.Cwd == "" {
+		return "", ErrConflict("the session has no folder to resume in")
+	}
+	short := shortID(target.SessionID)
+	for _, o := range snap.Sessions {
+		if o.Live && o.SessionID != target.SessionID && strings.HasPrefix(o.SessionID, short) {
+			return "", ErrConflict("short id " + short + " is ambiguous")
+		}
+	}
+	name := relayName(short)
+	defer c.lockSend("relay:" + name)()
+	if dead, _ := c.relayDead(ctx, name); dead {
+		_, _ = c.tmux(ctx, "kill-session", "-t", "="+name)
+	}
+	if _, err := c.tmux(ctx, "has-session", "-t", "="+name); err == nil {
+		return "running", nil
+	}
+	argv := []string{"new-session", "-d", "-s", name, "-x", "220", "-y", "50", "-c", target.Cwd, c.ClaudePath, "--resume", target.SessionID}
+	if _, err := c.tmux(ctx, argv...); err != nil {
+		return "", &APIError{502, "AIAGENT_RESUME_FAILED", "could not start the session: " + err.Error()}
+	}
+	_, _ = c.tmux(ctx, "set-option", "-w", "-t", "="+name+":", "remain-on-exit", "on")
+	_, _ = c.tmux(ctx, "set-option", "-w", "-t", "="+name+":", "window-size", "manual")
+	_, _ = c.tmux(ctx, "resize-window", "-t", "="+name+":", "-x", "220", "-y", "50")
+	if ready, why := c.relayWait(ctx, name); !ready && why != "" {
+		return "", &APIError{502, "AIAGENT_RESUME_FAILED", "claude --resume stopped: " + why}
+	}
+	return "started", nil
+}
+
 func (c *Collector) tmux(ctx context.Context, args ...string) (string, error) {
 	cctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()

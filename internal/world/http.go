@@ -19,6 +19,8 @@
 //	POST /aiagent/api/sessions/:id/stop token — claude stop <id> (own bg session)
 //	                                   or agcmd restart <ws> (CLI in a agcmd pane);
 //	                                   interactive/foreign sessions are refused
+//	POST /aiagent/api/sessions/:id/resume token — start a stopped session on its
+//	                                   own conversation (claude --resume); nothing typed
 //
 // The on/off switch and the token live in the CLI, not on this listener.
 package world
@@ -255,6 +257,7 @@ func (s *Service) Mount(app *fiber.App) {
 	api.Get("/runs/:id/log", s.handleRunLog)
 	api.Post("/missions", s.handleMission)
 	api.Post("/sessions/:id/stop", s.handleStop)
+	api.Post("/sessions/:id/resume", s.handleResume)
 	api.Get("/sessions/:id/messages", s.handleMessages)
 	api.Get("/sessions/:id/suggest", s.handleSuggest)
 	api.Post("/uploads", s.handleUpload)
@@ -571,6 +574,14 @@ func (s *Service) handleStop(c fiber.Ctx) error {
 	return s.mutate(c, "aiagent.stop", []string{id}, func() (any, error) {
 		how, err := s.Collector.Stop(c.Context(), id)
 		return fiber.Map{"sessionId": id, "via": how}, err
+	})
+}
+
+func (s *Service) handleResume(c fiber.Ctx) error {
+	id := c.Params("id")
+	return s.mutate(c, "aiagent.resume", []string{id}, func() (any, error) {
+		state, err := s.Collector.ResumeSession(c.Context(), id)
+		return fiber.Map{"sessionId": id, "state": state}, err
 	})
 }
 

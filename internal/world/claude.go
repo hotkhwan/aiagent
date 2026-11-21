@@ -323,6 +323,7 @@ func (c *Collector) collectClaude(home, owner string, since time.Time, pt procTa
 			LiveEvidence: "none",
 			ActivityType: ActivityIdle,
 			Usage:        Usage{Source: "notCounted"},
+			home:         home,
 		}
 		c.applyClaudeTranscript(p, &s, false)
 		s.Cwd = cwdFromSlug(filepath.Base(filepath.Dir(p)), s.Cwd)
