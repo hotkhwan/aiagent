@@ -44,11 +44,14 @@ type fakeRunner struct {
 	paneStart   string // the command the relay pane was started with
 	// A resumed CLI in a folder it has not been told to trust asks first, and
 	// that dialog draws a ❯ of its own beside "No, exit".
-	trustPrompt  bool
-	agentsJSON   string
-	crashOnEnter bool   // panic on the Enter that submits a typed message
-	psOut        string // what `ps` prints, for a host without /proc
-	gitHead      string // the HEAD of every checkout, the only commit that exists
+	trustPrompt bool
+	// trustHome, when set, makes the dialog go away once trustDir is trusted
+	// in trustHome/.claude.json, as the real CLI does.
+	trustHome, trustDir string
+	agentsJSON          string
+	crashOnEnter        bool   // panic on the Enter that submits a typed message
+	psOut               string // what `ps` prints, for a host without /proc
+	gitHead             string // the HEAD of every checkout, the only commit that exists
 	// afterType runs, outside the lock, each time literal text is typed with
 	// send-keys -l. Set it before any goroutine starts.
 	afterType func()
@@ -139,7 +142,11 @@ func (f *fakeRunner) Run(_ context.Context, name string, args ...string) ([]byte
 			if f.attachHangs && strings.Contains(f.paneStart, " attach ") {
 				return []byte("\n\n"), nil
 			}
-			if f.trustPrompt && strings.Contains(f.paneStart, "--resume") {
+			trusted := false
+			if f.trustHome != "" {
+				trusted, _ = FolderTrusted(f.trustHome, f.trustDir)
+			}
+			if f.trustPrompt && !trusted && strings.Contains(f.paneStart, "--resume") {
 				return []byte(" Claude Code'll be able to read, edit, and execute files here.\n Security guide\n ❯ No, exit\n   Yes, I trust this folder\n Enter to confirm · Esc to cancel"), nil
 			}
 			return []byte("──\n❯ \n──"), nil

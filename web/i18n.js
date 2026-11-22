@@ -689,6 +689,9 @@ var EN = {
   'agent จะคิดไอเดียเกม asset และจุดเสี่ยง/ช้า (ปรึกษา Codex แบบอ่านอย่างเดียวได้) แล้วส่งเป็นหน้าตรวจงานในห้องทดสอบ — ห้ามแก้โค้ดจนกว่าคุณอนุมัติ · สูงสุด 1 ครั้งต่อ 6 ชม. และไม่ส่งซ้ำถ้ายังมีข้อเสนอรอตรวจ':
     'The agent thinks up game, asset and risk or slowness ideas — it may consult Codex read-only — and sends them as a review page in the test room. It must not touch code until you approve · at most once every 6 hours, and never again while a proposal is still awaiting review',
   'ส่งล่าสุด ': 'Last sent ',
+  '📂 โฟลเดอร์ที่เชื่อถืออัตโนมัติ (trusted roots)': '📂 Auto-trusted folders (trusted roots)',
+  'ยังไม่ได้ตั้ง — ไม่มีโฟลเดอร์ไหนถูกเชื่อถืออัตโนมัติ': 'None set — no folder is trusted automatically',
+  'แก้ได้ที่เครื่องด้วย aiagent trust-roots add|remove|list': 'Change them on the machine with aiagent trust-roots add|remove|list',
 
   // renaming a session
   'ตั้งชื่อ session นี้\n': 'Name this session\n',

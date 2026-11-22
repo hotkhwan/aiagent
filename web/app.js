@@ -2219,8 +2219,8 @@ function policySlot () {
 }
 async function policyBox () {
   const boxEl = h('div', { class: 'advice policy' }, h('b', null, tr('⚙️ ลด model อัตโนมัติเมื่อ quota เกิน')))
-  let p, ms
-  try { p = (await api('/policy')).policy; ms = await loadModels() } catch (e) { return boxEl }
+  let p, ms, roots
+  try { const r = await api('/policy'); p = r.policy; roots = r.trustedRoots || []; ms = await loadModels() } catch (e) { return boxEl }
   const on = h('input', { type: 'checkbox' })
   on.checked = !!p.enabled
   const th = h('input', { type: 'number', min: 30, max: 99, step: 1, value: p.thresholdPct })
@@ -2264,6 +2264,10 @@ async function policyBox () {
     h('p', { class: 'note' }, tr('agent จะคิดไอเดียเกม asset และจุดเสี่ยง/ช้า (ปรึกษา Codex แบบอ่านอย่างเดียวได้) แล้วส่งเป็นหน้าตรวจงานในห้องทดสอบ — ห้ามแก้โค้ดจนกว่าคุณอนุมัติ · สูงสุด 1 ครั้งต่อ 6 ชม. และไม่ส่งซ้ำถ้ายังมีข้อเสนอรอตรวจ')),
     p.lastIdeaAt ? h('p', { class: 'note' }, tr('ส่งล่าสุด ') + ago(p.lastIdeaAt)) : '',
     h('button', { type: 'button', class: 'pri', onclick: saveIdle }, tr('บันทึก')))
+  // read-only: roots are changed with `aiagent trust-roots` on the machine
+  boxEl.append(h('hr'), h('b', null, tr('📂 โฟลเดอร์ที่เชื่อถืออัตโนมัติ (trusted roots)')),
+    roots.length ? h('ul', null, ...roots.map(r => h('li', null, h('code', null, r)))) : h('p', { class: 'note' }, tr('ยังไม่ได้ตั้ง — ไม่มีโฟลเดอร์ไหนถูกเชื่อถืออัตโนมัติ')),
+    h('p', { class: 'note' }, tr('แก้ได้ที่เครื่องด้วย aiagent trust-roots add|remove|list')))
   return boxEl
 }
 

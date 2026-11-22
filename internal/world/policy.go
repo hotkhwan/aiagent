@@ -50,6 +50,11 @@ type Policy struct {
 	IdleMaxQuota float64    `json:"idleMaxQuota"`
 	IdleTarget   string     `json:"idleTarget"` // agcmd workspace name
 	LastIdeaAt   *time.Time `json:"lastIdeaAt,omitempty"`
+
+	// TrustedRoots are the folders under which Claude Code's folder-trust
+	// question is answered Yes on the owner's behalf (trust.go). Set with
+	// `aiagent trust-roots`; kept here so a policy save never drops it.
+	TrustedRoots []string `json:"trustedRoots,omitempty"`
 }
 
 const ideaCooldown = 6 * time.Hour

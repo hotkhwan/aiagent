@@ -5,6 +5,7 @@
 //	aiagent enable | disable | rotate-token | status
 //	aiagent statusline                       (for Claude Code settings.json)
 //	aiagent review --title "..." page.html   (an agent hands work back)
+//	aiagent trust-roots list | add DIR | remove DIR | ensure DIR | forget DIR
 //
 // Safe by default: the listener is loopback-only, and while the switch is off
 // every route answers 404 — the service is indistinguishable from absent.
@@ -41,6 +42,11 @@ const usage = `aiagent — a village view of the AI coding agents running on thi
   aiagent statusline        Claude Code status line command; also records plan usage
   aiagent review --title "..." [--summary "..."] [--session ID] page.html
                             file an HTML page for the operator to review
+  aiagent trust-roots list | add DIR | remove DIR
+                            folders under which Claude Code's folder-trust
+                            question is answered Yes before a session starts
+  aiagent trust-roots ensure DIR | forget DIR
+                            mark one folder trusted (only under a root) / undo
 
 Run "aiagent serve --help" for the serve flags.
 `
@@ -65,6 +71,8 @@ func main() {
 		review(os.Args[2:])
 	case "enable", "rotate-token", "disable", "status":
 		switchCmd(os.Args[1], os.Args[2:])
+	case "trust-roots":
+		trustRootsCmd(os.Args[2:])
 	case "-h", "--help", "help":
 		fmt.Print(usage)
 	default:

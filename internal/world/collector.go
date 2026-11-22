@@ -40,6 +40,11 @@ type Collector struct {
 	CodexPath   string
 	ServiceHome string
 	Sleep       func(time.Duration)
+	// TrustedRoots returns the folders whose subfolders may be marked trusted
+	// for Claude Code before a session is started there (trust.go); nil or
+	// empty trusts nothing. OnTrust records each attempt (the audit log).
+	TrustedRoots func() []string
+	OnTrust      func(dir string, changed []string, err error)
 
 	mu             sync.Mutex
 	cli            cliState

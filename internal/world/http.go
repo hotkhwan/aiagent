@@ -105,7 +105,14 @@ type viewTicket struct {
 
 // NewService returns a service with packaged defaults.
 func NewService(store *Store, col *Collector, auditor *audit.Logger) *Service {
-	return &Service{Store: store, Collector: col, Auditor: auditor, failures: map[string][]time.Time{}}
+	s := &Service{Store: store, Collector: col, Auditor: auditor, failures: map[string][]time.Time{}}
+	if col != nil && col.TrustedRoots == nil && store != nil {
+		col.TrustedRoots = func() []string { return LoadTrustedRoots(store.dir) }
+	}
+	if col != nil && col.OnTrust == nil {
+		col.OnTrust = s.auditTrust
+	}
+	return s
 }
 
 const (
@@ -811,7 +818,13 @@ func (s *Service) handleCLIUpdate(c fiber.Ctx) error {
 }
 
 func (s *Service) handlePolicy(c fiber.Ctx) error {
-	return c.JSON(okEnv(fiber.Map{"policy": s.LoadPolicy()}))
+	roots := []string{}
+	if s.Collector != nil && s.Collector.TrustedRoots != nil {
+		roots = append(roots, s.Collector.TrustedRoots()...)
+	}
+	// trustedRoots is read-only here: the roots in effect (env or policy),
+	// changed only with `aiagent trust-roots` on the machine itself.
+	return c.JSON(okEnv(fiber.Map{"policy": s.LoadPolicy(), "trustedRoots": roots}))
 }
 
 func (s *Service) handleSetPolicy(c fiber.Ctx) error {

@@ -133,6 +133,23 @@ It refuses the same things the service refuses: an unconfigured workspace
 name, and a pane that is running a shell rather than an agent — typing into a
 shell would execute your text as a command.
 
+### Trusted roots (optional)
+
+Claude Code asks whether to trust a folder the first time it runs there, and
+a session resumed from the web stalls on that question. Name the folders you
+trust and aiagent answers Yes for any folder at or below them, in the
+service user's `~/.claude.json`, before it starts or resumes a session there:
+
+```
+aiagent trust-roots add ~/Projects       # macOS, as yourself
+sudo -u alice -H aiagent trust-roots add /srv/projects   # Linux, as the service user
+aiagent trust-roots list | remove DIR
+```
+
+Nothing is trusted until a root is added. `AIAGENT_TRUSTED_ROOTS` (`:`
+separated) overrides the stored list. Every automatic trust is audited as
+`aiagent.autoTrust`.
+
 ### Tab completion
 
 `install.sh` sets it up for zsh and bash. Workspace names and run ids are

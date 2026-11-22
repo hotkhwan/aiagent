@@ -24,7 +24,13 @@ NoNewPrivileges=yes
 ProtectSystem=strict
 ProtectHome=read-only
 ReadWritePaths=%h/.local/state/aiagent
+; ~/.claude.json is writable only so trusted roots can record Claude Code's
+; folder trust (aiagent trust-roots). The home stays read-only, so the file is
+; rewritten in place rather than renamed over. "-" skips it if absent.
+ReadWritePaths=-%h/.claude.json
 ReadOnlyPaths=%h/.claude %h/.codex
+; Trusted roots: set them with `sudo -u <user> -H aiagent trust-roots add DIR`, or
+; here with Environment=AIAGENT_TRUSTED_ROOTS=/srv/a:/srv/b (overrides).
 ProtectKernelTunables=yes
 ProtectKernelModules=yes
 ProtectControlGroups=yes

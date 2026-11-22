@@ -168,6 +168,7 @@ func (c *Collector) ResumeSession(ctx context.Context, id string) (string, error
 	if _, err := c.tmux(ctx, "has-session", "-t", "="+name); err == nil {
 		return "running", nil
 	}
+	c.trustFolder(c.resumeDir(target))
 	argv := []string{"new-session", "-d", "-s", name, "-x", "220", "-y", "50", "-c", c.resumeDir(target), c.ClaudePath, "--resume", target.SessionID}
 	if _, err := c.tmux(ctx, argv...); err != nil {
 		return "", &APIError{502, "AIAGENT_RESUME_FAILED", "could not start the session: " + err.Error()}
@@ -285,14 +286,19 @@ func (c *Collector) relayWait(ctx context.Context, name, dir string) (bool, stri
 // trustDialog is the text of Claude Code's folder-trust question.
 const trustDialog = "trust this folder"
 
-// trustReason tells the operator where to answer the trust question. Nothing
-// here answers it for them: trusting a folder lets the CLI run its code.
+// trustReason tells the operator where to answer the trust question. It is
+// answered for them only under a trusted root (trust.go): trusting a folder
+// lets the CLI run its code.
 func trustReason(dir string) string {
 	if dir == "" {
 		return "Claude Code is asking whether to trust the session's folder; open the session once in a terminal and choose Yes"
 	}
-	return "Claude Code is asking whether to trust " + dir + "; run claude once in that folder in a terminal, choose \"Yes, I trust this folder\", then send again"
+	return "Claude Code is asking whether to trust " + dir + ", which is not under a trusted root; add one with `aiagent trust-roots add <folder>`, or run claude once in that folder in a terminal and choose \"Yes, I trust this folder\", then send again"
 }
+
+// trustReasonPrefix starts every trustReason, so a caller can tell the trust
+// question from other refusals.
+const trustReasonPrefix = "Claude Code is asking whether to trust"
 
 // relayOnTrust reports a live relay pane that is showing the trust question.
 // Such a pane never loaded the conversation, so replacing it loses nothing.
@@ -332,12 +338,16 @@ func (c *Collector) relaySend(ctx context.Context, ss *Session, message string) 
 			_, _ = c.tmux(ctx, "kill-session", "-t", "="+name)
 		}
 	}
+	dir := c.resumeDir(ss)
+	trustRetried := false
 	for attempt := first; attempt < 2; attempt++ {
 		// A relay left on the trust question by an earlier resume blocked
 		// every later send, even once the job was running again and a plain
 		// attach would have worked (owner, 2026-11-22: "ส่งให้ agent" did
-		// nothing). Start over with this attempt's own way in.
+		// nothing). Start over with this attempt's own way in — trusting the
+		// folder first when it is under a trusted root.
 		if c.relayOnTrust(ctx, name) {
+			c.trustFolder(dir)
 			_, _ = c.tmux(ctx, "kill-session", "-t", "="+name)
 		}
 		if dead, why := c.relayDead(ctx, name); dead {
@@ -348,9 +358,10 @@ func (c *Collector) relaySend(ctx context.Context, ss *Session, message string) 
 		}
 		if _, err := c.tmux(ctx, "has-session", "-t", "="+name); err != nil {
 			argv := []string{"new-session", "-d", "-s", name, "-x", "220", "-y", "50"}
-			if dir := c.resumeDir(ss); dir != "" {
+			if dir != "" {
 				// --resume reads the transcript of the project it is run in.
 				argv = append(argv, "-c", dir)
+				c.trustFolder(dir)
 			}
 			if attempt == 0 {
 				argv = append(argv, c.ClaudePath, "attach", short)
@@ -376,10 +387,20 @@ func (c *Collector) relaySend(ctx context.Context, ss *Session, message string) 
 		// a bare "=name" is rejected as "no such window" and the size reverts
 		_, _ = c.tmux(ctx, "set-option", "-w", "-t", "="+name+":", "window-size", "manual")
 		_, _ = c.tmux(ctx, "resize-window", "-t", "="+name+":", "-x", "220", "-y", "50")
-		ready, why := c.relayWait(ctx, name, c.resumeDir(ss))
+		ready, why := c.relayWait(ctx, name, dir)
 		if ready {
 			reason = ""
 			break
+		}
+		if !trustRetried && strings.HasPrefix(why, trustReasonPrefix) {
+			// Stuck on the question: trust the folder if a root covers it and
+			// start this attempt again, once.
+			if _, changed := c.trustFolder(dir); changed {
+				trustRetried = true
+				_, _ = c.tmux(ctx, "kill-session", "-t", "="+name)
+				attempt--
+				continue
+			}
 		}
 		if why == "" {
 			// Alive, just busy: the outbox holds the message and tries later.
