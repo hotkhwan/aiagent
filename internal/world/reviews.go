@@ -34,8 +34,14 @@ type Review struct {
 	Status    string     `json:"status"` // open | approved | revise
 	Note      string     `json:"note,omitempty"`
 	DecidedAt *time.Time `json:"decidedAt,omitempty"`
-	Size      int64      `json:"size"`
-	home      string
+	// SentAt/SentVia/Delivery record an answer typed into the session: the
+	// channel ("relay aiagent-…", "… (resume)", "queued") and whether its
+	// transcript showed it arrive (acked | unknown).
+	SentAt   *time.Time `json:"sentAt,omitempty"`
+	SentVia  string     `json:"sentVia,omitempty"`
+	Delivery string     `json:"delivery,omitempty"`
+	Size     int64      `json:"size"`
+	home     string
 }
 
 const (
@@ -226,60 +232,113 @@ func (c *Collector) ComposeReview(id string, items []ReviewItem, note string) (s
 	return composeItems(r, items, note)
 }
 
-// DecideReview records the operator's answer and, when send is set, types the
-// reply into the session through its normal channel. With items, the decision
-// follows from the per-section verdicts; without, decision is approve or revise.
-func (c *Collector) DecideReview(ctx context.Context, id, decision, note string, items []ReviewItem, send bool) (string, string, error) {
+// ReviewSent is how an answer went to the session.
+type ReviewSent struct {
+	Via      string // "relay aiagent-…", "… (resume)", "queued"
+	Delivery string // DeliveryAcked | DeliveryUnknown; empty when queued
+	Queued   bool   // the agent was busy: the outbox types it in later
+}
+
+// ReviewDeliver types an answer into the review's session. The session is
+// always the one stored on the review, never one a client names.
+type ReviewDeliver func(ctx context.Context, r *Review, reply string) (ReviewSent, error)
+
+// DecideReview records the operator's answer and, when deliver is set, sends
+// the reply to the review's session first; a failed send leaves the review
+// open so it can still be copied. With items, the decision follows from the
+// per-section verdicts; without, decision is approve or revise.
+func (c *Collector) DecideReview(ctx context.Context, id, decision, note string, items []ReviewItem, deliver ReviewDeliver) (string, *ReviewSent, error) {
 	note = strings.TrimSpace(note)
 	if len(note) > 4000 {
-		return "", "", &APIError{400, "AIAGENT_NOTE_TOO_LONG", "note is too long"}
+		return "", nil, &APIError{400, "AIAGENT_NOTE_TOO_LONG", "note is too long"}
 	}
 	r, err := c.review(id)
 	if err != nil {
-		return "", "", err
+		return "", nil, err
 	}
 	var reply string
 	if len(items) > 0 {
 		if decision, reply, err = composeItems(r, items, note); err != nil {
-			return "", "", err
+			return "", nil, err
 		}
 	} else {
 		if decision != "approve" && decision != "revise" {
-			return "", "", &APIError{400, "AIAGENT_BAD_DECISION", "decision must be approve or revise"}
+			return "", nil, &APIError{400, "AIAGENT_BAD_DECISION", "decision must be approve or revise"}
 		}
 		if decision == "revise" && note == "" {
-			return "", "", &APIError{400, "AIAGENT_NOTE_REQUIRED", "say what to change"}
+			return "", nil, &APIError{400, "AIAGENT_NOTE_REQUIRED", "say what to change"}
 		}
 		reply = ReviewReply(r, decision, note)
 	}
 	if r.Status != "open" {
 		// already answered: never type the reply into the session twice;
 		// copying it again is fine and changes nothing
-		if send {
-			return "", "", ErrConflict("this review was already answered (" + r.Status + ")")
+		if deliver != nil {
+			return "", nil, ErrConflict("this review was already answered (" + r.Status + ")")
 		}
-		return reply, "", nil
+		return reply, nil, nil
 	}
-	via := ""
-	if send {
-		if r.SessionID == "" {
-			return "", "", ErrConflict("this review has no session; copy the reply instead")
-		}
-		sid, err := c.resolveSession(ctx, r.SessionID)
-		if err != nil {
-			return "", "", err
-		}
-		if via, err = c.SendToSession(ctx, sid, reply); err != nil {
-			return "", "", err
-		}
-	}
+	var sent *ReviewSent
 	now := c.now().UTC()
+	if deliver != nil {
+		if r.SessionID == "" {
+			return "", nil, ErrConflict("this review has no session; copy the reply instead")
+		}
+		s, err := deliver(ctx, r, reply)
+		if err != nil {
+			return "", nil, err
+		}
+		sent = &s
+		r.SentAt, r.SentVia, r.Delivery = &now, s.Via, s.Delivery
+	}
 	r.Status = map[string]string{"approve": "approved", "revise": "revise"}[decision]
 	r.Note, r.DecidedAt = truncateRunes(note, 4000), &now
 	if err := writeReviewMeta(r.home, r); err != nil {
+		return "", nil, err
+	}
+	return reply, sent, nil
+}
+
+var sessionUUIDRE = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
+
+// SendReview types reply into the review's session and returns that
+// session's full id and the channel used. A running session gets it through
+// its normal channel. A Claude Code session of this machine that is not
+// running any more is resumed in its folder (claude --resume, as the web's
+// resume does) and given it there.
+func (c *Collector) SendReview(ctx context.Context, r *Review, reply string) (string, string, error) {
+	sid, err := c.resolveSession(ctx, r.SessionID)
+	if err == nil {
+		via, err := c.SendToSession(ctx, sid, reply)
+		return sid, via, err
+	}
+	if ae, ok := err.(*APIError); !ok || ae.Status != 404 {
+		return "", "", err // ambiguous id
+	}
+	if r.Runtime != "claudeCode" || !sessionUUIDRE.MatchString(r.SessionID) || r.home != c.serviceHome() {
+		return "", "", ErrNotFound("the session of this review is not running and cannot be resumed from here; copy the reply and paste it into the session")
+	}
+	if m, _ := filepath.Glob(filepath.Join(r.home, ".claude", "projects", "*", r.SessionID+".jsonl")); len(m) == 0 {
+		return "", "", ErrNotFound("the session of this review is not running and its conversation is gone; copy the reply instead")
+	}
+	reply, err = cleanText(reply)
+	if err != nil {
 		return "", "", err
 	}
-	return reply, via, nil
+	short := shortID(r.SessionID)
+	for _, o := range c.Snapshot(ctx).Sessions {
+		if o.Live && strings.HasPrefix(o.SessionID, short) {
+			return "", "", ErrConflict("short id " + short + " is ambiguous")
+		}
+	}
+	// AgentState "done" sends relaySend straight to --resume.
+	ss := &Session{SessionID: r.SessionID, RuntimeType: "claudeCode", Cwd: r.Cwd, Kind: "bg", AgentState: "done", home: r.home}
+	if err := c.relaySend(ctx, ss, reply); err != nil {
+		// no id: a resumed CLI that shows no prompt is not a busy agent
+		// the outbox could wait for
+		return "", "", err
+	}
+	return r.SessionID, "relay " + relayName(short) + " (resume)", nil
 }
 
 // resolveSession accepts a full id or a unique prefix of a live session.

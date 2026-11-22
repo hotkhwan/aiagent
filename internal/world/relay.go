@@ -175,7 +175,7 @@ func (c *Collector) ResumeSession(ctx context.Context, id string) (string, error
 	_, _ = c.tmux(ctx, "set-option", "-w", "-t", "="+name+":", "remain-on-exit", "on")
 	_, _ = c.tmux(ctx, "set-option", "-w", "-t", "="+name+":", "window-size", "manual")
 	_, _ = c.tmux(ctx, "resize-window", "-t", "="+name+":", "-x", "220", "-y", "50")
-	if ready, why := c.relayWait(ctx, name); !ready && why != "" {
+	if ready, why := c.relayWait(ctx, name, c.resumeDir(target)); !ready && why != "" {
 		return "", &APIError{502, "AIAGENT_RESUME_FAILED", "claude --resume stopped: " + why}
 	}
 	return "started", nil
@@ -257,7 +257,7 @@ func (c *Collector) relayDead(ctx context.Context, name string) (bool, string) {
 // bare form it answers `can't find pane` on every attempt, so the screen was
 // always empty, the prompt was never found, and every relayed message failed
 // with RELAY_NOT_READY after the full 16-second wait.
-func (c *Collector) relayWait(ctx context.Context, name string) (bool, string) {
+func (c *Collector) relayWait(ctx context.Context, name, dir string) (bool, string) {
 	for i := 0; i < 40; i++ {
 		if dead, why := c.relayDead(ctx, name); dead {
 			if why == "" {
@@ -270,8 +270,8 @@ func (c *Collector) relayWait(ctx context.Context, name string) (bool, string) {
 			screen, _ := c.tmux(ctx, "capture-pane", "-p", "-t", "="+name+":")
 			// The folder-trust dialog draws its own ❯ beside "No, exit": typed
 			// text and Enter there would close the session, not message it.
-			if strings.Contains(screen, "trust this folder") {
-				return false, "Claude Code is asking whether to trust the session's folder; open the session once in a terminal and choose Yes"
+			if strings.Contains(screen, trustDialog) {
+				return false, trustReason(dir)
 			}
 			if strings.Contains(screen, "❯") {
 				return true, ""
@@ -280,6 +280,28 @@ func (c *Collector) relayWait(ctx context.Context, name string) (bool, string) {
 		c.sleep(400 * time.Millisecond)
 	}
 	return false, ""
+}
+
+// trustDialog is the text of Claude Code's folder-trust question.
+const trustDialog = "trust this folder"
+
+// trustReason tells the operator where to answer the trust question. Nothing
+// here answers it for them: trusting a folder lets the CLI run its code.
+func trustReason(dir string) string {
+	if dir == "" {
+		return "Claude Code is asking whether to trust the session's folder; open the session once in a terminal and choose Yes"
+	}
+	return "Claude Code is asking whether to trust " + dir + "; run claude once in that folder in a terminal, choose \"Yes, I trust this folder\", then send again"
+}
+
+// relayOnTrust reports a live relay pane that is showing the trust question.
+// Such a pane never loaded the conversation, so replacing it loses nothing.
+func (c *Collector) relayOnTrust(ctx context.Context, name string) bool {
+	if _, err := c.tmux(ctx, "has-session", "-t", "="+name); err != nil {
+		return false
+	}
+	screen, _ := c.tmux(ctx, "capture-pane", "-p", "-t", "="+name+":")
+	return strings.Contains(screen, trustDialog)
 }
 
 // relaySend types into the session, opening a relay for it if there is none.
@@ -311,6 +333,13 @@ func (c *Collector) relaySend(ctx context.Context, ss *Session, message string) 
 		}
 	}
 	for attempt := first; attempt < 2; attempt++ {
+		// A relay left on the trust question by an earlier resume blocked
+		// every later send, even once the job was running again and a plain
+		// attach would have worked (owner, 2026-11-22: "ส่งให้ agent" did
+		// nothing). Start over with this attempt's own way in.
+		if c.relayOnTrust(ctx, name) {
+			_, _ = c.tmux(ctx, "kill-session", "-t", "="+name)
+		}
 		if dead, why := c.relayDead(ctx, name); dead {
 			if why != "" {
 				reason = why
@@ -347,7 +376,7 @@ func (c *Collector) relaySend(ctx context.Context, ss *Session, message string) 
 		// a bare "=name" is rejected as "no such window" and the size reverts
 		_, _ = c.tmux(ctx, "set-option", "-w", "-t", "="+name+":", "window-size", "manual")
 		_, _ = c.tmux(ctx, "resize-window", "-t", "="+name+":", "-x", "220", "-y", "50")
-		ready, why := c.relayWait(ctx, name)
+		ready, why := c.relayWait(ctx, name, c.resumeDir(ss))
 		if ready {
 			reason = ""
 			break

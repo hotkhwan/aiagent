@@ -756,9 +756,35 @@ func (s *Service) handleReviewDecision(c fiber.Ctx) error {
 	}
 	id := c.Params("id")
 	return s.mutate(c, "aiagent.reviewDecision", []string{id, body.Decision, body.Note, fmt.Sprint(body.Items), fmt.Sprint(body.Send)}, func() (any, error) {
-		reply, via, err := s.Collector.DecideReview(c.Context(), id, body.Decision, body.Note, body.Items, body.Send)
-		return fiber.Map{"reviewId": id, "reply": reply, "via": via}, err
+		var deliver ReviewDeliver
+		if body.Send {
+			deliver = s.deliverReview
+		}
+		reply, sent, err := s.Collector.DecideReview(c.Context(), id, body.Decision, body.Note, body.Items, deliver)
+		out := fiber.Map{"reviewId": id, "reply": reply, "via": ""}
+		if sent != nil {
+			out["via"], out["delivery"], out["queued"] = sent.Via, sent.Delivery, sent.Queued
+		}
+		return out, err
 	})
+}
+
+// deliverReview sends a review answer to the review's own session. A busy
+// agent gets it from the outbox when it is free, like any web message, and
+// a sent one is checked against the session's transcript.
+func (s *Service) deliverReview(ctx context.Context, r *Review, reply string) (ReviewSent, error) {
+	sentAt := s.Collector.now()
+	sid, via, err := s.Collector.SendReview(ctx, r, reply)
+	if ae, ok := err.(*APIError); ok && ae.Code == "AIAGENT_RELAY_NOT_READY" && sid != "" {
+		if _, qerr := s.Enqueue(sid, reply, time.Now()); qerr != nil {
+			return ReviewSent{}, qerr
+		}
+		return ReviewSent{Via: "queued", Queued: true}, nil
+	}
+	if err != nil {
+		return ReviewSent{}, err
+	}
+	return ReviewSent{Via: via, Delivery: s.Collector.AwaitDelivery(ctx, sid, reply, sentAt)}, nil
 }
 
 func (s *Service) handleModels(c fiber.Ctx) error {

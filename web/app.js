@@ -2337,7 +2337,32 @@ async function openReview (id) {
   if (!r) return
   const sess = sessOfReview(r)
   const open = r.status === 'open'
-  const canSend = !!(sess && sess.live && sess.messageVia && open)
+  // The service sends to the session stored on the review: a running one
+  // through its own channel, a stopped Claude Code one by resuming it.
+  const resumable = r.runtime === 'claudeCode' && !!r.sessionId
+  const canSend = open && !!r.sessionId && (sess && sess.live ? !!sess.messageVia : resumable)
+  const cantSendWhy = !open
+    ? tr('งานนี้ตรวจไปแล้ว — ส่งซ้ำไม่ได้ (คัดลอกข้อความได้)')
+    : !r.sessionId
+      ? tr('หน้านี้ไม่ได้บอกว่ามาจาก session ไหน — กดคัดลอกแล้ววางใน Claude / Codex เอง')
+      : sess && sess.live
+        ? tr('ส่งตรงไม่ได้: ') + (sess.messageBlocked || tr('session นี้รับข้อความจากเว็บไม่ได้')) + tr(' — กดคัดลอกแล้ววางเอง')
+        : tr('session นี้ไม่ได้รันอยู่และเปิดต่อจากเว็บไม่ได้ — กดคัดลอกแล้ววางเอง')
+  // The result of a send, shown in the dialog itself: the page banner sits
+  // under this modal, so a toast alone was invisible and the button looked dead.
+  const sendState = h('p', { class: 'revSendState', role: 'status', 'aria-live': 'polite', hidden: true })
+  const showSend = (text, kind) => {
+    sendState.hidden = false
+    sendState.className = 'revSendState ' + (kind || '')
+    sendState.textContent = text
+  }
+  const sentText = res => res.queued
+    ? tr('⏳ ') + (sess ? sess.displayName : tr('agent')) + tr(' กำลังทำงานอยู่ — เก็บข้อความไว้แล้ว จะพิมพ์ให้อัตโนมัติเมื่อว่าง')
+    : tr('✅ ส่งให้ ') + (sess ? sess.displayName : r.sessionId.slice(0, 8)) + tr(' แล้ว (') + res.via + ')' +
+      (res.delivery === 'acked' ? tr(' · agent ได้รับแล้ว') : tr(' · ยังไม่เห็นใน transcript — เปิด session ดูอีกที'))
+  const failText = e => tr('❌ ส่งไม่สำเร็จ: ') + e.message + tr(' — งานยังไม่ถูกปิด กดส่งใหม่ หรือคัดลอกแล้ววางเองได้')
+  const sendingText = tr('กำลังส่งให้ agent… (ถ้าต้องเปิด session ต่ออาจใช้ครึ่งนาที)')
+  let busy = false
   let items = null
   let confirmed = false
   let ready = false
@@ -2364,16 +2389,27 @@ async function openReview (id) {
     h('div', { class: 'revBtns' }, sendBtn, copyBtn))
   const decideLegacy = async (decision, sendIt) => {
     if (decision === 'revise' && !note.value.trim()) { note.focus(); toast(tr('บอกสิ่งที่ต้องแก้ก่อน'), true); return }
+    if (busy) return
+    busy = true
+    const sends = [...legacyBox.querySelectorAll('button.pri, button.warn')]
+    sends.forEach(b => { b.disabled = true })
+    if (sendIt) showSend(sendingText, 'busy')
     try {
       const res = await call('/decision', { decision, note: note.value, send: sendIt })
       out.hidden = false
       out.textContent = res.reply
-      if (sendIt) for (const b of legacyBox.querySelectorAll('button.pri, button.warn')) b.disabled = true
       if (!sendIt) copyText(res.reply, { textContent: '' })
-      toast(sendIt ? tr('ส่งให้ ') + sess.displayName + tr(' แล้ว (') + res.via + ')' : tr('คัดลอกข้อความตอบกลับแล้ว — วางใน session ได้เลย'))
+      const msg = sendIt ? sentText(res) : tr('คัดลอกข้อความตอบกลับแล้ว — วางใน session ได้เลย')
+      showSend(msg, 'ok')
+      toast(msg)
       st.revAt = 0
       poll()
-    } catch (e) { toast(tr('ไม่สำเร็จ: ') + e.message, true) }
+    } catch (e) {
+      showSend(failText(e), 'bad')
+      toast(failText(e), true)
+      busy = false
+      sends.forEach(b => { b.disabled = !canSend })
+    }
   }
   const legacyBox = h('div', { hidden: true },
     h('div', { class: 'revBtns' },
@@ -2401,8 +2437,8 @@ async function openReview (id) {
     const judged = items.every(it => it.verdict)
     confirmBtn.disabled = !judged || !open || confirmed
     confirmBtn.textContent = confirmed ? tr('ยืนยันผลตรวจแล้ว') : tr('ยืนยันผลตรวจ')
-    sendBtn.disabled = !canSend || !ready
-    copyBtn.disabled = !open || !ready
+    sendBtn.disabled = !canSend || !ready || busy
+    copyBtn.disabled = !open || !ready || busy
   }
   const composeNow = async () => {
     timer = 0
@@ -2429,18 +2465,28 @@ async function openReview (id) {
   const later = () => { clearTimeout(timer); timer = setTimeout(composeNow, 250) }
   const confirmItems = () => { confirmed = true; composeNow() }
   const finish = async (sendIt) => {
-    if (!ready) return
+    if (!ready || busy) return
+    busy = true
+    paint()
+    if (sendIt) showSend(sendingText, 'busy')
     try {
       const res = await call('/decision', { items, note: note.value, send: sendIt })
       queue.textContent = res.reply
-      sendBtn.disabled = true
-      copyBtn.disabled = true
+      ready = false
       confirmBtn.disabled = true
-      if (sendIt) toast(tr('ส่งให้ ') + sess.displayName + tr(' แล้ว (') + res.via + ')')
-      else { copyText(res.reply, { textContent: '' }); toast(tr('คัดลอกข้อความตอบกลับแล้ว — วางใน session ได้เลย')) }
+      let msg
+      if (sendIt) msg = sentText(res)
+      else { copyText(res.reply, { textContent: '' }); msg = tr('คัดลอกข้อความตอบกลับแล้ว — วางใน session ได้เลย') }
+      showSend(msg, 'ok')
+      toast(msg)
       st.revAt = 0
       poll()
-    } catch (e) { toast(tr('ไม่สำเร็จ: ') + e.message, true) }
+    } catch (e) {
+      showSend(failText(e), 'bad')
+      toast(failText(e), true)
+      busy = false
+      paint()
+    }
   }
   note.addEventListener('input', () => { if (confirmed) later() })
 
@@ -2458,13 +2504,18 @@ async function openReview (id) {
       h('dt', null, tr('จาก')), h('dd', null, sess ? sess.displayName : (r.runtime === 'codexCli' ? 'Codex' : tr('ไม่ระบุ session'))),
       h('dt', null, tr('ส่งเมื่อ')), h('dd', null, fmtTime(r.createdAt) + ' · ' + ago(r.createdAt)),
       h('dt', null, tr('สถานะ')), h('dd', null, r.status === 'open' ? tr('รอตรวจ') : r.status === 'approved' ? tr('ตกลงแล้ว') : tr('ขอแก้แล้ว')),
-      r.cwd ? h('dt', null, tr('โฟลเดอร์')) : null, r.cwd ? h('dd', { class: 'mono' }, r.cwd) : null),
+      r.cwd ? h('dt', null, tr('โฟลเดอร์')) : null, r.cwd ? h('dd', { class: 'mono' }, r.cwd) : null,
+      r.sessionId ? h('dt', null, tr('session')) : null, r.sessionId ? h('dd', { class: 'mono' }, r.sessionId.slice(0, 8)) : null,
+      r.sentAt ? h('dt', null, tr('ส่งให้ agent')) : null,
+      r.sentAt ? h('dd', null, fmtTime(r.sentAt) + ' · ' + (r.sentVia === 'queued' ? tr('รอส่งเมื่อ agent ว่าง') : r.sentVia + (r.delivery === 'acked' ? tr(' · ได้รับแล้ว') : ''))) : null),
     r.summary ? h('p', null, r.summary) : null,
     status,
     note,
     itemsBox,
     legacyBox,
-    canSend ? null : h('p', { class: 'note' }, open ? tr('ส่งตรงไม่ได้ (session ไม่ได้รันอยู่หรือรับข้อความจากเว็บไม่ได้) — กดคัดลอกแล้ววางใน Claude / Codex เอง') : tr('งานนี้ตรวจไปแล้ว — ส่งซ้ำไม่ได้ (คัดลอกข้อความได้)')),
+    sendState,
+    canSend ? null : h('p', { class: 'note' }, cantSendWhy),
+    canSend && !(sess && sess.live) ? h('p', { class: 'note' }, tr('session นี้ไม่ได้รันอยู่ — กดส่งแล้ว aiagent จะเปิด session ต่อ (claude --resume) ในโฟลเดอร์ของมันแล้วพิมพ์ข้อความให้')) : null,
     out].filter(Boolean))
   paint()
   try {

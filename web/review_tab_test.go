@@ -5,6 +5,22 @@ import (
 	"testing"
 )
 
+// The review dialog is modal, so the page banner is hidden under it: a send's
+// result must be written inside the dialog, or the button looks dead.
+// A stopped Claude Code session can still be sent to (the service resumes it).
+func TestReviewSendShowsItsResultInTheDialog(t *testing.T) {
+	app := readWebFile(t, "app.js")
+	dlg := jsFunc(t, app, "openReview")
+	for _, want := range []string{"sendState", "showSend(sendingText", "showSend(failText(e), 'bad')", "sentText(res)", "resumable"} {
+		if !strings.Contains(dlg, want) {
+			t.Errorf("openReview is missing %q", want)
+		}
+	}
+	if strings.Contains(dlg, "sess && sess.live && sess.messageVia && open") {
+		t.Errorf("sending must not require the session to be running: a stopped one is resumed")
+	}
+}
+
 // A review page an agent files (aiagent review) waits in the test room; the
 // Review tab and its badge must show it too, not only board tasks.
 func TestReviewTabListsFiledReviewPages(t *testing.T) {

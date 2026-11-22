@@ -765,6 +765,11 @@ body:not([data-phase="night"]) .focusHint { color: #2C3654 }
 .revCheck span { font-size: 13px; color: var(--muted) }
 .revCheck small { flex-basis: 100%; color: var(--muted) }
 .revQueue { white-space: pre-wrap; font-size: 13px; margin: 0; padding: 10px; border-radius: 10px; background: #0F1530; min-height: 56px }
+.revSendState { margin: 0; padding: 8px 10px; border-radius: 10px; font-size: 13px; background: var(--sky3) }
+.revSendState[hidden] { display: none }
+.revSendState.ok { color: var(--brand); background: rgba(0,220,130,.1) }
+.revSendState.bad { color: var(--rose); background: rgba(242,114,127,.12) }
+.revSendState.busy { color: var(--amber) }
 @media (max-width: 900px) { .reviewWrap { grid-template-columns: 1fr; height: auto } .reviewWrap iframe { height: 60vh } }
 .accCard { margin: 0 0 12px; padding: 12px 14px; border-radius: 14px; background: var(--sky3); border: 1px solid var(--line) }
 .accTop { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 4px }

@@ -1167,7 +1167,7 @@ func TestReviewFlow(t *testing.T) {
 	if got := e.col.Reviews(); len(got) != 1 || got[0].Status != "revise" {
 		t.Fatalf("status = %+v", got)
 	}
-	if _, _, err := e.col.DecideReview(context.Background(), r.ID, "approve", "", nil, true); err == nil || !strings.Contains(err.Error(), "already answered") {
+	if _, _, err := e.col.DecideReview(context.Background(), r.ID, "approve", "", nil, e.svc.deliverReview); err == nil || !strings.Contains(err.Error(), "already answered") {
 		t.Fatalf("second send accepted: %v", err)
 	}
 }
