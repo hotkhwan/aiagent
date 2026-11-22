@@ -2309,6 +2309,9 @@ function pendingOf (sid) {
 function openReviewsOf (sid) {
   return (st.reviews || []).filter(r => r.status === 'open' && r.sessionId && sid.startsWith(r.sessionId.slice(0, 8)) && r.sessionId.startsWith(sid.slice(0, 8)))
 }
+function openPages () {
+  return (st.reviews || []).filter(r => r.status === 'open')
+}
 function sessOfReview (r) {
   return r.sessionId ? st.snap.sessions.find(x => x.sessionId.startsWith(r.sessionId) || r.sessionId.startsWith(x.sessionId)) : null
 }
@@ -3759,7 +3762,7 @@ function openTask (t) {
 }
 
 function renderNavBadges () {
-  const wait = countTasks('awaitingReview')
+  const wait = countTasks('awaitingReview') + openPages().length
   const rb = $('reviewBadge')
   rb.hidden = !wait
   rb.textContent = wait ? String(wait) : ''
@@ -4129,9 +4132,10 @@ async function sendToPM (ta) {
 // that only the user makes.
 function renderTaskReview () {
   const box = $('review')
+  const pages = openPages()
   if (!st.tasks) {
     st.rvKey = ''
-    box.replaceChildren(h('div', { class: 'tasksEmpty' }, tr('ระบบงานยังไม่เปิดบนเครื่องนี้ — อัปเดต aiagent แล้ว restart service')))
+    box.replaceChildren(pages.length ? reviewList(false) : '', h('div', { class: 'tasksEmpty' }, tr('ระบบงานยังไม่เปิดบนเครื่องนี้ — อัปเดต aiagent แล้ว restart service')))
     return
   }
   const byNew = (a, b) => (a.updatedAt < b.updatedAt ? 1 : -1)
@@ -4146,7 +4150,7 @@ function renderTaskReview () {
   // The diff is read from git, so it is fetched when the task changes and
   // while a second opinion is on its way — not on every poll.
   if (cur && !st.rvLoading && (st.rvFor !== want || running)) loadTaskReview(want, cur.taskId)
-  const key = JSON.stringify([waiting.map(t => [t.taskId, t.title]), done.map(t => t.taskId), st.rvOpen, st.rvErr, have, running && ago(have.advisory.at)])
+  const key = JSON.stringify([waiting.map(t => [t.taskId, t.title]), done.map(t => t.taskId), pages.map(r => [r.id, r.title]), st.rvOpen, st.rvErr, have, running && ago(have.advisory.at)])
   if (key === st.rvKey && box.childElementCount) return
   st.rvKey = key
   const card = t => h('button', {
@@ -4158,8 +4162,9 @@ function renderTaskReview () {
   h('div', { class: 'ttitle' }, t.title),
   h('div', { class: 'tmeta' }, t.projectId + (t.provider ? ' · ' + t.provider : '') + ' · ' + ago(t.updatedAt)))
   const list = h('div', { class: 'rvList' },
-    h('h2', null, tr('รอคุณตรวจ (') + waiting.length + ')'),
-    waiting.length ? waiting.map(card) : h('div', { class: 'tasksEmpty' }, tr('ไม่มีงานรอตรวจ — งานจะมาที่นี่เมื่อ agent รายงานว่าเสร็จและระบบตรวจขั้นแรกผ่าน')),
+    h('h2', null, tr('รอคุณตรวจ (') + (waiting.length + pages.length) + ')'),
+    waiting.length ? waiting.map(card) : pages.length ? null : h('div', { class: 'tasksEmpty' }, tr('ไม่มีงานรอตรวจ — งานจะมาที่นี่เมื่อ agent รายงานว่าเสร็จและระบบตรวจขั้นแรกผ่าน')),
+    pages.length ? reviewList(false) : null,
     done.length ? h('h3', null, tr('อนุมัติแล้วล่าสุด')) : null,
     done.map(card))
   let detail
