@@ -2332,6 +2332,26 @@ function reviewList (inPop) {
     recent.length ? h('h3', null, tr('ตรวจแล้วล่าสุด')) : null, recent.map(row))
 }
 
+// After a review's message went to its agent: close the review popup and open
+// that session on its chat tab, so the owner sees the message that went in.
+// A stopped session that was just resumed may not be in the snapshot yet, and
+// the transcript can lag the send, so it looks again a few times.
+function sentToSession (r) {
+  if ($('reviewDlg').open) $('reviewDlg').close()
+  let tries = 0
+  const look = () => {
+    const sess = sessOfReview(r)
+    if (!sess) {
+      if (++tries < 8) setTimeout(look, 2000)
+      return
+    }
+    st.tab = 'chat'
+    select('session', sess.sessionId)
+    for (const ms of [1500, 5000]) setTimeout(() => { if (st.sel && st.sel.id === sess.sessionId) updateChat(true) }, ms)
+  }
+  look()
+}
+
 async function openReview (id) {
   const r = (st.reviews || []).find(x => x.id === id)
   if (!r) return
@@ -2404,6 +2424,7 @@ async function openReview (id) {
       toast(msg)
       st.revAt = 0
       poll()
+      if (sendIt) sentToSession(r)
     } catch (e) {
       showSend(failText(e), 'bad')
       toast(failText(e), true)
@@ -2481,6 +2502,7 @@ async function openReview (id) {
       toast(msg)
       st.revAt = 0
       poll()
+      if (sendIt) sentToSession(r)
     } catch (e) {
       showSend(failText(e), 'bad')
       toast(failText(e), true)

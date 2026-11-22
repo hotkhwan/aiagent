@@ -36,3 +36,31 @@ func TestReviewTabListsFiledReviewPages(t *testing.T) {
 		t.Errorf("the Review badge must count the open review pages")
 	}
 }
+
+// After "ส่งให้ agent" succeeds the review popup closes and the session that
+// filed the review opens on its chat tab, so the owner sees the message that
+// went in. A failed send keeps the popup open with the error.
+func TestReviewSendClosesAndShowsTheSession(t *testing.T) {
+	app := readWebFile(t, "app.js")
+	dlg := jsFunc(t, app, "openReview")
+	if n := strings.Count(dlg, "if (sendIt) sentToSession(r)"); n != 2 {
+		t.Errorf("both send paths (items and legacy) must hand off to sentToSession, found %d", n)
+	}
+	for _, path := range []string{"const finish = async", "const decideLegacy = async"} {
+		i := strings.Index(dlg, path)
+		if i < 0 {
+			t.Fatalf("openReview has no %q", path)
+		}
+		body := dlg[i:]
+		ok, bad := strings.Index(body, "sentToSession(r)"), strings.Index(body, "catch (e)")
+		if ok < 0 || bad < 0 || ok > bad {
+			t.Errorf("%s: the hand-off must be on the success path, before the catch", path)
+		}
+	}
+	show := jsFunc(t, app, "sentToSession")
+	for _, want := range []string{"$('reviewDlg').close()", "st.tab = 'chat'", "select('session'", "updateChat(true)", "sessOfReview(r)"} {
+		if !strings.Contains(show, want) {
+			t.Errorf("sentToSession is missing %q", want)
+		}
+	}
+}
