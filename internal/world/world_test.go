@@ -38,10 +38,17 @@ type fakeRunner struct {
 	// A pane left dead by an earlier attach, which the next send should replace
 	// rather than report: dead until the relay is started again.
 	paneDeadStale bool
-	agentsJSON    string
-	crashOnEnter  bool   // panic on the Enter that submits a typed message
-	psOut         string // what `ps` prints, for a host without /proc
-	gitHead       string // the HEAD of every checkout, the only commit that exists
+	// `claude attach` to a job the daemon lists as done neither refuses nor
+	// draws a prompt: the pane stays alive and blank.
+	attachHangs bool
+	paneStart   string // the command the relay pane was started with
+	// A resumed CLI in a folder it has not been told to trust asks first, and
+	// that dialog draws a ❯ of its own beside "No, exit".
+	trustPrompt  bool
+	agentsJSON   string
+	crashOnEnter bool   // panic on the Enter that submits a typed message
+	psOut        string // what `ps` prints, for a host without /proc
+	gitHead      string // the HEAD of every checkout, the only commit that exists
 	// afterType runs, outside the lock, each time literal text is typed with
 	// send-keys -l. Set it before any goroutine starts.
 	afterType func()
@@ -66,6 +73,7 @@ func (f *fakeRunner) Run(_ context.Context, name string, args ...string) ([]byte
 		case "new-session":
 			f.relayUp = true
 			f.paneDeadStale = false
+			f.paneStart = strings.Join(args, " ")
 			return nil, nil
 		case "kill-session":
 			// Real tmux takes the session with it, so has-session must stop
@@ -87,6 +95,9 @@ func (f *fakeRunner) Run(_ context.Context, name string, args ...string) ([]byte
 					dead = "1"
 				}
 				// Answer in the shape the caller asked for, the way tmux does.
+				if strings.Contains(format, "pane_start_command") {
+					return []byte(f.paneStart + "\n"), nil
+				}
 				if strings.Contains(format, "pane_current_command") && strings.Contains(format, "pane_dead") {
 					return []byte(dead + " claude\n"), nil
 				}
@@ -124,6 +135,12 @@ func (f *fakeRunner) Run(_ context.Context, name string, args ...string) ([]byte
 			}
 			if f.relayBusy {
 				return []byte("──\nesc to interrupt\n──"), nil
+			}
+			if f.attachHangs && strings.Contains(f.paneStart, " attach ") {
+				return []byte("\n\n"), nil
+			}
+			if f.trustPrompt && strings.Contains(f.paneStart, "--resume") {
+				return []byte(" Claude Code'll be able to read, edit, and execute files here.\n Security guide\n ❯ No, exit\n   Yes, I trust this folder\n Enter to confirm · Esc to cancel"), nil
 			}
 			return []byte("──\n❯ \n──"), nil
 		}

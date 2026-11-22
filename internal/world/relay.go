@@ -16,6 +16,7 @@ package world
 
 import (
 	"context"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -167,7 +168,7 @@ func (c *Collector) ResumeSession(ctx context.Context, id string) (string, error
 	if _, err := c.tmux(ctx, "has-session", "-t", "="+name); err == nil {
 		return "running", nil
 	}
-	argv := []string{"new-session", "-d", "-s", name, "-x", "220", "-y", "50", "-c", target.Cwd, c.ClaudePath, "--resume", target.SessionID}
+	argv := []string{"new-session", "-d", "-s", name, "-x", "220", "-y", "50", "-c", c.resumeDir(target), c.ClaudePath, "--resume", target.SessionID}
 	if _, err := c.tmux(ctx, argv...); err != nil {
 		return "", &APIError{502, "AIAGENT_RESUME_FAILED", "could not start the session: " + err.Error()}
 	}
@@ -178,6 +179,41 @@ func (c *Collector) ResumeSession(ctx context.Context, id string) (string, error
 		return "", &APIError{502, "AIAGENT_RESUME_FAILED", "claude --resume stopped: " + why}
 	}
 	return "started", nil
+}
+
+// resumeDir is where --resume must run: the folder the transcript is filed
+// under. An agent that moved into a worktree reports that worktree as its cwd,
+// and --resume run there finds no conversation and exits at once.
+func (c *Collector) resumeDir(ss *Session) string {
+	home := ss.home
+	if home == "" {
+		home = c.serviceHome()
+	}
+	m, _ := filepath.Glob(filepath.Join(home, ".claude", "projects", "*", ss.SessionID+".jsonl"))
+	if len(m) == 0 {
+		return ss.Cwd
+	}
+	slug := filepath.Base(filepath.Dir(m[0]))
+	for d := ss.Cwd; d != "" && d != "."; d = filepath.Dir(d) {
+		if projectSlug(d) == slug {
+			return d
+		}
+		if d == "/" {
+			break
+		}
+	}
+	return ss.Cwd
+}
+
+// projectSlug is the name Claude Code files a folder's transcripts under.
+func projectSlug(dir string) string {
+	b := []byte(dir)
+	for i, ch := range b {
+		if !(ch >= 'a' && ch <= 'z' || ch >= 'A' && ch <= 'Z' || ch >= '0' && ch <= '9') {
+			b[i] = '-'
+		}
+	}
+	return string(b)
 }
 
 func (c *Collector) tmux(ctx context.Context, args ...string) (string, error) {
@@ -232,6 +268,11 @@ func (c *Collector) relayWait(ctx context.Context, name string) (bool, string) {
 		cmd, err := c.tmux(ctx, "list-panes", "-t", "="+name, "-F", "#{pane_current_command}")
 		if err == nil && agentReady(strings.TrimSpace(cmd)) {
 			screen, _ := c.tmux(ctx, "capture-pane", "-p", "-t", "="+name+":")
+			// The folder-trust dialog draws its own ❯ beside "No, exit": typed
+			// text and Enter there would close the session, not message it.
+			if strings.Contains(screen, "trust this folder") {
+				return false, "Claude Code is asking whether to trust the session's folder; open the session once in a terminal and choose Yes"
+			}
 			if strings.Contains(screen, "❯") {
 				return true, ""
 			}
@@ -259,7 +300,17 @@ func (c *Collector) relaySend(ctx context.Context, ss *Session, message string) 
 	// reported as a refusal. Without this every send after the first exit
 	// failed instantly with "refused to attach".
 	reason := ""
-	for attempt := 0; attempt < 2; attempt++ {
+	first := 0
+	if ss.AgentState == "done" {
+		// A job the daemon lists as done has no process. Attaching to it neither
+		// refuses nor draws a prompt, so the wait below took it for a busy agent
+		// for ever. Resume it, and drop a relay still sitting on such an attach.
+		first = 1
+		if cmd, err := c.tmux(ctx, "list-panes", "-t", "="+name, "-F", "#{pane_start_command}"); err == nil && strings.Contains(cmd, " attach ") {
+			_, _ = c.tmux(ctx, "kill-session", "-t", "="+name)
+		}
+	}
+	for attempt := first; attempt < 2; attempt++ {
 		if dead, why := c.relayDead(ctx, name); dead {
 			if why != "" {
 				reason = why
@@ -268,9 +319,9 @@ func (c *Collector) relaySend(ctx context.Context, ss *Session, message string) 
 		}
 		if _, err := c.tmux(ctx, "has-session", "-t", "="+name); err != nil {
 			argv := []string{"new-session", "-d", "-s", name, "-x", "220", "-y", "50"}
-			if ss.Cwd != "" {
+			if dir := c.resumeDir(ss); dir != "" {
 				// --resume reads the transcript of the project it is run in.
-				argv = append(argv, "-c", ss.Cwd)
+				argv = append(argv, "-c", dir)
 			}
 			if attempt == 0 {
 				argv = append(argv, c.ClaudePath, "attach", short)
