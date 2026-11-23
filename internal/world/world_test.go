@@ -48,10 +48,13 @@ type fakeRunner struct {
 	// trustHome, when set, makes the dialog go away once trustDir is trusted
 	// in trustHome/.claude.json, as the real CLI does.
 	trustHome, trustDir string
-	agentsJSON          string
-	crashOnEnter        bool   // panic on the Enter that submits a typed message
-	psOut               string // what `ps` prints, for a host without /proc
-	gitHead             string // the HEAD of every checkout, the only commit that exists
+	// dialogScreen, when set, is what the pane shows: a question or menu the
+	// CLI drew over its input box, with a ❯ of its own beside an option.
+	dialogScreen string
+	agentsJSON   string
+	crashOnEnter bool   // panic on the Enter that submits a typed message
+	psOut        string // what `ps` prints, for a host without /proc
+	gitHead      string // the HEAD of every checkout, the only commit that exists
 	// afterType runs, outside the lock, each time literal text is typed with
 	// send-keys -l. Set it before any goroutine starts.
 	afterType func()
@@ -141,6 +144,9 @@ func (f *fakeRunner) Run(_ context.Context, name string, args ...string) ([]byte
 			}
 			if f.attachHangs && strings.Contains(f.paneStart, " attach ") {
 				return []byte("\n\n"), nil
+			}
+			if f.dialogScreen != "" {
+				return []byte(f.dialogScreen), nil
 			}
 			trusted := false
 			if f.trustHome != "" {

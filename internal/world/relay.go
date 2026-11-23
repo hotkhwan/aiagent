@@ -274,6 +274,11 @@ func (c *Collector) relayWait(ctx context.Context, name, dir string) (bool, stri
 			if strings.Contains(screen, trustDialog) {
 				return false, trustReason(dir)
 			}
+			// Any other question or menu draws a ❯ beside its highlighted
+			// option too, and Enter there picks that option.
+			if onDialog(screen) {
+				return false, dialogReason(name)
+			}
 			if strings.Contains(screen, "❯") {
 				return true, ""
 			}
@@ -285,6 +290,40 @@ func (c *Collector) relayWait(ctx context.Context, name, dir string) (bool, stri
 
 // trustDialog is the text of Claude Code's folder-trust question.
 const trustDialog = "trust this folder"
+
+// dialogFooters are the key hints Claude Code prints under a question or menu
+// it draws over the input box ("Teach auto mode…", the rewind menu, a picker).
+// The idle prompt never ends with one. Seen 2026-11-23: two sessions sat on
+// such dialogs, every send was typed into them and reported ok.
+var dialogFooters = []string{"Esc to cancel", "Enter to confirm", "Enter to continue", "Enter to select"}
+
+// onDialog reports a dialog on screen, judged by the last few lines only, so a
+// footer quoted in the conversation above the prompt does not count.
+func onDialog(screen string) bool {
+	lines := strings.Split(screen, "\n")
+	seen := 0
+	for i := len(lines) - 1; i >= 0 && seen < 3; i-- {
+		l := strings.TrimSpace(lines[i])
+		if l == "" {
+			continue
+		}
+		seen++
+		for _, f := range dialogFooters {
+			if strings.Contains(l, f) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// dialogReasonPrefix starts every dialogReason, so the sender can tell it
+// from a refused attach.
+const dialogReasonPrefix = "Claude Code is showing a question or menu"
+
+func dialogReason(name string) string {
+	return dialogReasonPrefix + " in this session, and typing there would answer it; open it with `tmux attach -t " + name + "`, answer or press Esc, then send again"
+}
 
 // trustReason tells the operator where to answer the trust question. It is
 // answered for them only under a trusted root (trust.go): trusting a folder
@@ -401,6 +440,11 @@ func (c *Collector) relaySend(ctx context.Context, ss *Session, message string) 
 				attempt--
 				continue
 			}
+		}
+		if strings.HasPrefix(why, dialogReasonPrefix) {
+			// Not a refusal and not busy: a second attempt would find the same
+			// dialog, and only the operator can answer it.
+			return &APIError{409, "AIAGENT_RELAY_DIALOG", why}
 		}
 		if why == "" {
 			// Alive, just busy: the outbox holds the message and tries later.
