@@ -1902,6 +1902,24 @@ function chatPanel (sess) {
   return h('div', { class: 'chat' }, parts)
 }
 
+// drawSending shows the message being sent at the foot of its session's chat.
+// A send waits for the transcript to show it (up to ~8 s on the server), and
+// the chat looked frozen meanwhile. updateChat rebuilds the log on every
+// refresh, so it calls this again; the transcript's own copy replaces it once
+// st.sending is cleared.
+function drawSending () {
+  const log = $('insp').querySelector('.chatLog')
+  if (!log) return
+  const old = log.querySelector('.msg.sending')
+  if (old) old.remove()
+  const s = st.sending
+  if (!s || !st.sel || st.sel.id !== s.sid) return
+  log.append(h('div', { class: 'msg user sending' + (s.sent ? ' sent' : '') },
+    h('div', { class: 'who2' }, tr('ผู้ใช้') + ' · ' + (s.sent ? tr('ส่งแล้ว') : tr('กำลังส่ง…'))),
+    mdBody(s.text, 'body')))
+  log.scrollTop = log.scrollHeight
+}
+
 async function updateChat (force) {
   const sel = st.sel
   if (!sel || sel.kind !== 'session') return
@@ -1919,6 +1937,7 @@ async function updateChat (force) {
       h('div', { class: 'who2' }, (m.role === 'user' ? tr('ผู้ใช้') : 'agent') + ' · ' + fmtTime(m.at)),
       mdBody(m.text, 'body'), msgImages(m.text))) : [h('p', { class: 'note' }, tr('ยังไม่มีข้อความ'))]))
     if (force || nearBottom) log.scrollTop = log.scrollHeight
+    drawSending()
     const lastAgent = [...msgs].reverse().find(m => m.role === 'assistant')
     st.suggest = suggestFrom(lastAgent ? lastAgent.text : '')
     drawSuggest()
@@ -2056,13 +2075,18 @@ async function sendChat (sess, ta, thumbs) {
     text = (text || tr('ดูรูปที่แนบ')) + '\n\n' + files.map((f, i) => tr('รูปแนบ ') + (i + 1) + ': ' + f.path).join('\n')
   }
   const withPics = files.length ? tr(' พร้อมรูป ') + files.length + tr(' รูป') : ''
+  const mine = st.sending = { sid: sess.sessionId, text, sent: false }
+  drawSending()
   const ok = await act('/sessions/' + encodeURIComponent(sess.sessionId) + '/message', { message: text }, r => r.queued
     ? sess.displayName + tr(' กำลังทำงานอยู่ — เก็บข้อความไว้ให้แล้ว จะส่งเองเมื่อว่าง') + withPics
     : r.delivery === 'unknown'
       ? tr('พิมพ์ส่งให้ ') + sess.displayName + tr(' แล้ว แต่ยังไม่เห็นใน transcript — ยังไม่ยืนยันว่าถึง') + withPics
       : tr('ส่งถึง ') + sess.displayName + tr(' แล้ว (') + (r.via || '') + ')' + (r.delivery === 'acked' ? tr(' · ยืนยันจาก transcript') : '') + withPics)
   ta.disabled = false
+  if (!ok && st.sending === mine) { st.sending = null; drawSending() }
   if (ok) {
+    mine.sent = true
+    drawSending()
     ta.value = ''
     clearPastes()
     clearDraft()
@@ -2070,7 +2094,10 @@ async function sendChat (sess, ta, thumbs) {
     st.attach = []
     if (thumbs) drawThumbs(thumbs)
     growText()
-    setTimeout(() => updateChat(true), 1500)
+    setTimeout(() => {
+      if (st.sending === mine) st.sending = null
+      updateChat(true)
+    }, 1500)
   }
   ta.focus()
 }
