@@ -2909,11 +2909,15 @@ function setTyping (on) {
   requestAnimationFrame(applyZoom)
 }
 $('askText').addEventListener('focus', () => setTyping(true))
-// A tap on Send or the paperclip blurs the box first, so wait and check: the
-// click has to land before the scene comes back and moves everything under it.
-$('askText').addEventListener('blur', () => setTimeout(() => {
-  if (document.activeElement !== $('askText')) setTyping(false)
-}, 150))
+// Leaving the box does NOT end typing mode. It used to, and pressing on a
+// message to drag-select it for copying took the focus, so the window shrank
+// back under the pointer and the selection never happened. The box still
+// settles to its content height; the ✕ (or changing view) brings the scene back.
+$('askText').addEventListener('blur', () => setTimeout(growText, 150))
+$('typingClose').addEventListener('click', () => {
+  $('askText').blur()
+  setTyping(false)
+})
 $('askText').addEventListener('input', () => { growText(); saveDraft() })
 $('askText').addEventListener('keydown', e => {
   if (e.key === 'Tab' && !e.shiftKey && (st.suggest || []).length && composerSession()) {
@@ -3816,6 +3820,9 @@ function openProposals () {
 }
 
 function goView (v) {
+  // typing mode hides the stage, so a view picked from the header would open
+  // behind it; picking a view is also a way out of typing mode
+  if (document.body.classList.contains('typing')) setTyping(false)
   try { localStorage.setItem('aiagentView', v) } catch (e) { /* the view is still switched */ }
   setView(v)
 }

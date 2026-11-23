@@ -996,6 +996,16 @@ body.typing .main { grid-template-columns: minmax(0, 1fr) }
 body.typing .insp { border-left: 0 }
 body.typing .panelGrip { display: none }
 body.typing .chatLog { max-height: none }
+/* Leaving the box no longer ends typing mode (a drag across the chat to copy
+   it took the focus and shrank the window under the selection), so this is
+   the way out. Fixed, not absolute in .main: at 900px and under the whole
+   page scrolls with a long chat, and an absolute button scrolled away with
+   the header. 74px clears the header while the page is at its top. */
+.typingClose { display: none }
+body.typing .typingClose { display: flex; align-items: center; justify-content: center;
+  position: fixed; top: calc(74px + env(safe-area-inset-top)); right: 12px; z-index: 6; width: 36px; height: 36px;
+  border: 1px solid var(--line); border-radius: 50%; background: var(--sky);
+  color: inherit; font-size: 16px; line-height: 1; cursor: pointer }
 /* the counters go, and the composer takes the row they were sharing */
 body.typing .stats { display: none }
 body.typing .bar { grid-template-columns: minmax(0, 1fr) }
