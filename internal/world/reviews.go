@@ -304,8 +304,8 @@ var sessionUUIDRE = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-
 // SendReview types reply into the review's session and returns that
 // session's full id and the channel used. A running session gets it through
 // its normal channel. A Claude Code session of this machine that is not
-// running any more is resumed in its folder (claude --resume, as the web's
-// resume does) and given it there.
+// running any more is brought back as a background job in its folder (as the
+// web's resume does) and given it there.
 func (c *Collector) SendReview(ctx context.Context, r *Review, reply string) (string, string, error) {
 	sid, err := c.resolveSession(ctx, r.SessionID)
 	if err == nil {
@@ -331,8 +331,10 @@ func (c *Collector) SendReview(ctx context.Context, r *Review, reply string) (st
 			return "", "", ErrConflict("short id " + short + " is ambiguous")
 		}
 	}
-	// AgentState "done" sends relaySend straight to --resume.
 	ss := &Session{SessionID: r.SessionID, RuntimeType: "claudeCode", Cwd: r.Cwd, Kind: "bg", AgentState: "done", home: r.home}
+	if err := c.wakeInBackground(ctx, ss, c.resumeDir(ss)); err != nil {
+		return "", "", err
+	}
 	if err := c.relaySend(ctx, ss, reply); err != nil {
 		// no id: a resumed CLI that shows no prompt is not a busy agent
 		// the outbox could wait for

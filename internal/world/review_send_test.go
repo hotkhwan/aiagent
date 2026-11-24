@@ -86,8 +86,9 @@ func TestReviewSendReachesTheSessionAndIsRecorded(t *testing.T) {
 	}
 }
 
-// A session that is no longer running is resumed in its folder and given the
-// answer, the way the web resumes a stopped session.
+// A session that is no longer running is brought back as a background job in
+// its folder and given the answer through an attach, the way the web resumes a
+// stopped session. It is never an interactive CLI of the relay's own.
 func TestReviewSendResumesAStoppedSession(t *testing.T) {
 	e := newEnv(t)
 	e.now = time.Now()
@@ -100,9 +101,13 @@ func TestReviewSendResumesAStoppedSession(t *testing.T) {
 	if code != 200 {
 		t.Fatalf("send to a stopped session: %d %v", code, m)
 	}
+	wake := "claude --bg --resume " + sid
+	if runs := claudeRuns(e); len(runs) != 1 || "claude "+runs[0] != wake || e.runner.runDirs[wake] != "/root" {
+		t.Fatalf("claude runs = %q in %q, want [%q] in /root", runs, e.runner.runDirs[wake], wake)
+	}
 	starts := relayStarts(e)
-	if len(starts) != 1 || !strings.Contains(starts[0], "-c /root claude --resume "+sid) {
-		t.Fatalf("relay starts = %q, want claude --resume %s in /root", starts, sid)
+	if len(starts) != 1 || !strings.HasSuffix(starts[0], " claude attach dddd4444") {
+		t.Fatalf("relay starts = %q, want one claude attach dddd4444", starts)
 	}
 	if got := e.col.Reviews()[0]; got.SentAt == nil || !strings.Contains(got.SentVia, "resume") {
 		t.Fatalf("review not recorded as sent by resume: %+v", got)

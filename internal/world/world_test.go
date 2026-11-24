@@ -38,13 +38,25 @@ type fakeRunner struct {
 	// A pane left dead by an earlier attach, which the next send should replace
 	// rather than report: dead until the relay is started again.
 	paneDeadStale bool
-	// `claude attach` to a job the daemon lists as done neither refuses nor
-	// draws a prompt: the pane stays alive and blank.
-	attachHangs bool
-	paneStart   string // the command the relay pane was started with
+	paneStart     string // the command the relay pane was started with
+	// noJob: the daemon does not list the session, so `claude attach` answers
+	// "No job matching" and exits, until `claude --bg --resume` brings the
+	// session back under its own id.
+	noJob bool
+	// bgResumeOut is what `claude --bg --resume` prints; empty means the plain
+	// "backgrounded" line for the session's own id. The real CLI starts a copy
+	// under a new id, and prints that id, when another process has the session.
+	bgResumeOut string
+	// deadScreen is what a refused attach left on its pane, when it is not the
+	// "No job matching" line.
+	deadScreen string
+	// runDirs is the folder of each RunIn call, keyed by its joined argv.
+	runDirs map[string]string
 	// A resumed CLI in a folder it has not been told to trust asks first, and
 	// that dialog draws a ❯ of its own beside "No, exit".
 	trustPrompt bool
+	// trustOnAttach shows that dialog to an attach client as well.
+	trustOnAttach bool
 	// trustHome, when set, makes the dialog go away once trustDir is trusted
 	// in trustHome/.claude.json, as the real CLI does.
 	trustHome, trustDir string
@@ -58,6 +70,22 @@ type fakeRunner struct {
 	// afterType runs, outside the lock, each time literal text is typed with
 	// send-keys -l. Set it before any goroutine starts.
 	afterType func()
+}
+
+// attachRefused reports an attach pane the CLI exited from.
+func (f *fakeRunner) attachRefused() bool {
+	return (f.noJob || f.deadScreen != "") && strings.Contains(f.paneStart, " attach ")
+}
+
+// RunIn records the folder a command was run in.
+func (f *fakeRunner) RunIn(ctx context.Context, dir, _, name string, args ...string) ([]byte, error) {
+	f.mu.Lock()
+	if f.runDirs == nil {
+		f.runDirs = map[string]string{}
+	}
+	f.runDirs[strings.Join(append([]string{name}, args...), " ")] = dir
+	f.mu.Unlock()
+	return f.Run(ctx, name, args...)
 }
 
 func (f *fakeRunner) Run(_ context.Context, name string, args ...string) ([]byte, error) {
@@ -90,6 +118,10 @@ func (f *fakeRunner) Run(_ context.Context, name string, args ...string) ([]byte
 			return nil, nil
 		case "list-panes":
 			if len(args) > 1 && args[1] == "-t" {
+				// Real tmux knows nothing of a session that is gone.
+				if !f.relayUp && strings.HasPrefix(args[2], "=aiagent-") {
+					return []byte("can't find session"), errors.New("exit status 1")
+				}
 				format := ""
 				for i, a := range args {
 					if a == "-F" && i+1 < len(args) {
@@ -97,7 +129,7 @@ func (f *fakeRunner) Run(_ context.Context, name string, args ...string) ([]byte
 					}
 				}
 				dead := "0"
-				if f.paneDead || f.paneDeadStale {
+				if f.paneDead || f.paneDeadStale || f.attachRefused() {
 					dead = "1"
 				}
 				// Answer in the shape the caller asked for, the way tmux does.
@@ -136,14 +168,14 @@ func (f *fakeRunner) Run(_ context.Context, name string, args ...string) ([]byte
 				}
 				return nil, nil
 			}
-			if f.paneDead || f.paneDeadStale {
+			if f.deadScreen != "" && f.attachRefused() {
+				return []byte(f.deadScreen + "\nPane is dead"), nil
+			}
+			if f.paneDead || f.paneDeadStale || f.attachRefused() {
 				return []byte("No job matching 'aaaa1111'. Run 'claude agents' to list running sessions.\nPane is dead"), nil
 			}
 			if f.relayBusy {
 				return []byte("──\nesc to interrupt\n──"), nil
-			}
-			if f.attachHangs && strings.Contains(f.paneStart, " attach ") {
-				return []byte("\n\n"), nil
 			}
 			if f.dialogScreen != "" {
 				return []byte(f.dialogScreen), nil
@@ -152,7 +184,7 @@ func (f *fakeRunner) Run(_ context.Context, name string, args ...string) ([]byte
 			if f.trustHome != "" {
 				trusted, _ = FolderTrusted(f.trustHome, f.trustDir)
 			}
-			if f.trustPrompt && !trusted && strings.Contains(f.paneStart, "--resume") {
+			if f.trustPrompt && !trusted && (f.trustOnAttach || strings.Contains(f.paneStart, "--resume")) {
 				return []byte(" Claude Code'll be able to read, edit, and execute files here.\n Security guide\n ❯ No, exit\n   Yes, I trust this folder\n Enter to confirm · Esc to cancel"), nil
 			}
 			return []byte("──\n❯ \n──"), nil
@@ -178,6 +210,13 @@ func (f *fakeRunner) Run(_ context.Context, name string, args ...string) ([]byte
 	}
 	if name == "claude" && len(args) > 0 && args[0] == "agents" {
 		return []byte(f.agentsJSON), nil
+	}
+	if name == "claude" && slices.Contains(args, "--bg") {
+		if f.bgResumeOut != "" {
+			return []byte(f.bgResumeOut), nil
+		}
+		f.noJob = false
+		return []byte("backgrounded · " + shortID(args[len(args)-1]) + " (idle — send a prompt to start)\n"), nil
 	}
 	return []byte(f.agcmdOut), nil
 }
