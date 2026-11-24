@@ -313,7 +313,7 @@ func (c *Collector) relayWait(ctx context.Context, name, dir string) (bool, stri
 			}
 			// Any other question or menu draws a ❯ beside its highlighted
 			// option too, and Enter there picks that option.
-			if onDialog(screen) {
+			if onDialog(screen) || strings.Contains(screen, agentViewBox) {
 				return false, dialogReason(name)
 			}
 			if strings.Contains(screen, "❯") {
@@ -327,6 +327,10 @@ func (c *Collector) relayWait(ctx context.Context, name, dir string) (bool, stri
 
 // trustDialog is the text of Claude Code's folder-trust question.
 const trustDialog = "trust this folder"
+
+// agentViewBox is the placeholder of the agent view's input box. A CLI showing
+// it has left the conversation: text typed there starts a new session.
+const agentViewBox = "describe a task for a new session"
 
 // dialogFooters are the key hints Claude Code prints under a question or menu
 // it draws over the input box ("Teach auto mode…", the rewind menu, a picker).
@@ -383,7 +387,8 @@ func (c *Collector) relayOnTrust(ctx context.Context, name string) bool {
 		return false
 	}
 	screen, _ := c.tmux(ctx, "capture-pane", "-p", "-t", "="+name+":")
-	return strings.Contains(screen, trustDialog)
+	// The agent view likewise: that CLI has left the conversation.
+	return strings.Contains(screen, trustDialog) || strings.Contains(screen, agentViewBox)
 }
 
 // relayHoldsSession reports a relay pane running the CLI itself rather than an
