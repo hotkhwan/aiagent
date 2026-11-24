@@ -68,9 +68,18 @@ issue. There is one maintainer, so expect a human-speed reply, not an SLA.
 
 ## Input
 
-- **Uploads accept images only**, verified by magic bytes rather than by
-  filename or declared type, stored `0600`, and deleted automatically after
-  7 days. Maximum 10 per message.
+- **Uploads accept images and zip archives only**, verified by content rather
+  than by filename or declared type (an image by its magic bytes, at most
+  3.5 MB; a zip by reading its directory, at most 50 MB, never empty), stored
+  `0600` under a random name, and deleted automatically after 7 days. Maximum
+  10 per message.
+- **A zip is stored, never opened.** The service does not unpack it, does not
+  turn a name inside it into a path, and does not serve it back to a browser
+  (the read route admits picture names only). What an agent does with the
+  archive happens in that agent's own sandbox, as with any file it is given.
+- The HTTP body limit is 51 MB so that a zip can arrive. It applies to every
+  route, and the body is read before the token is checked, so a request
+  without a token can make the service hold up to that much for a moment.
 - Model names are checked against a regex or the provider's real list.
   `~/.codex/config.toml` is edited only on its top-level `model` line.
 
@@ -102,7 +111,7 @@ users, and it widens the blast radius of any bug to all of them.
 - Command injection through any request field: there is no shell to inject
   into, and workspaces resolve through a fixed table.
 - A hostile review page: sandboxed, single-use ticket, no same-origin access.
-- A non-image upload, or an image bomb by count.
+- An upload that is neither an image nor a zip, or an image bomb by count.
 - Accidental credential leakage into the page: redaction plus the blanket rule
   on monitor commands.
 

@@ -144,7 +144,9 @@ func serve(args []string) {
 	col.Workspaces = ws
 
 	app := fiber.New(fiber.Config{
-		AppName:      "aiagent",
+		AppName: "aiagent",
+		// fiber's default is 4 MB; an attached zip may be larger
+		BodyLimit:    world.MaxUploadBody,
 		ReadTimeout:  30 * time.Second,
 		WriteTimeout: 60 * time.Second,
 	})

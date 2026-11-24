@@ -135,6 +135,15 @@ func (c *Collector) mergeDaemon(ctx context.Context, sessions []Session) []Sessi
 		case "blocked":
 			s.Status, s.ActivityType = StatusNeedsInput, ActivityIdle
 		case "done":
+			// "done" is the job's last finished turn, and it stays until the
+			// job reports again. A turn the transcript shows open is newer.
+			if s.turnInProgress {
+				s.Status = StatusRunning
+				if s.ActivityType == ActivityIdle {
+					s.ActivityType = ActivityPlanning
+				}
+				break
+			}
 			s.Status, s.ActivityType = StatusCompleted, ActivityIdle
 		}
 	}

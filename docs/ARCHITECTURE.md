@@ -54,7 +54,7 @@ browser ──HTTP(loopback)──▶ cmd/aiagent ──▶ internal/world
 - `state.go` — the switch and the token hash (`0600`)
 - `policy.go` — automatic model downgrade and idle proposals
 - `reviews.go` — agent-authored review pages, ticketed and sandboxed
-- `upload.go` — image attachments, verified by magic bytes
+- `upload.go` — image and zip attachments, verified by content
 - `paths.go` — XDG state directory resolution
 
 ## Rules that hold the design together

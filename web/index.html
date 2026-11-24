@@ -78,10 +78,10 @@
         <option value="mission">งานใหม่ (ติดตามได้)</option>
         <option value="message">ข้อความถึง agent</option>
       </select>
-      <button type="button" class="ghost clip" id="askClip" title="แนบรูป (สูงสุด 10)" aria-label="แนบรูป">📎</button>
+      <button type="button" class="ghost clip" id="askClip" title="แนบรูปหรือไฟล์ zip (สูงสุด 10)" aria-label="แนบรูปหรือไฟล์ zip">📎</button>
       <div class="thumbs" id="askThumbs"></div>
       <div class="taWrap"><textarea id="askText" rows="1" maxlength="4000" placeholder="พิมพ์สั่งงานเป็นภาษาไทยได้เลย…" aria-label="ข้อความ"></textarea></div>
-      <input type="file" id="askFile" accept="image/png,image/jpeg,image/gif,image/webp" multiple hidden>
+      <input type="file" id="askFile" accept="image/png,image/jpeg,image/gif,image/webp,.zip,application/zip,application/x-zip-compressed" multiple hidden>
       <button type="submit" class="pri" id="askGo">ส่ง</button>
     </div>
   </form>

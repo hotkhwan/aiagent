@@ -1959,6 +1959,22 @@ async function updateChat (force) {
 
 // attachments take a fixed-size stack in the row; the full list opens as a
 // tray above the composer so the text box never shrinks
+// A zip has no picture to show: it is drawn as a tile carrying its name.
+function attTile (a, attrs) {
+  if (a.kind === 'zip') return h('span', { class: 'zipTile', title: a.name || 'zip' }, h('b', null, 'ZIP'), h('small', null, a.name || ''))
+  return h('img', Object.assign({ src: a.url }, attrs || {}))
+}
+// The lines a message carries for its attachments: the agent reads the paths.
+function attachLines (files) {
+  let pics = 0
+  let zips = 0
+  return files.map(f => f.kind === 'zip'
+    ? tr('ไฟล์ zip แนบ ') + (++zips) + ': ' + f.path
+    : tr('รูปแนบ ') + (++pics) + ': ' + f.path).join('\n')
+}
+const maxZipBytes = 50 * 1024 * 1024
+function isZipFile (f) { return /^application\/(zip|x-zip-compressed)$/.test(f.type || '') || /\.zip$/i.test(f.name || '') }
+function isZipPath (p) { return /\.zip$/i.test(p || '') }
 function drawThumbs (thumbs) {
   // Two composers share one attachment list — the page footer and the monitor
   // dialog — so the tray has to be redrawn into whichever one is on screen.
@@ -1966,13 +1982,13 @@ function drawThumbs (thumbs) {
   const list = st.attach || []
   if (!list.length) { st.trayOpen = false; return thumbs.replaceChildren() }
   const stack = h('button', { type: 'button', class: 'attStack', 'aria-expanded': String(!!st.trayOpen), title: tr('ดู/จัดการรูปแนบ'), onclick: () => { st.trayOpen = !st.trayOpen; drawThumbs(thumbs) } },
-    ...list.slice(-3).map(a => h('img', { src: a.url, alt: '' })), h('b', null, String(list.length)))
+    ...list.slice(-3).map(a => attTile(a, { alt: '' })), h('b', null, String(list.length)))
   const tray = st.trayOpen ? h('div', { class: 'attTray', role: 'dialog', 'aria-label': tr('รูปแนบ') },
     h('div', { class: 'trayHead' }, h('b', null, tr('รูปแนบ ') + list.length + '/10'), h('span', null, tr('คลิกรูปเพื่อดูใหญ่')),
       list.length < 10 ? h('button', { type: 'button', class: 'ghost', onclick: () => $('askFile').click() }, tr('+ เพิ่มรูป')) : null,
       h('button', { type: 'button', class: 'ghost', 'aria-label': tr('ปิด'), onclick: () => { st.trayOpen = false; drawThumbs(thumbs) } }, '✕')),
     h('div', { class: 'trayGrid' }, list.map((a, i) => h('div', { class: 'thumb' },
-      h('img', { src: a.url, alt: tr('รูปแนบ ') + (i + 1), title: tr('คลิกเพื่อดูภาพใหญ่'), onclick: () => openLightbox(a.url) }),
+      attTile(a, { alt: tr('รูปแนบ ') + (i + 1), title: tr('คลิกเพื่อดูภาพใหญ่'), onclick: () => openLightbox(a.url) }),
       h('button', { type: 'button', 'aria-label': tr('ลบรูป ') + (i + 1), onclick: () => { if (a.url) URL.revokeObjectURL(a.url); st.attach.splice(i, 1); drawThumbs(thumbs); saveDraft() } }, '×'))))) : null
   thumbs.replaceChildren(stack, tray || '')
 }
@@ -2023,8 +2039,10 @@ async function shrink (blob) {
   } finally { done() }
 }
 
-async function uploadImage (blob) {
-  const body = await shrink(blob)
+// raw: send the bytes as they are. A zip must not go through shrink(), which
+// re-encodes a picture.
+async function uploadFile (blob, raw) {
+  const body = raw ? blob : await shrink(blob)
   const res = await fetch('/aiagent/api/uploads', { method: 'POST', headers: { 'X-Aiagent-Token': st.token, 'Content-Type': body.type || 'application/octet-stream' }, body, cache: 'no-store' })
   let j = null
   try { j = await res.json() } catch (e) { j = null }
@@ -2072,7 +2090,7 @@ async function sendChat (sess, ta, thumbs) {
   if (files.some(f => f.busy || !f.path)) { toast(tr('รูปยังอัปโหลดไม่เสร็จ — รออีกครู่แล้วกดส่งอีกที'), true); return }
   ta.disabled = true
   if (files.length) {
-    text = (text || tr('ดูรูปที่แนบ')) + '\n\n' + files.map((f, i) => tr('รูปแนบ ') + (i + 1) + ': ' + f.path).join('\n')
+    text = (text || tr('ดูไฟล์ที่แนบ')) + '\n\n' + attachLines(files)
   }
   const withPics = files.length ? tr(' พร้อมรูป ') + files.length + tr(' รูป') : ''
   const mine = st.sending = { sid: sess.sessionId, text, sent: false }
@@ -2423,6 +2441,59 @@ async function openReview (id) {
   $('reviewFrame').removeAttribute('src')
 
   const note = h('textarea', { rows: 2 })
+  // Pictures for the note: a screenshot with the mistake circled says more
+  // than a sentence. They are uploaded like a composer picture and their
+  // paths ride in the note, which is what the service sends to the agent.
+  const pics = []
+  const picsBusy = () => pics.some(p => p.busy)
+  const noteText = () => {
+    const done = pics.filter(p => p.path)
+    return note.value + (done.length ? (note.value.trim() ? '\n\n' : '') + attachLines(done) : '')
+  }
+  const picGrid = h('div', { class: 'trayGrid' })
+  const picInput = h('input', { type: 'file', accept: 'image/png,image/jpeg,image/gif,image/webp', multiple: '', hidden: '' })
+  const picBtn = h('button', { type: 'button', class: 'ghost', disabled: !open, onclick: () => picInput.click() }, tr('📎 แนบภาพ'))
+  const drawPics = () => {
+    picGrid.replaceChildren(...pics.map((p, i) => h('div', { class: 'thumb' + (p.busy ? ' busy' : '') },
+      h('img', { src: p.url, alt: tr('รูปแนบ ') + (i + 1), title: tr('คลิกเพื่อดูภาพใหญ่'), onclick: () => openLightbox(p.url) }),
+      h('button', { type: 'button', 'aria-label': tr('ลบรูป ') + (i + 1), onclick: () => { URL.revokeObjectURL(p.url); pics.splice(pics.indexOf(p), 1); drawPics(); picsChanged() } }, '×'))))
+    picBtn.disabled = !open || pics.length >= 10
+  }
+  const addPics = async list => {
+    let skipped = 0
+    const fresh = []
+    for (const f of list) {
+      if (!f) continue
+      if (!/^image\/(png|jpeg|gif|webp)$/.test(f.type) || pics.length + fresh.length >= 10) { skipped++; continue }
+      fresh.push({ blob: f, url: URL.createObjectURL(f), path: '', busy: true })
+    }
+    if (skipped) toast(tr('แนบไม่ได้ ') + skipped + tr(' ไฟล์ — ช่องนี้รับเฉพาะ PNG, JPEG, GIF, WebP และไม่เกิน 10 รูป'), true)
+    if (!fresh.length) return
+    pics.push(...fresh)
+    drawPics()
+    paint()
+    for (const p of fresh) {
+      try {
+        p.path = await uploadFile(p.blob, false)
+      } catch (e) {
+        const i = pics.indexOf(p)
+        if (i >= 0) pics.splice(i, 1)
+        URL.revokeObjectURL(p.url)
+        toast(tr('อัปโหลดไม่สำเร็จ: ') + e.message, true)
+      }
+      p.busy = false
+      drawPics()
+      picsChanged()
+    }
+  }
+  picInput.addEventListener('change', () => { addPics(picInput.files); picInput.value = '' })
+  note.addEventListener('paste', e => {
+    const files = [...(e.clipboardData ? e.clipboardData.items : [])].filter(i => i.kind === 'file').map(i => i.getAsFile())
+    if (!files.length || !open) return
+    e.preventDefault()
+    addPics(files)
+  })
+  const picRow = h('div', { class: 'revPics' }, h('div', { class: 'revPicsHead' }, picBtn, picInput, h('span', { class: 'note' }, tr('วงจุดที่ผิดในภาพแล้วแนบ หรือวางภาพลงในช่องหมายเหตุได้'))), picGrid)
   const checks = h('ul', { class: 'revChecks' })
   const status = h('p', { class: 'note' }, tr('กำลังอ่านหน้าตรวจ…'))
   const queue = h('pre', { class: 'revQueue' }, tr('ยังไม่ได้ยืนยันผลตรวจ — ตรวจทุกข้อในหน้าแล้วกดยืนยัน'))
@@ -2439,14 +2510,15 @@ async function openReview (id) {
     h('p', { class: 'note' }, tr('แก้ผลข้อไหน ข้อความรอส่งจะอัปเดตให้เอง')),
     h('div', { class: 'revBtns' }, sendBtn, copyBtn))
   const decideLegacy = async (decision, sendIt) => {
-    if (decision === 'revise' && !note.value.trim()) { note.focus(); toast(tr('บอกสิ่งที่ต้องแก้ก่อน'), true); return }
+    if (decision === 'revise' && !noteText().trim()) { note.focus(); toast(tr('บอกสิ่งที่ต้องแก้ก่อน'), true); return }
+    if (picsBusy()) { toast(tr('รูปยังอัปโหลดไม่เสร็จ — รออีกครู่แล้วกดส่งอีกที'), true); return }
     if (busy) return
     busy = true
     const sends = [...legacyBox.querySelectorAll('button.pri, button.warn')]
     sends.forEach(b => { b.disabled = true })
     if (sendIt) showSend(sendingText, 'busy')
     try {
-      const res = await call('/decision', { decision, note: note.value, send: sendIt })
+      const res = await call('/decision', { decision, note: noteText(), send: sendIt })
       out.hidden = false
       out.textContent = res.reply
       if (!sendIt) copyText(res.reply, { textContent: '' })
@@ -2489,8 +2561,8 @@ async function openReview (id) {
     const judged = items.every(it => it.verdict)
     confirmBtn.disabled = !judged || !open || confirmed
     confirmBtn.textContent = confirmed ? tr('ยืนยันผลตรวจแล้ว') : tr('ยืนยันผลตรวจ')
-    sendBtn.disabled = !canSend || !ready || busy
-    copyBtn.disabled = !open || !ready || busy
+    sendBtn.disabled = !canSend || !ready || busy || picsBusy()
+    copyBtn.disabled = !open || !ready || busy || picsBusy()
   }
   const composeNow = async () => {
     timer = 0
@@ -2503,7 +2575,7 @@ async function openReview (id) {
       return
     }
     try {
-      const res = await call('/compose', { items, note: note.value })
+      const res = await call('/compose', { items, note: noteText() })
       if (mine !== seq) return
       ready = true
       queue.textContent = res.reply
@@ -2522,7 +2594,7 @@ async function openReview (id) {
     paint()
     if (sendIt) showSend(sendingText, 'busy')
     try {
-      const res = await call('/decision', { items, note: note.value, send: sendIt })
+      const res = await call('/decision', { items, note: noteText(), send: sendIt })
       queue.textContent = res.reply
       ready = false
       confirmBtn.disabled = true
@@ -2542,6 +2614,8 @@ async function openReview (id) {
     }
   }
   note.addEventListener('input', () => { if (confirmed) later() })
+  // a picture added or removed changes the message waiting to be sent
+  function picsChanged () { paint(); if (confirmed && items && items.length) later() }
 
   if (st.reviewMsg) window.removeEventListener('message', st.reviewMsg)
   st.reviewMsg = e => {
@@ -2564,6 +2638,7 @@ async function openReview (id) {
     r.summary ? h('p', null, r.summary) : null,
     status,
     note,
+    picRow,
     itemsBox,
     legacyBox,
     sendState,
@@ -2825,7 +2900,7 @@ $('ask').addEventListener('submit', async e => {
   if (!ok) return
   if (files.some(f => f.busy || !f.path)) { toast(tr('รูปยังอัปโหลดไม่เสร็จ — รออีกครู่แล้วกดส่งอีกที'), true); return }
   if (files.length) {
-    text = (text || tr('ดูรูปที่แนบ')) + '\n\n' + files.map((f, i) => tr('รูปแนบ ') + (i + 1) + ': ' + f.path).join('\n')
+    text = (text || tr('ดูไฟล์ที่แนบ')) + '\n\n' + attachLines(files)
   }
   const sent = mode === 'mission'
     ? await act('/missions', prov ? { provider: prov, task: text } : { workspace: ws, task: text }, r => tr('สร้างงาน ') + (r.runId || '') + tr(' ใน ') + (r.workspace || ws) + tr(' แล้ว'))
@@ -2852,24 +2927,28 @@ async function addFiles (list, thumbs) {
   const fresh = []
   for (const f of list) {
     if (!f) continue
-    if (!/^image\/(png|jpeg|gif|webp)$/.test(f.type)) { skipped++; continue }
+    const zip = isZipFile(f)
+    if (!zip && !/^image\/(png|jpeg|gif|webp)$/.test(f.type)) { skipped++; continue }
+    if (zip && f.size > maxZipBytes) { skipped++; continue }
     if ((st.attach || []).length + fresh.length >= 10) { skipped++; continue }
-    fresh.push({ blob: f, url: URL.createObjectURL(f), path: '', busy: true })
+    fresh.push(zip
+      ? { blob: f, url: '', path: '', busy: true, kind: 'zip', name: f.name || 'zip' }
+      : { blob: f, url: URL.createObjectURL(f), path: '', busy: true })
   }
   // A photo library can hand back HEIC, which the service does not take. Saying
   // nothing left the picture simply missing with no reason given.
-  if (skipped) toast(tr('แนบไม่ได้ ') + skipped + tr(' ไฟล์ — รับเฉพาะ PNG, JPEG, GIF, WebP และไม่เกิน 10 รูป'), true)
+  if (skipped) toast(tr('แนบไม่ได้ ') + skipped + tr(' ไฟล์ — รับเฉพาะ PNG, JPEG, GIF, WebP และ zip (ไม่เกิน 50 MB) รวมไม่เกิน 10 ไฟล์'), true)
   if (!fresh.length) return drawThumbs(el)
   st.attach = (st.attach || []).concat(fresh)
   drawThumbs(el)
   for (const a of fresh) {
     try {
-      a.path = await uploadImage(a.blob)
+      a.path = await uploadFile(a.blob, a.kind === 'zip')
     } catch (e) {
       const i = st.attach.indexOf(a)
       if (i >= 0) st.attach.splice(i, 1)
-      URL.revokeObjectURL(a.url)
-      toast(tr('อัปโหลดรูปไม่สำเร็จ: ') + e.message, true)
+      if (a.url) URL.revokeObjectURL(a.url)
+      toast(tr('อัปโหลดไม่สำเร็จ: ') + e.message, true)
     }
     a.busy = false
     drawThumbs(el)
@@ -2897,6 +2976,8 @@ function restoreDraft () {
   for (const p of (d.paths || []).slice(0, 10)) {
     const a = { blob: null, url: '', path: p, busy: false }
     ;(st.attach = st.attach || []).push(a)
+    // a stored zip is never served back, and there is nothing to preview
+    if (isZipPath(p)) { a.kind = 'zip'; a.name = 'zip'; continue }
     loadUpload(p.split('/').pop()).then(u => { a.url = u; drawThumbs(st.thumbsEl || $('askThumbs')) }, () => {})
   }
   if (st.attach && st.attach.length) drawThumbs($('askThumbs'))

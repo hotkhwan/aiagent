@@ -112,8 +112,10 @@ type Session struct {
 
 	timeline   []TimelineItem
 	sourcePath string
-	home       string
-	inPane     string
+	// the transcript ends inside a turn (see transcriptState.turnInProgress)
+	turnInProgress bool
+	home           string
+	inPane         string
 }
 
 // Decision is a agcmd eng question waiting for a human.

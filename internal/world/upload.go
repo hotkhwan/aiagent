@@ -1,13 +1,20 @@
 // internal/aiagent/upload.go
 //
-// Image attachments for messages. The browser uploads the raw image; this service
+// Attachments for messages. The browser uploads the raw file; this service
 // stores it under the feature's state dir with a random name and returns the
-// local path, which the message then references — exactly what dragging an
-// image into a Claude Code / Codex terminal does (both CLIs read images from
-// a local path).
+// local path, which the message then references — exactly what dragging a
+// file into a Claude Code / Codex terminal does (both CLIs read from a local
+// path).
+//
+// Two kinds are taken: a picture, and a zip archive. The archive is checked to
+// be one and then stored byte for byte. This service never unpacks it, never
+// reads a name out of it into a path, and never serves it back to a browser;
+// what happens to its contents is the agent's decision, in the agent's own
+// sandbox.
 package world
 
 import (
+	"archive/zip"
 	"bytes"
 	"crypto/rand"
 	"encoding/hex"
@@ -19,8 +26,12 @@ import (
 
 const (
 	maxUploadBytes = 3_500_000
-	uploadTTL      = 7 * 24 * time.Hour
-	uploadsPerMin  = 30
+	maxZipBytes    = 50 << 20
+	// MaxUploadBody is the request body the HTTP server must allow for an
+	// upload to reach SaveUpload, which applies the limit of each kind.
+	MaxUploadBody = maxZipBytes + 1<<20
+	uploadTTL     = 7 * 24 * time.Hour
+	uploadsPerMin = 30
 )
 
 var imageMagic = []struct {
@@ -68,17 +79,43 @@ func (l *uploadLimiter) allow(now time.Time) bool {
 	return true
 }
 
-// SaveUpload validates and stores one image; it returns the absolute path.
-func SaveUpload(dir string, b []byte, now time.Time) (string, error) {
+// isZip reports whether b is a readable archive with at least one entry. The
+// magic bytes alone are four characters anyone can type.
+func isZip(b []byte) bool {
+	if len(b) < 4 || !bytes.Equal(b[:4], []byte("PK\x03\x04")) {
+		return false
+	}
+	r, err := zip.NewReader(bytes.NewReader(b), int64(len(b)))
+	return err == nil && len(r.File) > 0
+}
+
+// uploadKind names the stored extension of an accepted upload, or says why
+// the bytes are refused.
+func uploadKind(b []byte) (string, error) {
 	if len(b) == 0 {
 		return "", ErrBadRequest("empty upload")
 	}
-	if len(b) > maxUploadBytes {
-		return "", ErrBadRequest("image is larger than 3.5 MB")
+	if ext := sniffImage(b); ext != "" {
+		if len(b) > maxUploadBytes {
+			return "", ErrBadRequest("image is larger than 3.5 MB")
+		}
+		return ext, nil
 	}
-	ext := sniffImage(b)
-	if ext == "" {
-		return "", ErrBadRequest("only PNG, JPEG, GIF or WebP images are accepted")
+	if len(b) > maxZipBytes {
+		return "", ErrBadRequest("file is larger than 50 MB")
+	}
+	if isZip(b) {
+		return ".zip", nil
+	}
+	return "", ErrBadRequest("only PNG, JPEG, GIF or WebP images and zip archives are accepted")
+}
+
+// SaveUpload validates and stores one image or zip archive; it returns the
+// absolute path.
+func SaveUpload(dir string, b []byte, now time.Time) (string, error) {
+	ext, err := uploadKind(b)
+	if err != nil {
+		return "", err
 	}
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return "", err

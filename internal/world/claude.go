@@ -36,6 +36,7 @@ type claudeRegistry struct {
 
 type claudeLine struct {
 	Type         string `json:"type"`
+	IsMeta       bool   `json:"isMeta"`
 	Timestamp    string `json:"timestamp"`
 	GitBranch    string `json:"gitBranch"`
 	Cwd          string `json:"cwd"`
@@ -75,18 +76,44 @@ type transcriptState struct {
 	lastMsgID string
 
 	// tail-derived
-	title       string
-	branch      string
-	cwd         string
-	lastTool    string
-	activity    string
-	lastStop    string
+	title    string
+	branch   string
+	cwd      string
+	lastTool string
+	activity string
+	lastStop string
+	// the turn the tail ends in: "" when the agent finished its reply
+	openTurn    string
+	openTurnAt  time.Time
 	lastEventAt time.Time
 	prs         map[int]PRLink
 	timeline    []TimelineItem
 	watches     map[string]*watchState
 	lastCI      *Watch
 	model       string
+}
+
+// An open turn is work in progress only while it is fresh: a transcript that
+// simply stops (the process was killed, the machine slept) must not read as
+// running for ever. A tool may run for a long time; a reply to a command
+// starts within minutes.
+const (
+	openTurnWaiting = "waiting"
+	openTurnTool    = "tool"
+	openWaitingKeep = 15 * time.Minute
+	openToolKeep    = 2 * time.Hour
+)
+
+// turnInProgress reports whether the transcript ends inside a turn.
+func (st *transcriptState) turnInProgress(now time.Time) bool {
+	if st.openTurn == "" || st.openTurnAt.IsZero() {
+		return false
+	}
+	keep := openWaitingKeep
+	if st.openTurn == openTurnTool {
+		keep = openToolKeep
+	}
+	return now.Sub(st.openTurnAt) < keep
 }
 
 const (
@@ -133,6 +160,7 @@ func refreshClaudeTail(path string, st *transcriptState) {
 		st.prs = map[int]PRLink{}
 	}
 	var timeline []TimelineItem
+	st.openTurn, st.openTurnAt = "", time.Time{}
 	lines := readTail(path, st.size, tailBytes)
 	updateWatches(lines, st)
 	for _, raw := range lines {
@@ -175,11 +203,22 @@ func refreshClaudeTail(path string, st *transcriptState) {
 					st.model = string(m[1])
 				}
 			}
+			if ln.Type == "user" && !ln.IsMeta {
+				st.openTurn, st.openTurnAt = openTurnWaiting, parseTS(ln.Timestamp)
+			}
 			if ln.Type != "assistant" || ln.Message == nil {
 				continue
 			}
 			if ln.Message.StopReason != "" {
 				st.lastStop = ln.Message.StopReason
+			}
+			switch ln.Message.StopReason {
+			case "tool_use":
+				st.openTurn, st.openTurnAt = openTurnTool, parseTS(ln.Timestamp)
+			case "":
+				// a partial line of a reply still being written: the turn stays as it is
+			default:
+				st.openTurn, st.openTurnAt = "", time.Time{}
 			}
 			if m := ln.Message.Model; m != "" && !strings.HasPrefix(m, "<") {
 				st.model = m
@@ -386,6 +425,7 @@ func (c *Collector) applyClaudeTranscript(path string, s *Session, countUsage bo
 		t := st.lastEventAt
 		s.LastEventAt = &t
 	}
+	s.turnInProgress = st.turnInProgress(c.now())
 	if s.Status == StatusRunning && st.activity != "" {
 		s.ActivityType = st.activity
 	}

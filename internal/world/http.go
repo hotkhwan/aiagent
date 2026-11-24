@@ -14,7 +14,7 @@
 //	GET  /aiagent/api/sessions/:id/messages token — redacted user/assistant text
 //	POST /aiagent/api/sessions/:id/message  token — {message} → that session
 //	                                   (agcmd dispatch, or relay for own bg sessions)
-//	POST /aiagent/api/uploads          token — raw image body → {path} for a message
+//	POST /aiagent/api/uploads          token — raw image or zip body → {path} for a message
 //	POST /aiagent/api/sessions/:id/model token — /model <opus|sonnet|haiku> via the session's channel
 //	POST /aiagent/api/sessions/:id/stop token — claude stop <id> (own bg session)
 //	                                   or agcmd restart <ws> (CLI in a agcmd pane);
@@ -509,7 +509,8 @@ func (s *Service) handleUpload(c fiber.Ctx) error {
 var uploadName = regexp.MustCompile(`^[0-9]{8}-[0-9]{6}-[0-9a-f]{16}\.(png|jpg|gif|webp)$`)
 
 // handleUploadGet returns one previously uploaded image (token-gated) so the
-// page can preview what was sent.
+// page can preview what was sent. A stored zip is never served: the name
+// pattern admits pictures only.
 func (s *Service) handleUploadGet(c fiber.Ctx) error {
 	name := c.Params("name")
 	if !uploadName.MatchString(name) {
