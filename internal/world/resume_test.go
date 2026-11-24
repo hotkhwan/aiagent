@@ -31,10 +31,14 @@ func TestResumeStartsAFinishedSessionWithoutTyping(t *testing.T) {
 	if state := m["details"].(map[string]any)["state"]; state != "started" {
 		t.Fatalf("state = %v, want started", state)
 	}
-	got := resumeCalls(e)
-	want := "new-session -d -s aiagent-aaaa1111 -x 220 -y 50 -c /root claude --resume " + outboxSession
-	if len(got) != 1 || got[0] != want {
-		t.Fatalf("new-session calls = %q, want [%q]", got, want)
+	// In the background, under the daemon: an interactive CLI in a tmux session
+	// of ours would hold the session and lock the operator's own clients out.
+	wake := "claude --bg --resume " + outboxSession
+	if runs := claudeRuns(e); len(runs) != 1 || "claude "+runs[0] != wake || e.runner.runDirs[wake] != "/root" {
+		t.Fatalf("claude runs = %q in %q, want [%q] in /root", runs, e.runner.runDirs[wake], wake)
+	}
+	if got := resumeCalls(e); len(got) != 0 {
+		t.Fatalf("resume must not open a tmux session: %q", got)
 	}
 	for _, c := range e.runner.callsTo("tmux") {
 		if c[0] == "send-keys" {
@@ -55,21 +59,25 @@ func TestResumeLeavesARunningSessionAlone(t *testing.T) {
 	if state := m["details"].(map[string]any)["state"]; state != "running" {
 		t.Fatalf("state = %v, want running", state)
 	}
-	if got := resumeCalls(e); len(got) != 0 {
-		t.Fatalf("a running session must not be started again: %q", got)
+	if got, runs := resumeCalls(e), claudeRuns(e); len(got) != 0 || len(runs) != 0 {
+		t.Fatalf("a running session must not be started again: %q %q", got, runs)
 	}
 }
 
-// When the CLI exits at once, the operator is told why instead of seeing "started".
-func TestResumeReportsTheCLIsRefusal(t *testing.T) {
+// When the CLI can only offer a copy, the operator is told why instead of
+// seeing "started" over a session that is not the one they picked.
+func TestResumeReportsASessionOpenElsewhere(t *testing.T) {
 	e := newEnv(t)
 	tok, _ := e.store.Enable("test")
 	writeFile(t, filepath.Join(e.home, ".claude", "projects", "-root", outboxSession+".jsonl"),
 		`{"type":"user","timestamp":"2026-11-04T10:00:00Z","message":{"role":"user","content":"ทำต่อ"}}`+"\n")
-	e.runner.paneDead = true
+	e.runner.bgResumeOut = "backgrounded · cccc9999 (idle — send a prompt to start)\n"
 
 	code, m, _ := e.do(t, "POST", "/aiagent/api/sessions/"+outboxSession+"/resume", tok, "")
-	if code != 502 {
-		t.Fatalf("resume against a dead pane: %d %v, want 502", code, m)
+	if code != 409 {
+		t.Fatalf("resume of a session open elsewhere: %d %v, want 409", code, m)
+	}
+	if runs := strings.Join(claudeRuns(e), "\n"); !strings.Contains(runs, "stop cccc9999") {
+		t.Fatalf("the copy was left running; claude runs:\n%s", runs)
 	}
 }

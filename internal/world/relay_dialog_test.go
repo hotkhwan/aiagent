@@ -31,6 +31,18 @@ var dialogScreens = map[string]string{
      ⚠ No code restore
    ❯ (current)
    Enter to continue · Esc to cancel`,
+	// Captured 2026-11-24 from a relay whose CLI had gone back to the agent
+	// view. The ❯ there is the box that dispatches a NEW session, so a message
+	// typed into it went to a different CLI than the one the operator picked
+	// (owner: "บางทีสั่งหน้า web มาส่ง cli คนละตัว").
+	"agent view": ` ✽ Global PM                   New review page is filed
+Completed
+ ✻ wobbloo mobile puzzle game  สินค้าในแอปของ WOBBLOO บน Google Play สร้างครบ 5 ตัว
+ ∙ littledays DLC v1           Open in a terminal · continue it there
+────────────────────────────────
+❯ describe a task for a new session
+────────────────────────────────
+  ⏵⏵ auto mode · enter to collapse · ctrl+x to remove all · ? for shortcuts`,
 }
 
 func TestSendRefusesToTypeIntoADialog(t *testing.T) {

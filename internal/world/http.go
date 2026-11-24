@@ -20,7 +20,8 @@
 //	                                   or agcmd restart <ws> (CLI in a agcmd pane);
 //	                                   interactive/foreign sessions are refused
 //	POST /aiagent/api/sessions/:id/resume token — start a stopped session on its
-//	                                   own conversation (claude --resume); nothing typed
+//	                                   own conversation, in the background
+//	                                   (claude --bg --resume); nothing typed
 //
 // The on/off switch and the token live in the CLI, not on this listener.
 package world

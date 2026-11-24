@@ -10,6 +10,13 @@
 //	          the tmux session ends), and types into it. Verified on a dev box:
 //	          the attached session receives the text as a user turn, and other
 //	          attached clients keep working.
+//
+//	          The relay is only ever an attach CLIENT. The session itself stays a
+//	          background job of Claude Code's daemon, the one every other client
+//	          (the operator's terminal, the agent view) opens too. It never runs
+//	          `claude --resume` in the pane: that process would own the session,
+//	          and everyone else is then told "Can't open — this session is
+//	          running in another terminal", or handed a copy under a new id.
 //	(none)  — interactive terminal / VS Code sessions: there is no supported
 //	          way to type into someone else's terminal, so they stay read-only.
 package world
@@ -17,6 +24,7 @@ package world
 import (
 	"context"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -160,26 +168,55 @@ func (c *Collector) ResumeSession(ctx context.Context, id string) (string, error
 			return "", ErrConflict("short id " + short + " is ambiguous")
 		}
 	}
-	name := relayName(short)
-	defer c.lockSend("relay:" + name)()
-	if dead, _ := c.relayDead(ctx, name); dead {
-		_, _ = c.tmux(ctx, "kill-session", "-t", "="+name)
+	defer c.lockSend("relay:" + relayName(short))()
+	if err := c.wakeInBackground(ctx, target, c.resumeDir(target)); err != nil {
+		return "", err
 	}
-	if _, err := c.tmux(ctx, "has-session", "-t", "="+name); err == nil {
-		return "running", nil
-	}
-	c.trustFolder(c.resumeDir(target))
-	argv := []string{"new-session", "-d", "-s", name, "-x", "220", "-y", "50", "-c", c.resumeDir(target), c.ClaudePath, "--resume", target.SessionID}
-	if _, err := c.tmux(ctx, argv...); err != nil {
-		return "", &APIError{502, "AIAGENT_RESUME_FAILED", "could not start the session: " + err.Error()}
-	}
-	_, _ = c.tmux(ctx, "set-option", "-w", "-t", "="+name+":", "remain-on-exit", "on")
-	_, _ = c.tmux(ctx, "set-option", "-w", "-t", "="+name+":", "window-size", "manual")
-	_, _ = c.tmux(ctx, "resize-window", "-t", "="+name+":", "-x", "220", "-y", "50")
-	if ready, why := c.relayWait(ctx, name, c.resumeDir(target)); !ready && why != "" {
-		return "", &APIError{502, "AIAGENT_RESUME_FAILED", "claude --resume stopped: " + why}
-	}
+	c.invalidate()
 	return "started", nil
+}
+
+// backgrounded matches the short id `claude --bg` prints on stdout for the job
+// it started.
+var backgrounded = regexp.MustCompile(`backgrounded · ([0-9a-f]{8})\b`)
+
+// noJobReason is how `claude attach` refuses a session its daemon does not list.
+const noJobReason = "No job matching"
+
+// wakeInBackground brings a session the daemon does not list back as a
+// background job under its own id, with `claude --bg --resume <id>`. Any client
+// can attach to that job, this service's relay among them.
+//
+// It runs in dir, because the folder it is run in becomes the job's folder.
+//
+// The CLI continues the session itself only when no other process has it open.
+// Otherwise it starts a COPY under a new id and still exits 0; the id it prints
+// is then not the session's own (measured on Claude Code 2.1.325, which adds a
+// note on stderr). A copy is a different conversation from the one the operator
+// picked, so it is stopped and removed, and the caller is told the session is
+// open elsewhere.
+func (c *Collector) wakeInBackground(ctx context.Context, ss *Session, dir string) error {
+	// The id becomes an argument of the CLI; nothing but a session id may.
+	if !sessionUUIDRE.MatchString(ss.SessionID) {
+		return ErrConflict("the session id is not one Claude Code can resume")
+	}
+	c.trustFolder(dir)
+	cctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	out, err := c.runIn(cctx, dir, "", c.ClaudePath, "--bg", "--resume", ss.SessionID)
+	if err != nil {
+		return &APIError{502, "AIAGENT_RESUME_FAILED", "claude --bg --resume failed: " + attachReason(out+"\n"+err.Error())}
+	}
+	m := backgrounded.FindStringSubmatch(out)
+	if m == nil {
+		return &APIError{502, "AIAGENT_RESUME_FAILED", "claude --bg --resume did not say which job it started: " + attachReason(out)}
+	}
+	if m[1] != shortID(ss.SessionID) {
+		_, _ = c.Runner.Run(cctx, c.ClaudePath, "stop", m[1])
+		_, _ = c.Runner.Run(cctx, c.ClaudePath, "rm", m[1])
+		return ErrConflict("the session is open in another Claude Code process (a terminal or VS Code), so it cannot be continued from here; close it there, or send from there")
+	}
+	return nil
 }
 
 // resumeDir is where --resume must run: the folder the transcript is filed
@@ -276,7 +313,7 @@ func (c *Collector) relayWait(ctx context.Context, name, dir string) (bool, stri
 			}
 			// Any other question or menu draws a ❯ beside its highlighted
 			// option too, and Enter there picks that option.
-			if onDialog(screen) {
+			if onDialog(screen) || strings.Contains(screen, agentViewBox) {
 				return false, dialogReason(name)
 			}
 			if strings.Contains(screen, "❯") {
@@ -290,6 +327,10 @@ func (c *Collector) relayWait(ctx context.Context, name, dir string) (bool, stri
 
 // trustDialog is the text of Claude Code's folder-trust question.
 const trustDialog = "trust this folder"
+
+// agentViewBox is the placeholder of the agent view's input box. A CLI showing
+// it has left the conversation: text typed there starts a new session.
+const agentViewBox = "describe a task for a new session"
 
 // dialogFooters are the key hints Claude Code prints under a question or menu
 // it draws over the input box ("Teach auto mode…", the rewind menu, a picker).
@@ -346,45 +387,62 @@ func (c *Collector) relayOnTrust(ctx context.Context, name string) bool {
 		return false
 	}
 	screen, _ := c.tmux(ctx, "capture-pane", "-p", "-t", "="+name+":")
-	return strings.Contains(screen, trustDialog)
+	// The agent view likewise: that CLI has left the conversation.
+	return strings.Contains(screen, trustDialog) || strings.Contains(screen, agentViewBox)
+}
+
+// relayHoldsSession reports a relay pane running the CLI itself rather than an
+// attach client: one started with `claude --resume` before the relay became
+// attach-only. Such a pane owns the session and locks every other client out.
+func (c *Collector) relayHoldsSession(ctx context.Context, name string) bool {
+	cmd, err := c.tmux(ctx, "list-panes", "-t", "="+name, "-F", "#{pane_start_command}")
+	return err == nil && strings.Contains(cmd, "--resume") && !strings.Contains(cmd, " attach ")
 }
 
 // relaySend types into the session, opening a relay for it if there is none.
 //
-// Two ways in, in this order. `claude attach <id>` joins a job the daemon is
-// still running. A session that has finished has no job to join — attach
-// answers "No job matching <id>" and exits — but the operator still wants to
-// give it more work (owner, 2026-11-14: "complete แล้วจริง แต่ก็ต้องพิมพ์สั่ง
-// เพิ่มได้"), and `claude --resume <id>` is how the CLI itself does that. So a
-// refused attach is followed by a resume before anything is called a failure.
+// The way in is always `claude attach <id>`: it joins the daemon's job, waking
+// it when it is finished or stopped (measured on Claude Code 2.1.325), and
+// leaves the session open to every other client. A session the daemon does not
+// list at all answers "No job matching <id>"; the operator still wants to give
+// it more work (owner, 2026-11-14: "complete แล้วจริง แต่ก็ต้องพิมพ์สั่งเพิ่มได้"), so
+// it is first brought back as a background job (wakeInBackground) and then
+// attached the same way.
 func (c *Collector) relaySend(ctx context.Context, ss *Session, message string) error {
 	short := shortID(ss.SessionID)
 	name := relayName(short)
 	defer c.lockSend("relay:" + name)()
+	dir := c.resumeDir(ss)
+	// A relay left on the trust question by an earlier try blocked every later
+	// send (owner, 2026-11-22: "ส่งให้ agent" did nothing). It never loaded the
+	// conversation, so it is replaced.
+	if c.relayOnTrust(ctx, name) {
+		c.trustFolder(dir)
+		_, _ = c.tmux(ctx, "kill-session", "-t", "="+name)
+	}
+	if c.relayHoldsSession(ctx, name) {
+		// Free the session, but only from a CLI that is idle at its prompt:
+		// ending one mid-task would lose the work, and a dead one says nothing.
+		if dead, _ := c.relayDead(ctx, name); !dead {
+			if ready, why := c.relayWait(ctx, name, dir); !ready {
+				if strings.HasPrefix(why, dialogReasonPrefix) {
+					return &APIError{409, "AIAGENT_RELAY_DIALOG", why}
+				}
+				return &APIError{504, "AIAGENT_RELAY_NOT_READY",
+					"the session did not become ready to receive text — it is probably still working; try again when it is idle"}
+			}
+		}
+		_, _ = c.tmux(ctx, "kill-session", "-t", "="+name)
+	}
 	// Two goes. remain-on-exit leaves a dead pane behind when an attach ends,
 	// and a leftover one is not evidence that the CLI would refuse now — the
 	// first pass replaces it, and only a fresh attach that also dies is
 	// reported as a refusal. Without this every send after the first exit
 	// failed instantly with "refused to attach".
 	reason := ""
-	first := 0
-	if ss.AgentState == "done" {
-		// A job the daemon lists as done has no process. Attaching to it neither
-		// refuses nor draws a prompt, so the wait below took it for a busy agent
-		// for ever. Resume it, and drop a relay still sitting on such an attach.
-		first = 1
-		if cmd, err := c.tmux(ctx, "list-panes", "-t", "="+name, "-F", "#{pane_start_command}"); err == nil && strings.Contains(cmd, " attach ") {
-			_, _ = c.tmux(ctx, "kill-session", "-t", "="+name)
-		}
-	}
-	dir := c.resumeDir(ss)
+	woken := false
 	trustRetried := false
-	for attempt := first; attempt < 2; attempt++ {
-		// A relay left on the trust question by an earlier resume blocked
-		// every later send, even once the job was running again and a plain
-		// attach would have worked (owner, 2026-11-22: "ส่งให้ agent" did
-		// nothing). Start over with this attempt's own way in — trusting the
-		// folder first when it is under a trusted root.
+	for attempt := 0; attempt < 2; attempt++ {
 		if c.relayOnTrust(ctx, name) {
 			c.trustFolder(dir)
 			_, _ = c.tmux(ctx, "kill-session", "-t", "="+name)
@@ -396,17 +454,18 @@ func (c *Collector) relaySend(ctx context.Context, ss *Session, message string) 
 			_, _ = c.tmux(ctx, "kill-session", "-t", "="+name)
 		}
 		if _, err := c.tmux(ctx, "has-session", "-t", "="+name); err != nil {
+			if attempt > 0 && !woken && strings.Contains(reason, noJobReason) {
+				if err := c.wakeInBackground(ctx, ss, dir); err != nil {
+					return err
+				}
+				woken = true
+			}
 			argv := []string{"new-session", "-d", "-s", name, "-x", "220", "-y", "50"}
 			if dir != "" {
-				// --resume reads the transcript of the project it is run in.
 				argv = append(argv, "-c", dir)
 				c.trustFolder(dir)
 			}
-			if attempt == 0 {
-				argv = append(argv, c.ClaudePath, "attach", short)
-			} else {
-				argv = append(argv, c.ClaudePath, "--resume", ss.SessionID)
-			}
+			argv = append(argv, c.ClaudePath, "attach", short)
 			if _, err := c.tmux(ctx, argv...); err != nil {
 				return &APIError{502, "AIAGENT_RELAY_FAILED", "could not start relay: " + err.Error()}
 			}
@@ -452,6 +511,11 @@ func (c *Collector) relaySend(ctx context.Context, ss *Session, message string) 
 				"the session did not become ready to receive text — it is probably still working; try again when it is idle"}
 		}
 		reason = why
+		if attempt > 0 && !strings.Contains(why, noJobReason) {
+			// Refused for a reason waking cannot cure, such as the session
+			// being open in another terminal: say what the CLI said.
+			break
+		}
 	}
 	if reason != "" {
 		return &APIError{502, "AIAGENT_RELAY_FAILED", "the agent CLI refused to attach: " + reason}
