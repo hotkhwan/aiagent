@@ -1,6 +1,8 @@
 package world
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -40,5 +42,35 @@ func TestVaultKeepsValuesOutOfTheListAndOutOfReach(t *testing.T) {
 	}
 	if code, _, _ := e.do(t, "POST", apiPrefix+"/vault", admin, `{"name":"two","provider":"gitlab","purpose":"two words","value":"has a space in it ok"}`); code == 200 {
 		t.Fatal("a token with spaces was accepted")
+	}
+}
+
+// While the admin looks at a room, its requests go to that room's instance; a
+// token saved then must not.
+func TestVaultNeverReachesARoom(t *testing.T) {
+	e, _, o := osUserEnv(t)
+	admin, err := e.store.Enable("t")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _, _ = e.store.AddUser("vibe-a", "vibe-a")
+	var seen []string
+	instance(t, o, "vibe-a", func(w http.ResponseWriter, r *http.Request) {
+		seen = append(seen, r.Method+" "+r.URL.Path)
+		_, _ = w.Write([]byte(`{"code":"SUCCESS","details":{}}`))
+	})
+	req := httptest.NewRequest("POST", apiPrefix+"/vault", strings.NewReader(`{"name":"gl","provider":"gitlab","purpose":"push code","value":"EXAMPLE_0123456789abcdef"}`))
+	req.Header.Set(TokenHeader, admin)
+	req.Header.Set(AsHeader, "vibe-a")
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := e.app.Test(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(seen) != 0 {
+		t.Fatalf("the token was sent to the room: %v", seen)
+	}
+	if v, err := e.svc.VaultValue("gl"); resp.StatusCode != 200 || err != nil || v == "" {
+		t.Fatalf("not saved here: %d %v", resp.StatusCode, err)
 	}
 }
