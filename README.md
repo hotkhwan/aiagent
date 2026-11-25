@@ -52,13 +52,6 @@ it, `--no-clis` skips this step. `--skills DIR` copies a folder of skills into
 `~/.claude/skills`; memory and settings are never copied. Sign Claude and Codex
 in from the web (Accounts); Gemini is signed in from a terminal for now.
 
-With `aiagent serve --os-users` (Linux, systemd, service run as root, `aiagent`
-and `claude` in `/usr/local/bin`, `packaging/osuser.sh` and `packaging/agent-loop.sh` in
-`/usr/local/lib/aiagent`), every user token an admin makes gets its own OS user
-and its own instance; revoking it archives the home to
-`/var/backups/aiagent-users` and removes the account.
-Rooms you use yourself can share your own sign-in: `packaging/claude-token.sh`.
-
 This installs two binaries into `~/.local/bin`: **`aiagent`**, the service and
 its switch, and **`agcmd`**, the small tool that actually talks to the agents
 through tmux. A clone is usable immediately — there is nothing else to fetch.
@@ -70,6 +63,66 @@ aiagent serve         # http://127.0.0.1:8890/aiagent
 
 Open the URL, paste the token. Until you run `enable`, **every route answers
 404** — the service is indistinguishable from one that is not installed.
+
+### First run with rooms (Linux)
+
+A *room* is an OS user with its own aiagent instance, tmux server and Claude
+session. Rooms keep one person's lines of work apart, each with its own rights.
+
+```sh
+sudo ./packaging/install.sh --os-users
+```
+
+Then once, as root, **in your own terminal** (not through an agent or a chat,
+where the token would stay in the transcript):
+
+```sh
+systemctl daemon-reload
+systemctl enable --now aiagent-tmux@root aiagent@root
+aiagent enable                # admin token, shown once
+claude setup-token            # sign in with your own Claude account
+aiagent-claude-token set      # paste that token (hidden)
+```
+
+| Command | What it does |
+| --- | --- |
+| `aiagent-claude-token status` | whether a token is set |
+| `aiagent-claude-token set` | set or replace it; running rooms restart |
+| `aiagent-claude-token remove` | rooms go back to their own sign-in |
+
+The token is kept in `/etc/aiagent/claude.env` (root only). A room's agent can
+read the token it runs with. When it expires, run the two token commands again.
+
+Make a room on the web: **Accounts → user tokens → Create token**. A session
+named after it is open at once. Revoking the token stops the room, archives its
+home to `/var/backups/aiagent-users` and removes the OS user.
+
+| | Admin token | User token (a room) |
+| --- | --- | --- |
+| Own session | read, send | read, send, rename |
+| Other rooms | enter and manage | read only |
+| Admin sessions | read, send | state only |
+| PM, tasks, accounts, tokens, CLI updates | yes | no |
+
+Rooms get uids from 700000 up, away from the ids containers use. Outbound
+network limits are the host's job.
+
+### One person, several rooms
+
+Rooms that share one Claude sign-in are for **one person**: the subscriber,
+keeping their own work apart on their own machine. Anthropic's
+[Consumer Terms](https://www.anthropic.com/legal/consumer-terms) do not allow
+sharing a Free, Pro or Max account, or making it available to anyone else, and
+[Claude Code's terms](https://code.claude.com/docs/en/legal-and-compliance)
+expect each end user to authenticate with their own credentials.
+
+- Do not give a room's token to another person while it uses your sign-in.
+- If someone else needs a room, do not use `aiagent-claude-token` on that
+  machine (it applies to every room); each person signs in to their own room
+  with their own account.
+- Usage limits are the account's, shared by every room.
+
+This is a summary, not legal advice; the linked terms decide.
 
 ### Reaching it from another device
 

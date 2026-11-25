@@ -5,6 +5,8 @@
 #   ./packaging/install.sh                 build + install both binaries
 #   ./packaging/install.sh --with-service  also install the service unit
 #                                          (systemd on Linux, LaunchAgent on macOS)
+#   sudo ./packaging/install.sh --os-users also set up one OS user per room
+#                                          (Linux, systemd, as root)
 #   ./packaging/install.sh --no-clis       leave the agent CLIs alone
 #   ./packaging/install.sh --update-clis   also update the CLIs already there
 #   ./packaging/install.sh --skills DIR    copy the skills in DIR to ~/.claude/skills
@@ -20,12 +22,14 @@ set -eu
 prefix="${PREFIX:-}"
 with_service=no
 clis=install
+os_users=no
 skills=""
 
 while [ $# -gt 0 ]; do
 	arg="$1"
 	shift
 	case "$arg" in
+	--os-users) os_users=yes; with_service=yes ;;
 	--no-clis) clis=skip ;;
 	--update-clis) clis=update ;;
 	--skills)
@@ -35,7 +39,7 @@ while [ $# -gt 0 ]; do
 		;;
 	--with-service | --with-systemd) with_service=yes ;;
 	-h | --help)
-		sed -n '2,18p' "$0" | sed 's/^# \{0,1\}//'
+		sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'
 		exit 0
 		;;
 	*)
@@ -44,6 +48,11 @@ while [ $# -gt 0 ]; do
 		;;
 	esac
 done
+
+if [ "$os_users" = yes ]; then
+	[ "$(uname -s)" = Linux ] && [ "$(id -u)" = 0 ] || { echo "--os-users needs Linux and root" >&2; exit 2; }
+	prefix=/usr/local # rooms run as other users, so nothing may live in a home
+fi
 
 command -v go >/dev/null 2>&1 || {
 	echo "go is required to build aiagent" >&2
@@ -133,7 +142,33 @@ if [ "$with_service" = yes ]; then
 				sudo install -m 0644 "$tmp/$u" "$unitdir/$u"
 			fi
 		done
-		echo "  systemctl daemon-reload && systemctl enable --now aiagent@\$USER"
+		if [ "$os_users" = yes ]; then
+			install -D -m 0755 "$root/packaging/osuser.sh" /usr/local/lib/aiagent/osuser.sh
+			install -m 0755 "$root/packaging/agent-loop.sh" /usr/local/lib/aiagent/agent-loop.sh
+			install -m 0755 "$root/packaging/claude-token.sh" /usr/local/sbin/aiagent-claude-token
+			c=$(PATH="$HOME/.local/bin:$PATH" command -v claude || true)
+			if [ -n "$c" ] && [ "$c" != /usr/local/bin/claude ]; then
+				install -m 0755 "$(readlink -f "$c")" /usr/local/bin/claude
+			fi
+			mkdir -p "$unitdir/aiagent@root.service.d"
+			printf '[Service]\nExecStart=\nExecStart=%s/aiagent serve --listen 127.0.0.1:8890 --os-users\n' "$bindir" > "$unitdir/aiagent@root.service.d/osusers.conf"
+			cat <<'EOF_FIRST'
+
+First run (as root), in this order:
+
+  systemctl daemon-reload
+  systemctl enable --now aiagent-tmux@root aiagent@root
+  aiagent enable              keep the admin token it prints (shown once)
+  claude setup-token          sign in with YOUR Claude account, copy the token
+  aiagent-claude-token set    paste it (hidden); every room uses it from now on
+
+Run the last two in your own terminal, never through an agent or a chat: the
+token would stay in the transcript. This is for rooms you use yourself; anyone
+else needs their own Claude account (see "One person, several rooms" in README).
+EOF_FIRST
+		else
+			echo "  systemctl daemon-reload && systemctl enable --now aiagent@\$USER"
+		fi
 		;;
 	Darwin)
 		plist="$HOME/Library/LaunchAgents/com.aiagent.service.plist"
