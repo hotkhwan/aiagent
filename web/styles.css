@@ -1733,3 +1733,5 @@ button.rtChip:hover { background: #1D2440 }
 /* The connection mark says nothing while all is well, so it is shown only
    when the page is not live (connecting, lost, an error). */
 .conn.ok.live { display: none }
+
+.handOver { border: 1px solid var(--brand); border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; align-items: flex-start }

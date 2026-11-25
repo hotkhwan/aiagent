@@ -2707,6 +2707,25 @@ async function openReview (id) {
   }
   window.addEventListener('message', st.reviewMsg)
 
+  // A room's page the admin has approved can be handed to the admin's own
+  // session, which is the one allowed to push and open the merge request. It
+  // is a second, separate act: approving answers the room and nothing more.
+  const adminSess = isUser() ? [] : st.snap.sessions.filter(x => x.protected && x.live && x.messageVia)
+  let handOver = null
+  if (r.owner && r.status === 'approved' && adminSess.length) {
+    const pick = h('select', { 'aria-label': tr('session ของ admin') }, ...adminSess.map(x => h('option', { value: x.sessionId }, x.displayName)))
+    handOver = h('div', { class: 'handOver' },
+      h('b', null, tr('ส่งต่อให้ session admin')),
+      h('p', { class: 'note' }, tr('ให้ session ของ admin ตรวจ diff แล้ว push และเปิด merge request ตามกติกาของ repo การกดผ่านอย่างเดียวไม่ได้ push')),
+      adminSess.length > 1 ? pick : null,
+      h('button', { type: 'button', class: 'pri', onclick: async () => {
+        const target = adminSess.find(x => x.sessionId === pick.value) || adminSess[0]
+        const text = tr('คำขอจากห้อง ') + r.owner + tr(' ผ่านการตรวจบนเว็บแล้ว: ') + r.title + (r.summary ? '\n' + r.summary : '') +
+          tr('\nงานอยู่ในห้องนั้น (commit ในเครื่อง) ให้ตรวจ diff ทุกไฟล์ secret และ version ที่ bump แล้ว push และเปิด merge request ตามกติกาของ repo นี้ ถ้าพบปัญหาให้หยุดและรายงาน')
+        if (!await confirmBox(tr('ส่งต่อให้ ') + target.displayName, tr('session นี้จะได้รับคำสั่งให้ตรวจ แล้ว push และเปิด merge request'), text, tr('ส่งคำสั่ง'))) return
+        if (await act('/sessions/' + encodeURIComponent(target.sessionId) + '/message', { message: text }, () => tr('ส่งคำสั่งให้ ') + target.displayName + tr(' แล้ว'))) $('reviewDlg').close()
+      } }, tr('ให้ admin push และเปิด MR')))
+  }
   $('reviewSide').replaceChildren(...[
     h('dl', { class: 'kv' },
       h('dt', null, tr('จาก')), h('dd', null, (r.owner ? tr('จากห้อง ') + r.owner + ' · ' : '') + (sess ? sess.displayName : (r.runtime === 'codexCli' ? 'Codex' : tr('ไม่ระบุ session')))),
@@ -2723,6 +2742,7 @@ async function openReview (id) {
     itemsBox,
     legacyBox,
     sendState,
+    handOver,
     canSend ? null : h('p', { class: 'note' }, cantSendWhy),
     canSend && !(sess && sess.live) ? h('p', { class: 'note' }, tr('session นี้ไม่ได้รันอยู่ — กดส่งแล้ว aiagent จะเปิด session ต่อ (claude --resume) ในโฟลเดอร์ของมันแล้วพิมพ์ข้อความให้')) : null,
     out].filter(Boolean))
