@@ -182,11 +182,16 @@ func (s *Service) gate(c fiber.Ctx) error {
 	if s.tooManyFailures(ip, now) {
 		return c.Status(fiber.StatusTooManyRequests).JSON(failEnv("AIAGENT_LOCKED", "too many wrong tokens — wait a few minutes"))
 	}
-	if !s.Store.VerifyToken(c.Get(TokenHeader)) {
+	who, ok := s.Store.Identify(c.Get(TokenHeader))
+	if !ok {
 		s.recordFailure(ip, now)
 		return c.Status(fiber.StatusUnauthorized).JSON(failEnv("AIAGENT_TOKEN_INVALID", "missing or wrong AI Agent World token"))
 	}
 	c.Set("X-Content-Type-Options", "nosniff")
+	c.Locals("identity", who)
+	if who.Role != RoleAdmin && !s.userMay(c) {
+		return c.Status(fiber.StatusForbidden).JSON(failEnv("AIAGENT_ADMIN_ONLY", "this needs an admin token"))
+	}
 	return c.Next()
 }
 
@@ -260,6 +265,10 @@ func (s *Service) Mount(app *fiber.App) {
 	app.Get("/aiagent/review-view/:ticket", s.handleReviewView)
 
 	api := app.Group("/aiagent/api", s.gate)
+	api.Get("/me", s.handleMe)
+	api.Get("/tokens", s.handleTokens)
+	api.Post("/tokens", s.handleTokenCreate)
+	api.Post("/tokens/:id/revoke", s.handleTokenRevoke)
 	api.Get("/snapshot", s.handleSnapshot)
 	api.Get("/sessions/:id", s.handleSession)
 	api.Get("/runs/:id/log", s.handleRunLog)
@@ -303,8 +312,8 @@ func (s *Service) Mount(app *fiber.App) {
 // There is deliberately no HTTP route that turns the service on, off, or
 // rotates its token. Those three used to sit on a host installer's listener
 // behind a first-boot code; here the switch is the local CLI only (`aiagent enable` /
-// `disable` / `rotate-token`), so reaching the web surface can never grant
-// more than the token already presented.
+// `disable` / `rotate-token`). The web can make user tokens, admins only, and
+// a user token always grants less than the admin token that made it.
 
 var assetName = regexp.MustCompile(`^[A-Za-z0-9-]{1,40}\.(png|jpg)$`)
 
@@ -353,7 +362,7 @@ func (s *Service) handleSnapshot(c fiber.Ctx) error {
 	snap.Sessions = s.applyNames(snap.Sessions)
 	snap.nonNil() // applyNames can hand back nil for an empty list
 	snap.Pending = s.PendingFor("")
-	return c.JSON(okEnv(snap))
+	return c.JSON(okEnv(s.forRole(identity(c), snap)))
 }
 
 func (s *Service) handleSession(c fiber.Ctx) error {
@@ -400,7 +409,7 @@ func (s *Service) mutate(c fiber.Ctx, rpc string, params []string, fn func() (an
 	s.lastWrite = time.Now()
 	s.mu.Unlock()
 
-	sub := "aiagent-token@" + clientAddr(c)
+	sub := subject(c)
 	ph := paramsHash(params...)
 	if err := s.Auditor.Write(audit.Record{Event: "intent", RPC: rpc, AdminSub: sub, ParamsHash: ph}); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(failEnv("AIAGENT_AUDIT_FAILED", "audit log unavailable — action not performed"))
@@ -444,6 +453,9 @@ func (s *Service) handleMessage(c fiber.Ctx) error {
 	}
 	if err := c.Bind().Body(&body); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(failEnv("AIAGENT_BAD_REQUEST", "invalid JSON body"))
+	}
+	if w, ok := s.Collector.lookupWorkspace(body.Workspace); ok && w.protected && identity(c).Role != RoleAdmin {
+		return c.Status(fiber.StatusForbidden).JSON(failEnv("AIAGENT_ADMIN_ONLY", "this needs an admin token"))
 	}
 	return s.mutate(c, "aiagent.message", []string{body.Workspace, body.Message}, func() (any, error) {
 		return fiber.Map{"workspace": body.Workspace}, s.Collector.Message(c.Context(), body.Workspace, body.Message)
@@ -490,7 +502,7 @@ func (s *Service) handleUpload(c fiber.Ctx) error {
 	}
 	body := c.Body()
 	sum := sha256.Sum256(body)
-	sub := "aiagent-token@" + clientAddr(c)
+	sub := subject(c)
 	ph := hex.EncodeToString(sum[:])[:32]
 	if err := s.Auditor.Write(audit.Record{Event: "intent", RPC: "aiagent.upload", AdminSub: sub, ParamsHash: ph}); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(failEnv("AIAGENT_AUDIT_FAILED", "audit log unavailable — upload refused"))
@@ -682,7 +694,7 @@ func (s *Service) handleReviews(c fiber.Ctx) error {
 	if rs == nil {
 		rs = []Review{}
 	}
-	return c.JSON(okEnv(fiber.Map{"reviews": rs}))
+	return c.JSON(okEnv(fiber.Map{"reviews": s.reviewsFor(c, rs)}))
 }
 
 const reviewViewCSP = "sandbox allow-scripts allow-popups; default-src 'none'; img-src data: blob:; media-src data: blob:; font-src data:; style-src 'unsafe-inline'; script-src 'unsafe-inline'; frame-ancestors 'self'; base-uri 'none'; form-action 'none'"

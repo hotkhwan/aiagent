@@ -252,6 +252,17 @@ var EN = {
   'เสร็จ': 'Done',
   'เมื่ออัปเดตเสร็จ รายการ model จะตามเวอร์ชันใหม่ของ CLI โดยไม่ต้องแก้โค้ด': 'After an update the model list follows the new CLI version, no code change needed.',
 
+  // user tokens
+  'อ่านรายการ token ไม่ได้: ': 'Cannot read the token list: ',
+  'ชื่อผู้ใช้': 'User name',
+  'เพิกถอน token': 'Revoke token',
+  'ผู้ใช้นี้จะเข้าใช้งานไม่ได้ทันที': 'This user loses access at once',
+  'เพิกถอน': 'Revoke',
+  'Token ของผู้ใช้': 'User tokens',
+  'token นี้แสดงครั้งเดียว ส่งให้ผู้ใช้ทางช่องทางส่วนตัว': 'This token is shown once. Send it to the user privately.',
+  'ยังไม่มี token ของผู้ใช้': 'No user tokens yet',
+  'สร้าง token': 'Create token',
+
   // accounts
   'อ่านสถานะบัญชีไม่ได้: ': 'Cannot read the account state: ',
   'สลับบัญชี = เปิดหน้า login ของผู้ให้บริการ (ใช้ขั้นตอนของ CLI เอง ไม่ผ่าน shell) · ทุกขั้นบันทึก audit':

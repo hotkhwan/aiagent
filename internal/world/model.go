@@ -84,6 +84,8 @@ type Session struct {
 	StartedAt    *time.Time `json:"startedAt,omitempty"`
 	LastEventAt  *time.Time `json:"lastEventAt,omitempty"`
 	Usage        Usage      `json:"usage"`
+	// Protected marks an admin's session: users see that it exists, no more.
+	Protected bool `json:"protected,omitempty"`
 	// Kind is Claude Code's own session kind ("bg" | "interactive").
 	Kind string `json:"kind,omitempty"`
 	// AgentState is the agent-view state from `claude agents --json`

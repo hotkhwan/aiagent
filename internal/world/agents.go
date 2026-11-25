@@ -67,7 +67,7 @@ func (a AgentSessions) Send(ctx context.Context, ws orchestrator.Workspace, text
 // Lookup finds a configured workspace.
 func (a AgentSessions) Lookup(name string) (orchestrator.Workspace, bool) {
 	w, ok := a.C.lookupWorkspace(name)
-	return asWorkspace(w), ok
+	return asWorkspace(w), ok && !w.protected
 }
 
 // LastActivity is the session's last transcript event.

@@ -143,6 +143,12 @@ async function poll () {
   clearTimeout(st.timer)
   if (!st.token) { showLogin(); return }
   try {
+    if (st.meFor !== st.token) {
+      $('accountsBtn').hidden = true
+      st.me = await api('/me')
+      st.meFor = st.token
+      $('accountsBtn').hidden = st.me.role !== 'admin'
+    }
     st.snap = await api('/snapshot')
     st.lastOk = Date.now()
     if (!st.revAt || Date.now() - st.revAt > 10000) {
@@ -2659,6 +2665,29 @@ async function openAccounts () {
   $('accountsDlg').showModal()
   await drawAccounts()
   await drawCLIs()
+  await drawTokens()
+}
+
+// ----- user tokens: the server refuses these calls without an admin token -----
+async function drawTokens (fresh) {
+  if (!$('accountsDlg').open) return
+  let list
+  try { list = (await api('/tokens')).tokens } catch (e) { $('tokenBody').replaceChildren(h('p', { class: 'note' }, tr('อ่านรายการ token ไม่ได้: ') + e.message)); return }
+  const name = h('input', { type: 'text', id: 'tokenName', maxlength: '40', placeholder: tr('ชื่อผู้ใช้'), autocomplete: 'off' })
+  const create = async () => {
+    try { drawTokens(await api('/tokens', { method: 'POST', body: { name: name.value.trim() } })) } catch (e) { toast(tr('ไม่สำเร็จ: ') + e.message, true) }
+  }
+  const revoke = async t => {
+    if (!await confirmBox(tr('เพิกถอน token'), tr('ผู้ใช้นี้จะเข้าใช้งานไม่ได้ทันที'), t.name, tr('เพิกถอน'))) return
+    try { await api('/tokens/' + t.id + '/revoke', { method: 'POST', body: {} }) } catch (e) { toast(tr('ไม่สำเร็จ: ') + e.message, true) }
+    drawTokens()
+  }
+  $('tokenBody').replaceChildren(h('div', { class: 'accCard' },
+    h('div', { class: 'accTop' }, h('b', null, tr('Token ของผู้ใช้'))),
+    fresh ? h('p', null, fresh.name + ': ', h('code', { class: 'devCode' }, fresh.token), ' ', h('button', { type: 'button', class: 'ghost', onclick: e => copyText(fresh.token, e.currentTarget) }, tr('คัดลอก'))) : null,
+    fresh ? h('p', { class: 'note' }, tr('token นี้แสดงครั้งเดียว ส่งให้ผู้ใช้ทางช่องทางส่วนตัว')) : null,
+    list.length ? h('ul', null, ...list.map(t => h('li', null, h('b', null, t.name), ' ', h('button', { type: 'button', class: 'warn', onclick: () => revoke(t) }, tr('เพิกถอน'))))) : h('p', { class: 'note' }, tr('ยังไม่มี token ของผู้ใช้')),
+    h('div', { class: 'accRow' }, name, h('button', { type: 'button', class: 'pri', onclick: create }, tr('สร้าง token')))))
 }
 
 // ----- agent CLIs: one button updates every installed CLI, the model menu follows -----

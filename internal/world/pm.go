@@ -71,7 +71,7 @@ func agentStates(ws []workspaceEntry, ready func(workspaceEntry) bool) []planner
 	for _, p := range routableProviders {
 		state := "notConfigured"
 		for _, w := range ws {
-			if w.provider != p {
+			if w.provider != p || w.protected {
 				continue
 			}
 			if ready(w) {

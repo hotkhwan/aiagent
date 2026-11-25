@@ -39,6 +39,9 @@ type workspaceEntry struct {
 	// agent's commit. It is the operator's, from this file — never the
 	// repository's, which the agent can edit.
 	testCommand []string
+	// protected: an admin's workspace. Work is never routed to it and only an
+	// admin may message it (roles.go).
+	protected bool
 }
 
 // workspaceConfig is the on-disk shape. Keys are camelCase, like every other
@@ -50,6 +53,7 @@ type workspaceConfig struct {
 		Dir         string   `json:"dir"`
 		Provider    string   `json:"provider"`
 		TestCommand []string `json:"testCommand"`
+		Protected   bool     `json:"protected"`
 	} `json:"workspaces"`
 }
 
@@ -128,6 +132,7 @@ func LoadWorkspaces(path string) ([]workspaceEntry, error) {
 			dir:         filepath.Clean(w.Dir),
 			provider:    w.Provider,
 			testCommand: w.TestCommand,
+			protected:   w.Protected,
 		})
 	}
 	return out, nil

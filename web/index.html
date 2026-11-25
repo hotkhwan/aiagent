@@ -37,7 +37,7 @@
   <!-- The label is the language you would switch TO. app.js sets it after
        i18n.js has captured the shell, so the capture never sees it. -->
   <button type="button" class="ghost lang" id="langBtn" aria-label="Language / ภาษา">EN</button>
-  <button type="button" class="ghost" id="accountsBtn" title="บัญชี Claude / Codex บนเครื่องนี้">👤 บัญชี</button>
+  <button type="button" class="ghost" id="accountsBtn" hidden title="บัญชี Claude / Codex บนเครื่องนี้">👤 บัญชี</button>
 </header>
 
 <div class="banner" id="banner" hidden></div>
@@ -126,6 +126,7 @@
   <div class="spHead"><h2>บัญชี AI บนเครื่องนี้</h2><form method="dialog"><button class="ghost" aria-label="ปิด">✕</button></form></div>
   <div class="spBody" id="accountsBody"></div>
   <div class="spBody" id="cliBody"></div>
+  <div class="spBody" id="tokenBody"></div>
 </dialog>
 
 <dialog id="reviewDlg" class="screenPop reviewDlg">

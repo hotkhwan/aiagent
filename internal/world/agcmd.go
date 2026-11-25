@@ -375,6 +375,9 @@ func (c *Collector) Mission(ctx context.Context, workspace, task string) (string
 	if !ok {
 		return "", ErrBadRequest("unknown workspace")
 	}
+	if w.protected {
+		return "", ErrConflict("that workspace is the admin's; tasks are not sent to it")
+	}
 	task, err := cleanText(task)
 	if err != nil {
 		return "", err

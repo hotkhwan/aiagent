@@ -12,7 +12,6 @@ package world
 import (
 	"crypto/rand"
 	"crypto/sha256"
-	"crypto/subtle"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -33,6 +32,9 @@ type State struct {
 	TokenHash string    `json:"tokenHash,omitempty"`
 	ChangedAt time.Time `json:"changedAt"`
 	ChangedBy string    `json:"changedBy,omitempty"`
+	// Users are the tokens an admin made on the web (roles.go). Rotating the
+	// admin token keeps them; disabling forgets them.
+	Users []UserToken `json:"users,omitempty"`
 }
 
 // Store reads/writes the switch file. Reads are cached by mtime+size so the
@@ -92,22 +94,11 @@ func (s *Store) Enabled() bool {
 	return err == nil && st.Enabled && st.TokenHash != ""
 }
 
-// VerifyToken checks a presented token in constant time. It is false whenever
-// the feature is off.
+// VerifyToken checks a presented admin token in constant time. It is false
+// whenever the feature is off.
 func (s *Store) VerifyToken(presented string) bool {
-	if presented == "" {
-		return false
-	}
-	st, err := s.Load()
-	if err != nil || !st.Enabled || st.TokenHash == "" {
-		return false
-	}
-	want, err := hex.DecodeString(st.TokenHash)
-	if err != nil {
-		return false
-	}
-	got := sha256.Sum256([]byte(presented))
-	return subtle.ConstantTimeCompare(want, got[:]) == 1
+	id, ok := s.Identify(presented)
+	return ok && id.Role == RoleAdmin
 }
 
 // Enable switches the feature on and mints a fresh token (returned once).
@@ -117,8 +108,9 @@ func (s *Store) Enable(by string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	prev, _ := s.Load()
 	sum := sha256.Sum256([]byte(token))
-	st := State{Enabled: true, TokenHash: hex.EncodeToString(sum[:]), ChangedAt: time.Now().UTC(), ChangedBy: by}
+	st := State{Users: prev.Users, Enabled: true, TokenHash: hex.EncodeToString(sum[:]), ChangedAt: time.Now().UTC(), ChangedBy: by}
 	if err := s.write(st); err != nil {
 		return "", err
 	}

@@ -65,7 +65,7 @@ func pickWorkspace(ws []workspaceEntry, provider string, quotas []Quota, ready f
 	}
 	for _, p := range order {
 		for _, w := range ws {
-			if w.provider == p && ready(w) {
+			if w.provider == p && !w.protected && ready(w) {
 				return w, nil
 			}
 		}
