@@ -131,7 +131,7 @@ func (c *Collector) Reviews() []Review {
 
 func (c *Collector) review(id string) (*Review, error) {
 	if !reviewIDRE.MatchString(id) {
-		return nil, ErrNotFound("no such review")
+		return nil, ErrNotFound("ไม่พบงานรีวิวนี้")
 	}
 	for _, r := range c.Reviews() {
 		if r.ID == id {
@@ -139,7 +139,7 @@ func (c *Collector) review(id string) (*Review, error) {
 			return &r, nil
 		}
 	}
-	return nil, ErrNotFound("no such review")
+	return nil, ErrNotFound("ไม่พบงานรีวิวนี้")
 }
 
 // ReviewPage returns the stored HTML of a review.
@@ -180,7 +180,7 @@ const reviewMaxItems = 50
 // agent gets. Any revise makes the whole answer a revise.
 func composeItems(r *Review, items []ReviewItem, note string) (string, string, error) {
 	if len(items) == 0 || len(items) > reviewMaxItems {
-		return "", "", &APIError{400, "AIAGENT_ITEMS", "judge every section of the page"}
+		return "", "", &APIError{400, "AIAGENT_ITEMS", "ต้องตัดสินให้ครบทุกข้อในหน้า"}
 	}
 	decision := "approve"
 	lines := make([]string, 0, len(items))
@@ -191,19 +191,19 @@ func composeItems(r *Review, items []ReviewItem, note string) (string, string, e
 		}
 		n := strings.TrimSpace(it.Note)
 		if len(n) > 4000 {
-			return "", "", &APIError{400, "AIAGENT_NOTE_TOO_LONG", "note is too long"}
+			return "", "", &APIError{400, "AIAGENT_NOTE_TOO_LONG", "หมายเหตุยาวเกินไป"}
 		}
 		switch it.Verdict {
 		case "approve":
 			lines = append(lines, fmt.Sprintf("%d. %s — ผ่าน", i+1, title))
 		case "revise":
 			if n == "" {
-				return "", "", &APIError{400, "AIAGENT_NOTE_REQUIRED", fmt.Sprintf("say what to change in item %d", i+1)}
+				return "", "", &APIError{400, "AIAGENT_NOTE_REQUIRED", fmt.Sprintf("ต้องบอกว่าให้แก้อะไรในข้อ %d", i+1)}
 			}
 			decision = "revise"
 			lines = append(lines, fmt.Sprintf("%d. %s — ต้องแก้ไข: %s", i+1, title, n))
 		default:
-			return "", "", &APIError{400, "AIAGENT_BAD_DECISION", "every section needs approve or revise"}
+			return "", "", &APIError{400, "AIAGENT_BAD_DECISION", "ทุกข้อต้องเป็น ผ่าน หรือ ต้องแก้ไข"}
 		}
 	}
 	var b strings.Builder
@@ -229,7 +229,7 @@ func (c *Collector) ComposeReview(id string, items []ReviewItem, note string) (s
 		return "", "", err
 	}
 	if len(strings.TrimSpace(note)) > 4000 {
-		return "", "", &APIError{400, "AIAGENT_NOTE_TOO_LONG", "note is too long"}
+		return "", "", &APIError{400, "AIAGENT_NOTE_TOO_LONG", "หมายเหตุยาวเกินไป"}
 	}
 	return composeItems(r, items, note)
 }
@@ -252,7 +252,7 @@ type ReviewDeliver func(ctx context.Context, r *Review, reply string) (ReviewSen
 func (c *Collector) DecideReview(ctx context.Context, id, decision, note string, items []ReviewItem, deliver ReviewDeliver) (string, *ReviewSent, error) {
 	note = strings.TrimSpace(note)
 	if len(note) > 4000 {
-		return "", nil, &APIError{400, "AIAGENT_NOTE_TOO_LONG", "note is too long"}
+		return "", nil, &APIError{400, "AIAGENT_NOTE_TOO_LONG", "หมายเหตุยาวเกินไป"}
 	}
 	r, err := c.review(id)
 	if err != nil {
@@ -265,10 +265,10 @@ func (c *Collector) DecideReview(ctx context.Context, id, decision, note string,
 		}
 	} else {
 		if decision != "approve" && decision != "revise" {
-			return "", nil, &APIError{400, "AIAGENT_BAD_DECISION", "decision must be approve or revise"}
+			return "", nil, &APIError{400, "AIAGENT_BAD_DECISION", "ผลตรวจต้องเป็น ผ่าน หรือ ต้องแก้ไข"}
 		}
 		if decision == "revise" && note == "" {
-			return "", nil, &APIError{400, "AIAGENT_NOTE_REQUIRED", "say what to change"}
+			return "", nil, &APIError{400, "AIAGENT_NOTE_REQUIRED", "ต้องบอกว่าให้แก้อะไร"}
 		}
 		reply = ReviewReply(r, decision, note)
 	}
@@ -276,7 +276,7 @@ func (c *Collector) DecideReview(ctx context.Context, id, decision, note string,
 		// already answered: never type the reply into the session twice;
 		// copying it again is fine and changes nothing
 		if deliver != nil {
-			return "", nil, ErrConflict("this review was already answered (" + r.Status + ")")
+			return "", nil, ErrConflict("งานรีวิวนี้ตอบไปแล้ว (" + r.Status + ")")
 		}
 		return reply, nil, nil
 	}
@@ -284,7 +284,7 @@ func (c *Collector) DecideReview(ctx context.Context, id, decision, note string,
 	now := c.now().UTC()
 	if deliver != nil {
 		if r.SessionID == "" {
-			return "", nil, ErrConflict("this review has no session; copy the reply instead")
+			return "", nil, ErrConflict("งานรีวิวนี้ไม่มี session ให้คัดลอกคำตอบแทน")
 		}
 		s, err := deliver(ctx, r, reply)
 		if err != nil {
@@ -318,10 +318,10 @@ func (c *Collector) SendReview(ctx context.Context, r *Review, reply string) (st
 		return "", "", err // ambiguous id
 	}
 	if r.Runtime != "claudeCode" || !sessionUUIDRE.MatchString(r.SessionID) || r.home != c.serviceHome() {
-		return "", "", ErrNotFound("the session of this review is not running and cannot be resumed from here; copy the reply and paste it into the session")
+		return "", "", ErrNotFound("session ของงานรีวิวนี้ไม่ได้รันอยู่และเปิดต่อจากที่นี่ไม่ได้ ให้คัดลอกคำตอบไปวางใน session")
 	}
 	if m, _ := filepath.Glob(filepath.Join(r.home, ".claude", "projects", "*", r.SessionID+".jsonl")); len(m) == 0 {
-		return "", "", ErrNotFound("the session of this review is not running and its conversation is gone; copy the reply instead")
+		return "", "", ErrNotFound("session ของงานรีวิวนี้ไม่ได้รันอยู่และบทสนทนาหายไปแล้ว ให้คัดลอกคำตอบแทน")
 	}
 	reply, err = cleanText(reply)
 	if err != nil {
@@ -330,7 +330,7 @@ func (c *Collector) SendReview(ctx context.Context, r *Review, reply string) (st
 	short := shortID(r.SessionID)
 	for _, o := range c.Snapshot(ctx).Sessions {
 		if o.Live && strings.HasPrefix(o.SessionID, short) {
-			return "", "", ErrConflict("short id " + short + " is ambiguous")
+			return "", "", ErrConflict("รหัสย่อ " + short + " ซ้ำกับ session อื่น")
 		}
 	}
 	ss := &Session{SessionID: r.SessionID, RuntimeType: "claudeCode", Cwd: r.Cwd, Kind: "bg", AgentState: "done", home: r.home}
@@ -351,13 +351,13 @@ func (c *Collector) resolveSession(ctx context.Context, id string) (string, erro
 	for _, s := range c.Snapshot(ctx).Sessions {
 		if s.Live && strings.HasPrefix(s.SessionID, id) {
 			if hit != "" {
-				return "", ErrConflict("session id " + id + " is ambiguous")
+				return "", ErrConflict("รหัส session " + id + " ซ้ำกับ session อื่น")
 			}
 			hit = s.SessionID
 		}
 	}
 	if hit == "" {
-		return "", ErrNotFound("the session of this review is not running; copy the reply instead")
+		return "", ErrNotFound("session ของงานรีวิวนี้ไม่ได้รันอยู่ ให้คัดลอกคำตอบแทน")
 	}
 	return hit, nil
 }

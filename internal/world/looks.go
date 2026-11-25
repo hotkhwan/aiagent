@@ -54,7 +54,7 @@ func (s *Service) setLook(id, look string) error {
 	if look == "" {
 		delete(m, id)
 	} else if _, had := m[id]; !had && len(m) >= maxLooks {
-		return ErrConflict("too many saved characters")
+		return ErrConflict("บันทึกตัวละครไว้มากเกินไปแล้ว")
 	} else {
 		m[id] = look
 	}
@@ -80,7 +80,7 @@ func (s *Service) handleSessionLook(c fiber.Ctx) error {
 		known = known || ss.SessionID == id
 	}
 	if !known {
-		return s.fail(c, ErrNotFound("no session with that id"))
+		return s.fail(c, ErrNotFound("ไม่พบ session รหัสนี้"))
 	}
 	return s.mutate(c, "aiagent.sessionLook", []string{id}, func() (any, error) {
 		return fiber.Map{"sessionId": id, "look": body.Look}, s.setLook(id, body.Look)

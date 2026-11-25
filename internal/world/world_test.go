@@ -166,6 +166,14 @@ func (f *fakeRunner) Run(_ context.Context, name string, args ...string) ([]byte
 					// it can record that.
 					panic("simulated crash after typing")
 				}
+				// A drawn input box holds what is typed until Enter.
+				if i := strings.LastIndex(f.dialogScreen, "\n❯"); i >= 0 && strings.Contains(f.dialogScreen[i+1:], "\n───") {
+					box, rest := "", f.dialogScreen[i+1:]
+					if slices.Contains(args, "-l") {
+						box = " " + args[len(args)-1]
+					}
+					f.dialogScreen = f.dialogScreen[:i] + "\n❯" + box + rest[strings.Index(rest, "\n"):]
+				}
 				return nil, nil
 			}
 			if f.deadScreen != "" && f.attachRefused() {
@@ -1144,7 +1152,7 @@ func TestStatuslineUsageAndQuota(t *testing.T) {
 // TestSetModelAllowlist: only fixed aliases reach the session, as /model.
 func TestSetModelAllowlist(t *testing.T) {
 	e := newEnv(t)
-	if _, err := e.col.SetModel(context.Background(), "any", "opus; rm -rf /"); err == nil || !strings.Contains(err.Error(), "model must be one of") {
+	if _, err := e.col.SetModel(context.Background(), "any", "opus; rm -rf /"); err == nil || !strings.Contains(err.Error(), "โมเดลต้องเป็นหนึ่งใน") {
 		t.Fatalf("bad alias accepted: %v", err)
 	}
 	if _, err := e.col.SetModel(context.Background(), "nope", "sonnet"); err == nil {
@@ -1219,7 +1227,7 @@ func TestReviewFlow(t *testing.T) {
 	if got := e.col.Reviews(); len(got) != 1 || got[0].Status != "revise" {
 		t.Fatalf("status = %+v", got)
 	}
-	if _, _, err := e.col.DecideReview(context.Background(), r.ID, "approve", "", nil, e.svc.deliverReview); err == nil || !strings.Contains(err.Error(), "already answered") {
+	if _, _, err := e.col.DecideReview(context.Background(), r.ID, "approve", "", nil, e.svc.deliverReview); err == nil || !strings.Contains(err.Error(), "ตอบไปแล้ว") {
 		t.Fatalf("second send accepted: %v", err)
 	}
 }

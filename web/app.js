@@ -171,10 +171,10 @@ async function api (path, opts) {
   // and the user stays signed in.
   const slow = res.status === 429 && body && body.code === 'AIAGENT_SLOW_DOWN'
   if (res.status === 401 || (res.status === 429 && !slow)) {
-    showLogin(body && body.message)
+    showLogin(body && serverText(body.message))
     throw new Error('auth')
   }
-  if (!res.ok) throw new Error((body && body.message) || ('HTTP ' + res.status))
+  if (!res.ok) throw new Error((body && serverText(body.message)) || ('HTTP ' + res.status))
   return body ? body.details : null
 }
 
@@ -1262,6 +1262,7 @@ function applyPose (act) {
   const pose = act.poi >= 0 ? pois[act.poi][2] : 'stand'
   act.el.classList.toggle('lie', pose === 'lie')
   act.el.classList.toggle('sitting', pose === 'sit')
+  place(act)
   act.mood = pose === 'work' ? 'work' : pose === 'stand' ? (act.a.mood === 'sleep' && act.a.label === tr('เสร็จแล้ว') ? 'cheer' : 'think') : 'rest'
   setAnim(act, act.mood)
 }
@@ -1327,6 +1328,12 @@ function renderRoomFocus () {
       act.sig = sig
       fillActor(act, a)
       act.el.classList.add('big')
+      if (act.tag) act.tag.remove()
+      act.tag = act.el.querySelector('.tag')
+      act.tag.classList.add('big')
+      act.tagW = 0
+      F.stage.append(act.tag)
+      if (act.poi >= 0) place(act)
       if (act.poi >= 0) applyPose(act)
       if (moodChanged && !act.dragging) { act.nextMove = 0 }
     }
@@ -1341,7 +1348,7 @@ function renderRoomFocus () {
     if (act.leaving) continue
     act.leaving = true
     act.poi = -1
-    walk(act, [[doorSpot[0] * F.FS, doorSpot[1] * F.FS]], () => { act.el.remove(); delete F.actors[id] })
+    walk(act, [[doorSpot[0] * F.FS, doorSpot[1] * F.FS]], () => { act.el.remove(); if (act.tag) act.tag.remove(); delete F.actors[id]; placeTags() })
   }
   updateMonitor(want)
 }
@@ -1684,7 +1691,41 @@ function doorsNear (x, y) {
   if (sd && Math.abs(x - frontDoor.x) < 60 && Math.abs(y - hallA) < 50) openDoor(sd, 'side')
 }
 
+// tagY is how far below an agent's spot its name starts: under the feet.
+const tagH = 40
+function tagY (act) {
+  const c = act.el.classList
+  return c.contains('lie') ? -40 : c.contains('sitting') ? 24 : 2
+}
+
+// placeTags puts the names of a room's agents in one layer over everybody, so
+// neither their own feet nor a neighbour covers one, and stacks those that
+// would lie on each other.
+function placeTags () {
+  const F = st.focus
+  const done = []
+  const acts = Object.values(F.actors).filter(a => a.tag && a.vx !== undefined).sort((a, b) => b.y - a.y)
+  for (const act of acts) {
+    const w = act.tagW = act.tagW || act.tag.offsetWidth || 160
+    const x = Math.max(w / 2 + 8, Math.min(1492 - w / 2, act.vx))
+    let y = act.vy + tagY(act)
+    for (const o of done) if (Math.abs(o.x - x) < (o.w + w) / 2 && Math.abs(o.y - y) < tagH) y = o.y - tagH
+    done.push({ x, y, w })
+    act.tag.style.transform = 'translate(' + (x - w / 2).toFixed(1) + 'px,' + y.toFixed(1) + 'px)'
+  }
+}
+
 function place (act) {
+  if (act.tag) {
+    // keep the agent, and the name under it, inside the room
+    const c = act.el.classList
+    act.vx = Math.max(90, Math.min(1410, act.x))
+    act.vy = Math.min(RH * st.focus.FS - tagH - (c.contains('lie') ? 0 : 26), act.y)
+    act.el.style.transform = 'translate(' + act.vx.toFixed(1) + 'px,' + act.vy.toFixed(1) + 'px)'
+    act.el.style.zIndex = Math.round(act.vy)
+    placeTags()
+    return
+  }
   act.el.style.transform = 'translate(' + act.x.toFixed(1) + 'px,' + act.y.toFixed(1) + 'px)'
   act.el.style.zIndex = Math.round(act.y)
 }
@@ -2024,10 +2065,21 @@ function drawSending () {
   if (old) old.remove()
   const s = st.sending
   if (!s || !st.sel || st.sel.id !== s.sid) return
-  log.append(h('div', { class: 'msg user sending' + (s.sent ? ' sent' : '') },
-    h('div', { class: 'who2' }, tr('ผู้ใช้') + ' · ' + (s.sent ? tr('ส่งแล้ว') : tr('กำลังส่ง…'))),
+  const lost = s.sent && s.delivery === 'unknown'
+  log.append(h('div', { class: 'msg user sending' + (s.sent ? ' sent' : '') + (lost ? ' lost' : '') },
+    h('div', { class: 'who2' }, tr('ผู้ใช้') + ' · ' + (lost ? '⚠ ' + tr('ยังไม่ยืนยันว่าถึง agent') : s.sent ? tr('ส่งแล้ว') : tr('กำลังส่ง…'))),
     mdBody(s.text, 'body')))
   log.scrollTop = log.scrollHeight
+}
+
+// settleSending drops an unconfirmed message once the transcript shows it.
+function settleSending (id, msgs) {
+  const s = st.sending
+  if (!s || !s.sent || s.sid !== id) return
+  const key = t => t.replace(/\s+/g, ' ').trim().slice(0, 60)
+  if (!msgs.some(m => m.role === 'user' && Date.parse(m.at) >= s.at - 5000 && key(m.text) === key(s.text))) return
+  st.sending = null
+  drawSending()
 }
 
 async function updateChat (force) {
@@ -2038,6 +2090,7 @@ async function updateChat (force) {
     const res = await api('/sessions/' + encodeURIComponent(id) + '/messages?limit=60')
     if (!st.sel || st.sel.id !== id) return
     const msgs = res.messages || []
+    settleSending(id, msgs)
     const sig = msgs.length + ':' + (msgs.length ? msgs[msgs.length - 1].at + msgs[msgs.length - 1].text.length : '')
     const log = $('insp').querySelector('.chatLog')
     if (!log || (!force && st.chatSig === sig)) return
@@ -2156,7 +2209,7 @@ async function uploadFile (blob, raw) {
   const res = await fetch('/aiagent/api/uploads', { method: 'POST', headers: { ...authHeaders(), 'Content-Type': body.type || 'application/octet-stream' }, body, cache: 'no-store' })
   let j = null
   try { j = await res.json() } catch (e) { j = null }
-  if (!res.ok) throw new Error((j && j.message) || ('HTTP ' + res.status))
+  if (!res.ok) throw new Error((j && serverText(j.message)) || ('HTTP ' + res.status))
   return j.details.path
 }
 
@@ -2203,13 +2256,15 @@ async function sendChat (sess, ta, thumbs) {
     text = (text || tr('ดูไฟล์ที่แนบ')) + '\n\n' + attachLines(files)
   }
   const withPics = files.length ? tr(' พร้อมรูป ') + files.length + tr(' รูป') : ''
-  const mine = st.sending = { sid: sess.sessionId, text, sent: false }
+  const mine = st.sending = { sid: sess.sessionId, text, sent: false, at: Date.now() }
   drawSending()
   const ok = await act('/sessions/' + encodeURIComponent(sess.sessionId) + '/message', { message: text }, r => r.queued
     ? sess.displayName + tr(' กำลังทำงานอยู่ — เก็บข้อความไว้ให้แล้ว จะส่งเองเมื่อว่าง') + withPics
-    : r.delivery === 'unknown'
-      ? tr('พิมพ์ส่งให้ ') + sess.displayName + tr(' แล้ว แต่ยังไม่เห็นใน transcript — ยังไม่ยืนยันว่าถึง') + withPics
-      : tr('ส่งถึง ') + sess.displayName + tr(' แล้ว (') + (r.via || '') + ')' + (r.delivery === 'acked' ? tr(' · ยืนยันจาก transcript') : '') + withPics)
+    : (mine.delivery = r.delivery) === 'unknown'
+      ? tr('พิมพ์ส่งให้ ') + sess.displayName + tr(' แล้ว') + withPics
+      : r.delivery === 'held'
+        ? sess.displayName + tr(' กำลังทำงานอยู่ — ข้อความอยู่ในคิวของ agent แล้ว จะอ่านเมื่อถึงคิว') + withPics
+        : tr('ส่งถึง ') + sess.displayName + tr(' แล้ว (') + (r.via || '') + ')' + (r.delivery === 'acked' ? tr(' · ยืนยันจาก transcript') : '') + withPics)
   ta.disabled = false
   if (!ok && st.sending === mine) { st.sending = null; drawSending() }
   if (ok) {
@@ -2223,7 +2278,8 @@ async function sendChat (sess, ta, thumbs) {
     if (thumbs) drawThumbs(thumbs)
     growText()
     setTimeout(() => {
-      if (st.sending === mine) st.sending = null
+      // a message nobody saw arrive stays on screen, marked, until it shows up
+      if (st.sending === mine && mine.delivery !== 'unknown') st.sending = null
       updateChat(true)
     }, 1500)
   }
@@ -2539,8 +2595,8 @@ async function openReview (id) {
   }
   const sentText = res => res.queued
     ? tr('⏳ ') + (sess ? sess.displayName : tr('agent')) + tr(' กำลังทำงานอยู่ — เก็บข้อความไว้แล้ว จะพิมพ์ให้อัตโนมัติเมื่อว่าง')
-    : tr('✅ ส่งให้ ') + (sess ? sess.displayName : r.sessionId.slice(0, 8)) + tr(' แล้ว (') + res.via + ')' +
-      (res.delivery === 'acked' ? tr(' · agent ได้รับแล้ว') : tr(' · ยังไม่เห็นใน transcript — เปิด session ดูอีกที'))
+    : (res.delivery === 'unknown' ? tr('⚠ พิมพ์ให้ ') : tr('✅ ส่งให้ ')) + (sess ? sess.displayName : r.sessionId.slice(0, 8)) + tr(' แล้ว (') + res.via + ')' +
+      (res.delivery === 'acked' ? tr(' · agent ได้รับแล้ว') : res.delivery === 'held' ? tr(' · อยู่ในคิวของ agent แล้ว') : tr(' · ยังไม่ยืนยันว่าถึง agent — เปิด session ดูก่อนส่งซ้ำ'))
   const failText = e => tr('❌ ส่งไม่สำเร็จ: ') + e.message + tr(' — งานยังไม่ถูกปิด กดส่งใหม่ หรือคัดลอกแล้ววางเองได้')
   const sendingText = tr('กำลังส่งให้ agent… (ถ้าต้องเปิด session ต่ออาจใช้ครึ่งนาที)')
   let busy = false
@@ -2765,7 +2821,7 @@ async function openReview (id) {
       r.cwd ? h('dt', null, tr('โฟลเดอร์')) : null, r.cwd ? h('dd', { class: 'mono' }, r.cwd) : null,
       r.sessionId ? h('dt', null, tr('session')) : null, r.sessionId ? h('dd', { class: 'mono' }, r.sessionId.slice(0, 8)) : null,
       r.sentAt ? h('dt', null, tr('ส่งให้ agent')) : null,
-      r.sentAt ? h('dd', null, fmtTime(r.sentAt) + ' · ' + (r.sentVia === 'queued' ? tr('รอส่งเมื่อ agent ว่าง') : r.sentVia + (r.delivery === 'acked' ? tr(' · ได้รับแล้ว') : ''))) : null),
+      r.sentAt ? h('dd', null, fmtTime(r.sentAt) + ' · ' + (r.sentVia === 'queued' ? tr('รอส่งเมื่อ agent ว่าง') : r.sentVia + (r.delivery === 'acked' ? tr(' · ได้รับแล้ว') : r.delivery === 'held' ? tr(' · อยู่ในคิวของ agent แล้ว') : r.delivery === 'unknown' ? tr(' · ยังไม่ยืนยันว่าถึง agent') : ''))) : null),
     r.summary ? h('p', null, r.summary) : null,
     status,
     note,
@@ -2934,7 +2990,12 @@ function setAccOut (a) {
   if (!el) return
   const text = (a.login && a.login.output) || ''
   el.out.textContent = text
-  el.out.hidden = !text
+  el.box.hidden = !text
+  // while it runs the link and the code are what matter; once it has failed,
+  // what the CLI said is the reason
+  const failed = !!(a.login && !a.login.running)
+  el.sum.textContent = failed ? tr('login ไม่สำเร็จ — ข้อความจาก CLI') : tr('ข้อความจาก CLI')
+  if (failed) el.box.open = true
 }
 function accountCard (a) {
   const p = a.provider
@@ -2943,10 +3004,12 @@ function accountCard (a) {
     accEls[p] = {
       email: h('input', { type: 'email', placeholder: tr('อีเมลบัญชีที่จะใช้ (ไม่บังคับ)'), autocomplete: 'off' }),
       code: h('input', { type: 'text', placeholder: tr('วางโค้ดที่ได้หลัง login'), autocomplete: 'off', spellcheck: 'false' }),
-      out: h('pre', { class: 'accOut' })
+      out: h('pre', { class: 'accOut' }),
+      sum: h('summary', null, '')
     }
+    accEls[p].box = h('details', { class: 'accCli' }, accEls[p].sum, accEls[p].out)
   }
-  const { email, code, out } = accEls[p]
+  const { email, code, box: out } = accEls[p]
   const call = async (path, body, msg) => {
     try { await api('/accounts/' + p + '/' + path, { method: 'POST', body: body || {} }); if (msg) toast(msg) } catch (e) { toast(tr('ไม่สำเร็จ: ') + e.message, true) }
     drawAccounts()
@@ -2956,7 +3019,7 @@ function accountCard (a) {
       ? tr('Codex จะ logout ทันทีที่เริ่ม (เป็นพฤติกรรมของ codex เอง) — agent Codex ทุกตัวบนเครื่องจะใช้ไม่ได้จนกว่า login ใหม่เสร็จ')
       : p === 'agy' ? tr('login ด้วยบัญชี Google ของคุณเอง ข้อกำหนดของ Antigravity ห้ามใช้เครื่องมือภายนอกเข้าถึงบริการ ตรวจก่อนให้ agent อื่นสั่งงาน')
       : tr('บัญชีเดิมยังใช้ได้จนกว่าจะวางโค้ดสำเร็จ — หลังสลับ session ที่เปิดอยู่จะใช้บัญชีใหม่เมื่อรีเฟรช token')
-    if (!await confirmBox(tr('สลับบัญชี ') + accountName[p], warn, a.email ? tr('ปัจจุบัน: ') + a.email : (a.detail || ''), tr('เริ่ม login'))) return
+    if (!await confirmBox(tr('สลับบัญชี ') + accountName[p], warn, a.email ? tr('ปัจจุบัน: ') + a.email : serverText(a.detail || ''), tr('เริ่ม login'))) return
     call('login', { email: email.value.trim() })
   }
   const logout = async () => {
@@ -2965,7 +3028,7 @@ function accountCard (a) {
   }
   return h('div', { class: 'accCard' },
     h('div', { class: 'accTop' }, h('b', null, accountName[p]), h('span', { class: 'pill ' + (a.loggedIn ? 'normal' : 'reserve') }, h('i'), a.loggedIn ? tr('login อยู่') : tr('ยังไม่ได้ login'))),
-    a.loggedIn ? h('p', null, [a.email, a.method, a.org].filter(Boolean).join(' · ') + (a.expiresAt ? tr(' · หมดอายุ ') + new Date(a.expiresAt).toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' }) : '')) : (a.detail ? h('p', { class: 'note' }, a.detail) : null),
+    a.loggedIn ? h('p', null, [a.email, a.method, a.org].filter(Boolean).join(' · ') + (a.expiresAt ? tr(' · หมดอายุ ') + new Date(a.expiresAt).toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' }) : '')) : h('p', { class: 'note' }, a.detail ? serverText(a.detail) : tr('ยังไม่มีบัญชีบนเครื่องนี้ กด Login เพื่อเริ่ม')),
     f && f.running
       ? h('div', { class: 'accFlow' },
         h('p', null, tr('1) เปิดลิงก์นี้แล้ว sign in ด้วยบัญชีที่ต้องการ')),
@@ -3118,7 +3181,8 @@ function toast (msg, bad) {
 async function act (path, body, okMsg) {
   try {
     const res = await api(path, { method: 'POST', body })
-    toast(okMsg(res || {}))
+    const lost = !!res && res.delivery === 'unknown'
+    toast(okMsg(res || {}) + (lost ? tr(' — ยังไม่ยืนยันว่าถึง agent (ไม่พบในบทสนทนา) ตรวจก่อนส่งซ้ำ') : ''), lost)
     poll()
     return true
   } catch (e) {
@@ -3225,9 +3289,13 @@ const draftKey = 'aiagentDraft'
 function saveDraft () {
   const text = $('askText') ? $('askText').value : ''
   const paths = (st.attach || []).map(a => a.path).filter(Boolean)
+  // a folded paste is only a token in the box; without its text a reload
+  // turned the draft into a message that says "[Pasted text #1 +40 lines]"
+  const pastes = {}
+  for (const tok in st.pastes || {}) if (text.includes(tok)) pastes[tok] = st.pastes[tok]
   try {
     if (!text && !paths.length) localStorage.removeItem(draftKey)
-    else localStorage.setItem(draftKey, JSON.stringify({ text, paths }))
+    else localStorage.setItem(draftKey, JSON.stringify({ text, paths, pastes, pasteSeq: st.pasteSeq || 0 }))
   } catch (e) { /* storage unavailable: the draft is simply not kept */ }
 }
 function clearDraft () { try { localStorage.removeItem(draftKey) } catch (e) { /* see above */ } }
@@ -3235,7 +3303,13 @@ function restoreDraft () {
   let d = null
   try { d = JSON.parse(localStorage.getItem(draftKey) || 'null') } catch (e) { d = null }
   if (!d) return
-  if (d.text && $('askText') && !$('askText').value) { $('askText').value = d.text; growText() }
+  if (d.text && $('askText') && !$('askText').value) {
+    st.pastes = d.pastes || {}
+    st.pasteSeq = d.pasteSeq || 0
+    // a draft kept before pastes were: a token whose text is gone says nothing
+    $('askText').value = d.text.replace(/\[Pasted text #\d+ \+\d+ lines\]/g, t => t in st.pastes ? t : '')
+    growText()
+  }
   for (const p of (d.paths || []).slice(0, 10)) {
     const a = { blob: null, url: '', path: p, busy: false }
     ;(st.attach = st.attach || []).push(a)
@@ -3314,6 +3388,7 @@ $('askText').addEventListener('paste', e => {
   const ta = $('askText')
   ta.setRangeText(tok, ta.selectionStart, ta.selectionEnd, 'end')
   growText()
+  saveDraft()
 })
 
 // expandPastes swaps collapsed paste tokens back to their text

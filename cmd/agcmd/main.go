@@ -92,8 +92,20 @@ func main() {
 	}
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "agcmd: "+err.Error())
-		os.Exit(1)
+		os.Exit(exitCode(err))
 	}
+}
+
+func exitCode(err error) int {
+	var ns *world.ErrNotSubmitted
+	var od *world.ErrOnDialog
+	switch {
+	case errors.As(err, &ns):
+		return world.ExitNotSubmitted
+	case errors.As(err, &od):
+		return world.ExitDialog
+	}
+	return 1
 }
 
 // ---------- configuration ----------
@@ -195,7 +207,17 @@ func agentPane(w world.WorkspaceInfo) (target, running string, err error) {
 // two-line message would submit the first line on its own and leave the
 // second half typed but unsent. Bracketed paste keeps the whole message in
 // the agent's input box, which is also what happens when a human pastes.
-func send(target, text string) error {
+//
+// world.Typer reads the input box around it: the paste may be taken late, and
+// Enter may be dropped by a CLI that is still starting.
+func send(target, running, text string) error {
+	claude := world.PaneAgent(context.Background(), world.ExecRunner{}, "/proc", running, 0) == "claude"
+	return world.Typer{Claude: claude, Tmux: tmux, Sleep: time.Sleep, Pane: target, Type: func(s string) error {
+		return paste(target, s)
+	}}.Submit(text)
+}
+
+func paste(target, text string) error {
 	buf := "agcmd-" + strconv.FormatInt(time.Now().UnixNano(), 36)
 	cmd := exec.Command(tmuxBin(), "load-buffer", "-b", buf, "-")
 	cmd.Stdin = bytes.NewReader([]byte(text))
@@ -205,12 +227,6 @@ func send(target, text string) error {
 	if out, err := tmux("paste-buffer", "-b", buf, "-d", "-p", "-t", target); err != nil {
 		_, _ = tmux("delete-buffer", "-b", buf)
 		return fmt.Errorf("tmux paste-buffer: %s", out)
-	}
-	// A short pause: the CLI has to process the paste before Enter means
-	// "submit this" rather than arriving mid-paste.
-	time.Sleep(150 * time.Millisecond)
-	if out, err := tmux("send-keys", "-t", target, "Enter"); err != nil {
-		return fmt.Errorf("tmux send-keys Enter: %s", out)
 	}
 	return nil
 }
@@ -424,18 +440,11 @@ func cmdDispatch(args []string) error {
 	if err != nil {
 		return err
 	}
-	target, _, err := agentPane(w)
+	target, running, err := agentPane(w)
 	if err != nil {
 		return err
 	}
-	screen, err := tmux("capture-pane", "-p", "-t", target)
-	if err != nil {
-		return fmt.Errorf("cannot read the agent's screen: %s", screen)
-	}
-	if world.OnDialog(screen) {
-		return fmt.Errorf("the agent in %s is showing a question, and typing there would answer it; open it with `tmux attach` and answer first", w.Name)
-	}
-	return send(target, msg)
+	return send(target, running, msg)
 }
 
 func cmdRestart(args []string) error {
@@ -494,7 +503,7 @@ func engCreate(task, workspace string) error {
 	if err != nil {
 		return err
 	}
-	target, _, err := agentPane(w)
+	target, running, err := agentPane(w)
 	if err != nil {
 		return err
 	}
@@ -511,7 +520,7 @@ func engCreate(task, workspace string) error {
 		return err
 	}
 	_ = appendLog(id, "created in workspace "+w.Name+": "+firstLine(task))
-	if err := send(target, task); err != nil {
+	if err := send(target, running, task); err != nil {
 		r.Status, r.UpdatedAt = statusAborted, nowStamp()
 		_ = saveRun(r)
 		_ = appendLog(id, "could not send: "+err.Error())
@@ -568,11 +577,11 @@ func engAnswer(args []string) error {
 	if err != nil {
 		return err
 	}
-	target, _, err := agentPane(w)
+	target, running, err := agentPane(w)
 	if err != nil {
 		return err
 	}
-	if err := send(target, answer); err != nil {
+	if err := send(target, running, answer); err != nil {
 		return err
 	}
 	r.Status, r.Decision, r.UpdatedAt = statusRunning, nil, nowStamp()

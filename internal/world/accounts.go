@@ -16,7 +16,9 @@ package world
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -59,7 +61,7 @@ func (c *Collector) loginArgv(provider, email string) (string, []string, error) 
 		args := []string{"auth", "login", "--claudeai"}
 		if email != "" {
 			if !regexp.MustCompile(`^[^\s@]{1,64}@[^\s@]{1,190}$`).MatchString(email) {
-				return "", nil, &APIError{400, "AIAGENT_BAD_EMAIL", "invalid email"}
+				return "", nil, &APIError{400, "AIAGENT_BAD_EMAIL", "อีเมลไม่ถูกต้อง"}
 			}
 			args = append(args, "--email", email)
 		}
@@ -68,11 +70,11 @@ func (c *Collector) loginArgv(provider, email string) (string, []string, error) 
 		return c.codexBin(), []string{"login", "--device-auth"}, nil
 	case "agy":
 		if c.agySignedIn() {
-			return "", nil, ErrConflict("Antigravity is signed in; log out first to use another account")
+			return "", nil, ErrConflict("Antigravity login อยู่ ให้ logout ก่อนจึงใช้บัญชีอื่นได้")
 		}
 		return agentBox, []string{"agy", "login"}, nil
 	}
-	return "", nil, &APIError{400, "AIAGENT_BAD_PROVIDER", "provider must be claude, codex or agy"}
+	return "", nil, &APIError{400, "AIAGENT_BAD_PROVIDER", "provider ต้องเป็น claude, codex หรือ agy"}
 }
 
 // Accounts returns the sign-in state of both CLIs plus any login in progress.
@@ -93,7 +95,7 @@ func (c *Collector) run(ctx context.Context, bin string, args ...string) (string
 
 func (c *Collector) claudeAccount(ctx context.Context) Account {
 	a := Account{Provider: "claude"}
-	out, _ := c.run(ctx, c.ClaudeBin(), "auth", "status")
+	out, err := c.run(ctx, c.ClaudeBin(), "auth", "status")
 	var st struct {
 		LoggedIn       bool   `json:"loggedIn"`
 		AuthMethod     string `json:"authMethod"`
@@ -101,33 +103,44 @@ func (c *Collector) claudeAccount(ctx context.Context) Account {
 		OrgName        string `json:"orgName"`
 		LoginExpiresAt string `json:"loginExpiresAt"`
 	}
-	if i := strings.Index(out, "{"); i >= 0 && json.Unmarshal([]byte(out[i:]), &st) == nil {
+	if i := strings.Index(out, "{"); i >= 0 && json.NewDecoder(strings.NewReader(out[i:])).Decode(&st) == nil {
 		a.LoggedIn, a.Method, a.Email, a.Org = st.LoggedIn, st.AuthMethod, st.Email, st.OrgName
 		if t := parseTS(st.LoginExpiresAt); !t.IsZero() {
 			a.Expires = &t
 		}
 		return a
 	}
-	a.Detail = truncateRunes(Redact(strings.TrimSpace(out)), 200)
+	a.Detail = statusDetail(err)
 	return a
+}
+
+// statusDetail says why a CLI's sign-in state could not be read. What the CLI
+// printed is not shown: it is a warning or a stack trace, not a state.
+func statusDetail(err error) string {
+	if errors.Is(err, exec.ErrNotFound) || errors.Is(err, os.ErrNotExist) {
+		return "ยังไม่ได้ติดตั้ง CLI นี้บนเครื่อง"
+	}
+	return "อ่านสถานะจาก CLI ไม่ได้"
 }
 
 func (c *Collector) codexAccount(ctx context.Context) Account {
 	a := Account{Provider: "codex"}
-	out, _ := c.run(ctx, c.codexBin(), "login", "status")
-	// the service sees the home read-only, which Codex warns about first
-	if i := strings.Index(out, "WARNING:"); i >= 0 {
-		if j := strings.Index(out[i:], "\n"); j >= 0 {
-			out = out[:i] + out[i+j:]
+	out, err := c.run(ctx, c.codexBin(), "login", "status")
+	// the state is one line; Codex prints warnings (a read-only home) around it
+	known := false
+	for _, l := range strings.Split(out, "\n") {
+		l = strings.TrimSpace(l)
+		switch low := strings.ToLower(l); {
+		case strings.HasPrefix(low, "not logged in"):
+			known = true
+		case strings.HasPrefix(low, "logged in"):
+			known, a.LoggedIn = true, true
+			a.Method = truncateRunes(Redact(strings.TrimPrefix(l, "Logged in using ")), 200)
 		}
 	}
-	out = strings.TrimSpace(out)
-	low := strings.ToLower(out)
-	a.LoggedIn = strings.Contains(low, "logged in") && !strings.Contains(low, "not logged in")
-	if a.LoggedIn {
-		a.Method = strings.TrimSpace(strings.TrimPrefix(out, "Logged in using "))
+	if !known {
+		a.Detail = statusDetail(err)
 	}
-	a.Detail = truncateRunes(Redact(out), 200)
 	return a
 }
 
@@ -237,7 +250,7 @@ func (c *Collector) StartLogin(ctx context.Context, provider, email string) (*Lo
 	if out, err := c.tmux(ctx, argv...); err != nil {
 		// tmux's own words say why (often: no server, and the service's sandbox
 		// may not create one; see packaging/aiagent-tmux@.service)
-		return nil, &APIError{502, "AIAGENT_LOGIN_FAILED", "could not start login: " + err.Error() + " " + truncateRunes(Redact(strings.TrimSpace(out)), 200)}
+		return nil, &APIError{502, "AIAGENT_LOGIN_FAILED", "เริ่ม login ไม่สำเร็จ: " + err.Error() + " " + truncateRunes(Redact(strings.TrimSpace(out)), 200)}
 	}
 	// keep the pane after the CLI exits so its last words can be read
 	_, _ = c.tmux(ctx, "set-option", "-w", "-t", "="+name+":", "remain-on-exit", "on")
@@ -253,19 +266,19 @@ func (c *Collector) StartLogin(ctx context.Context, provider, email string) (*Lo
 // SubmitLoginCode types the code a sign-in page showed.
 func (c *Collector) SubmitLoginCode(ctx context.Context, provider, code string) error {
 	if provider != "claude" && provider != "agy" {
-		return &APIError{400, "AIAGENT_BAD_PROVIDER", "provider must be claude or agy"}
+		return &APIError{400, "AIAGENT_BAD_PROVIDER", "provider ต้องเป็น claude หรือ agy"}
 	}
 	code = strings.TrimSpace(code)
 	if !pastedCodeRE.MatchString(code) {
-		return &APIError{400, "AIAGENT_BAD_CODE", "that does not look like a sign-in code"}
+		return &APIError{400, "AIAGENT_BAD_CODE", "รูปแบบไม่ใช่โค้ด login"}
 	}
 	f := c.loginFlow(ctx, provider)
 	if f == nil || !f.Running || (provider == "agy" && !f.NeedsCode) {
-		return ErrConflict("no sign-in is waiting for a code; start one first")
+		return ErrConflict("ไม่มี login ที่รอโค้ดอยู่ ให้เริ่ม login ก่อน")
 	}
 	name := loginSessions[provider]
 	if _, err := c.tmux(ctx, "send-keys", "-t", "="+name+":", "-l", "--", code); err != nil {
-		return &APIError{502, "AIAGENT_LOGIN_FAILED", "send failed"}
+		return &APIError{502, "AIAGENT_LOGIN_FAILED", "พิมพ์เข้าเทอร์มินัลไม่สำเร็จ"}
 	}
 	c.sleep(300 * time.Millisecond)
 	_, err := c.tmux(ctx, "send-keys", "-t", "="+name+":", "Enter")
@@ -276,7 +289,7 @@ func (c *Collector) SubmitLoginCode(ctx context.Context, provider, code string) 
 func (c *Collector) CancelLogin(ctx context.Context, provider string) error {
 	name, ok := loginSessions[provider]
 	if !ok {
-		return &APIError{400, "AIAGENT_BAD_PROVIDER", "provider must be claude, codex or agy"}
+		return &APIError{400, "AIAGENT_BAD_PROVIDER", "provider ต้องเป็น claude, codex หรือ agy"}
 	}
 	_, _ = c.tmux(ctx, "kill-session", "-t", "="+name)
 	return nil
@@ -298,10 +311,10 @@ func (c *Collector) Logout(ctx context.Context, provider string) error {
 			c.restartAgy(ctx)
 		}
 	default:
-		return &APIError{400, "AIAGENT_BAD_PROVIDER", "provider must be claude, codex or agy"}
+		return &APIError{400, "AIAGENT_BAD_PROVIDER", "provider ต้องเป็น claude, codex หรือ agy"}
 	}
 	if err != nil {
-		return &APIError{502, "AIAGENT_LOGOUT_FAILED", "logout failed: " + err.Error()}
+		return &APIError{502, "AIAGENT_LOGOUT_FAILED", "logout ไม่สำเร็จ: " + err.Error()}
 	}
 	return nil
 }

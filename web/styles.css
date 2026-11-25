@@ -221,6 +221,7 @@ dialog::backdrop { background: rgba(5,8,18,.7) }
 /* drawn by the page while the send is in flight; the transcript's copy replaces it */
 .msg.sending { opacity: .6; border-style: dashed }
 .msg.sending.sent { opacity: .85 }
+.msg.sending.lost { opacity: 1; border-color: var(--rose) }
 /* 13px was unreadable on an iPad at arm's length (owner, 2026-11-13). */
 .msg .body { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 15px; line-height: 1.6 }
 body.typing .msg .body { font-size: 16px }
@@ -396,7 +397,6 @@ dialog { margin: auto }
 .focusRoom .roomArt { border-radius: 28px }
 .actor.big { width: 170px; margin-left: -85px; margin-top: -150px }
 .actor.big .spr { width: 150px; height: 150px }
-.actor.big .tag { font-size: 14px; padding: 2px 10px }
 .emptyRoom { position: absolute; left: 50%; bottom: 40px; transform: translateX(-50%); padding: 8px 18px; border-radius: 999px; background: rgba(40,32,26,.8); color: #FFF4DE; font-size: 18px }
 .monitor { position: absolute; display: flex; flex-direction: column; border-radius: 24px; background: #121A2E; border: 6px solid #2C3554; box-shadow: 0 18px 40px rgba(0,0,0,.45), inset 0 0 40px rgba(0,220,130,.05); overflow: hidden }
 .monHead { display: flex; align-items: center; gap: 10px; padding: 16px 20px; font-size: 18px; font-weight: 600; color: #E9FFF5; background: #182340; border-bottom: 1px solid #2C3554 }
@@ -516,9 +516,7 @@ dialog { margin: auto }
 .actor.big.dragging .spr { transform: scale(1.08) rotate(-4deg) }
 .actor.big.sitting .spr { transform: translateY(14px) }
 .actor.big.lie .spr { transform: rotate(-78deg) translate(-26px, 6px) }
-.actor.big.lie .tag { margin-top: -30px }
 .actor.big .say { font-size: 19px; padding: 5px 14px }
-.actor.big .tag { font-size: 16px; padding: 3px 12px }
 .actor.big .fx { width: 40px }
 .focusRoom .rlabel2 { padding: 8px 22px } .focusRoom .rlabel2 b { font-size: 30px } .focusRoom .rlabel2 span { font-size: 19px }
 .wallScreen.live .scrHead { font-size: 15px }
@@ -671,14 +669,12 @@ body:not([data-phase="night"]) .focusHint { color: #2C3654 }
 /* ---------- v12: bigger in-room characters, follow chip ---------- */
 .actor.big { width: 250px; margin-left: -125px; margin-top: -232px }
 .actor.big .spr { width: 232px; height: 232px; margin: 0 auto }
-.actor.big .tag { font-size: 16px; padding: 3px 12px; max-width: 240px }
 .actor.big .say { font-size: 16px }
 .actor.big .fx { width: 40px !important }
 .actor.big.sub .spr { width: 170px; height: 170px; margin-top: 62px }
 .actor.big.sitting .spr { transform: translateY(26px) }
 .actor.big.lie .spr { transform: rotate(-78deg) translate(-40px, 10px) }
 .actor.big.lie .spr.still { transform: rotate(-80deg) translate(-46px, 6px) }
-.actor.big.lie .tag { margin-top: -50px }
 .followChip { margin-left: 8px; padding: 4px 12px; border-radius: 999px; border: 1px solid rgba(0,220,130,.6); background: rgba(10,30,24,.85); color: #BFF5DD; font: inherit; font-size: 13px; cursor: pointer }
 .followChip:hover { background: rgba(0,220,130,.25) }
 .followChip[hidden] { display: none }
@@ -796,9 +792,12 @@ a.accLink, a.accLink:visited { background: var(--brand); color: #04221A !importa
 a.accLink:hover { filter: brightness(1.08) }
 
 /* ---------- v16: window sky by time of day, runtime glow, provider pills ---------- */
-.skyLayer { position: absolute; pointer-events: none; -webkit-mask-size: 100% 100%; mask-size: 100% 100%; opacity: 0; transition: opacity 1.5s ease, background 1.5s ease }
-body[data-phase="morning"] .skyLayer { opacity: .5; background: linear-gradient(#FFC9A3, #FFE6C4 70%) }
-body[data-phase="evening"] .skyLayer { opacity: .88; background: linear-gradient(#6A4E9C 0%, #E9798A 45%, #F7B26A 100%) }
+/* A tint of the sky seen through the panes: the mask holds the sky pixels of
+   the art and fades out, and soft-light keeps the painted window visible. Drawn
+   flat over a plain window shape it read as a coloured sheet hung on the wall. */
+.skyLayer { position: absolute; pointer-events: none; -webkit-mask-size: 100% 100%; mask-size: 100% 100%; mix-blend-mode: soft-light; opacity: 0; transition: opacity 1.5s ease, background 1.5s ease }
+body[data-phase="morning"] .skyLayer { opacity: .55; background: linear-gradient(#FFC9A3, #FFE6C4 70%) }
+body[data-phase="evening"] .skyLayer { opacity: .8; background: linear-gradient(#B06AA8 0%, #E9798A 25%, #F7B26A 60%) }
 /* At night this filled the window with a flat navy panel and a dot grid, which
    on the iPad reads as a hole cut in the wall rather than as a sky — the owner
    circled it on 2026-11-13 and asked for it gone. The painted window in the
@@ -875,7 +874,7 @@ body[data-weather="storm"] .board.village .drift { filter: grayscale(1) brightne
 body[data-weather="storm"] .board.village .sunmoon { opacity: .25 }
 @keyframes rain { to { background-position: -40px 120px, 0 0 } }
 @keyframes flash { 0%, 100% { filter: none } 50% { filter: brightness(2.4) } 50.6% { filter: none } }
-body[data-weather="storm"] .skyLayer { opacity: .9 !important; background: repeating-linear-gradient(105deg, transparent 0 9px, rgba(220,230,255,.6) 9px 10px) 0 0 / 60px 60px, linear-gradient(#4A5276, #6B7396) !important; animation: rain .5s linear infinite }
+body[data-weather="storm"] .skyLayer { opacity: .6 !important; background: repeating-linear-gradient(105deg, transparent 0 9px, rgba(220,230,255,.6) 9px 10px) 0 0 / 60px 60px, linear-gradient(#4A5276, #6B7396) !important; animation: rain .5s linear infinite }
 body[data-weather="cloudy"]:not([data-phase="night"]):not([data-phase="evening"]) .skyLayer { opacity: .55; background: linear-gradient(#B9C1D6, #DCE1EC) }
 
 .ambient .petal { position: absolute; top: -20px; width: 10px; height: 8px; border-radius: 80% 0 80% 0; background: linear-gradient(135deg, #FFD3E2, #F59BBB); opacity: .85; animation: petal 12s linear infinite }
@@ -1703,7 +1702,10 @@ button.rtChip:hover { background: #1D2440 }
 .screenWrap .scrHead { font-size: 16px }
 .screenWrap.tvLive .zoomBadge { font-size: 12.5px; padding: 3px 10px }
 .actor.big .say { font-size: 24px }
-.actor.big .tag { font-size: 21px }
+.tag.big { position: absolute; left: 0; top: 0; z-index: 5000; pointer-events: none; display: flex; align-items: center; gap: 6px; height: 36px; padding: 0 14px; max-width: 300px; border-radius: 999px; background: rgba(18,20,38,.94); color: #F1F3FF; font-size: 21px; white-space: nowrap }
+.tag.big.reach { box-shadow: 0 0 0 1.5px rgba(0,220,130,.8) }
+.tag.big.codex { background: rgba(16,48,74,.95) }
+.tag.big i { width: 8px; height: 8px; border-radius: 50%; background: #00DC82 }
 .focusRoom .rlabel2 b { font-size: 36px } .focusRoom .rlabel2 span { font-size: 24px }
 .board.village .hcard { max-width: 520px; padding: 16px 20px }
 .board.village .hcard b { font-size: 28px }
@@ -1750,3 +1752,26 @@ button.rtChip:hover { background: #1D2440 }
 
 .topToast { position: fixed; inset: 18px auto auto 50%; transform: translateX(-50%); margin: 0; max-width: min(720px, 92vw); padding: 12px 20px; border-radius: 12px; border: 2px solid var(--brand); background: #10203A; color: #E6FFF4; font-size: 15px; box-shadow: 0 14px 34px rgba(0,0,0,.55); overflow-wrap: anywhere }
 .topToast.bad { border-color: var(--rose); background: #3A1420; color: #FFE4EA }
+
+/* ---------- a narrow header ---------- */
+.top .conn { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+.asBar { min-width: 0 }
+.top .asBar { flex: 0 1 auto }
+.asBar b { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+.asBar span, .asBar button { white-space: nowrap; flex: none }
+@media (max-width: 1320px) { .asBar { padding: 2px 4px 2px 12px } }
+@media (max-width: 1100px) { .brand .brandName { display: none } .asBar span { display: none } }
+@media (max-width: 900px) {
+  .top { flex-wrap: wrap }
+  .top .asBar { order: 9; flex: 1 0 100%; box-sizing: border-box }
+  .asBar button { margin-left: auto }
+}
+/* A phone has no room for the tabs and the buttons side by side: the tabs take
+   a row of their own. The page is a fixed-height column, so it stays in view. */
+@media (max-width: 700px) {
+  .top .views { order: 10; flex: 1 0 100%; min-width: 0 }
+  .views button { flex: 1 1 auto; min-width: 0; padding: 6px 4px; white-space: nowrap }
+  .top .energy { margin-left: auto }
+  body.typing .typingClose { top: calc(112px + env(safe-area-inset-top)) }
+}
+.accCli summary { cursor: pointer; font-size: 12.5px; color: var(--muted); margin: 6px 0 }

@@ -268,12 +268,12 @@ func readRunFile(p string) (runFile, error) {
 // RunLog returns the last n lines of a run's log (agent-written notes).
 func (c *Collector) RunLog(id string, n int) ([]string, error) {
 	if !runIDPattern.MatchString(id) {
-		return nil, ErrBadRequest("invalid run id")
+		return nil, ErrBadRequest("รหัส run ไม่ถูกต้อง")
 	}
 	p := filepath.Join(c.RunsDir, id+".log")
 	fi, err := os.Stat(p)
 	if err != nil {
-		return nil, ErrNotFound("run not found")
+		return nil, ErrNotFound("ไม่พบ run นี้")
 	}
 	var lines []string
 	for _, l := range readTail(p, fi.Size(), 64<<10) {
@@ -324,7 +324,7 @@ func cleanText(s string) (string, error) {
 		return "", err
 	}
 	if strings.HasPrefix(s, "-") {
-		return "", ErrBadRequest("text must not start with '-'")
+		return "", ErrBadRequest("ข้อความต้องไม่ขึ้นต้นด้วย '-'")
 	}
 	return s, nil
 }
@@ -333,7 +333,7 @@ func cleanText(s string) (string, error) {
 // other than newline/tab removed, trimmed, 1..maxTextRunes runes.
 func cleanProse(s string) (string, error) {
 	if !utf8.ValidString(s) {
-		return "", ErrBadRequest("text must be valid UTF-8")
+		return "", ErrBadRequest("ข้อความต้องเป็น UTF-8 ที่ถูกต้อง")
 	}
 	s = strings.ReplaceAll(s, "\r\n", "\n")
 	s = strings.Map(func(r rune) rune {
@@ -348,10 +348,10 @@ func cleanProse(s string) (string, error) {
 	s = strings.TrimSpace(s)
 	n := utf8.RuneCountInString(s)
 	if n == 0 {
-		return "", ErrBadRequest("text is required")
+		return "", ErrBadRequest("ต้องใส่ข้อความ")
 	}
 	if n > maxTextRunes {
-		return "", ErrBadRequest(fmt.Sprintf("text is longer than %d characters", maxTextRunes))
+		return "", ErrBadRequest(fmt.Sprintf("ข้อความยาวเกิน %d ตัวอักษร", maxTextRunes))
 	}
 	return s, nil
 }
@@ -359,12 +359,22 @@ func cleanProse(s string) (string, error) {
 func (c *Collector) requireAgentReady(ctx context.Context, session string) error {
 	tm := c.readTmux(ctx)
 	if _, ok := tm.sessions[session]; !ok {
-		return ErrConflict("tmux session " + session + " is not running — start the agent first (agcmd start)")
+		return ErrConflict("tmux session " + session + " ไม่ได้รันอยู่ ให้เปิด agent ก่อน (agcmd start)")
 	}
 	if cmd := tm.agentCmd[session]; !agentReady(cmd) {
-		return ErrConflict("the agent window of " + session + " is running " + cmd + ", not an AI agent CLI — refusing to type into it")
+		return ErrConflict("หน้าต่าง agent ของ " + session + " กำลังรัน " + cmd + " ซึ่งไม่ใช่ CLI ของ AI agent จึงไม่พิมพ์เข้าไป")
 	}
 	return nil
+}
+
+// Exit codes by which agcmd tells the service why a message was not sent.
+const (
+	ExitNotSubmitted = 3
+	ExitDialog       = 4
+)
+
+func errNotSubmitted() error {
+	return &APIError{502, "AIAGENT_NOT_SUBMITTED", "พิมพ์ข้อความแล้วแต่ agent ยังไม่รับ — ข้อความอาจค้างในช่องพิมพ์ของ agent ลองกดส่งข้อความเดิมอีกครั้ง"}
 }
 
 func (c *Collector) agcmd(ctx context.Context, args ...string) (string, error) {
@@ -374,10 +384,18 @@ func (c *Collector) agcmd(ctx context.Context, args ...string) (string, error) {
 	text := strings.TrimSpace(string(out))
 	if err != nil {
 		var ee *exec.ExitError
-		if errors.As(err, &ee) || text != "" {
-			return text, &APIError{502, "AGCMD_BIN_FAILED", "agcmd failed: " + truncateRunes(text, 300)}
+		if errors.As(err, &ee) {
+			switch ee.ExitCode() {
+			case ExitNotSubmitted:
+				return text, errNotSubmitted()
+			case ExitDialog:
+				return text, &APIError{409, "AIAGENT_DIALOG", "agent กำลังแสดงคำถามอยู่ ถ้าพิมพ์จะกลายเป็นคำตอบ — ตอบคำถามนั้นก่อนแล้วส่งใหม่"}
+			}
 		}
-		return text, &APIError{502, "AGCMD_BIN_FAILED", "agcmd failed: " + err.Error()}
+		if errors.As(err, &ee) || text != "" {
+			return text, &APIError{502, "AGCMD_BIN_FAILED", "agcmd ทำงานไม่สำเร็จ: " + truncateRunes(text, 300)}
+		}
+		return text, &APIError{502, "AGCMD_BIN_FAILED", "agcmd ทำงานไม่สำเร็จ: " + err.Error()}
 	}
 	return text, nil
 }
@@ -388,17 +406,17 @@ var createdRunPattern = regexp.MustCompile(`(ENG-[0-9]{8}-[0-9]{3,})\s+RUNNING`)
 func (c *Collector) Mission(ctx context.Context, workspace, task string) (string, error) {
 	w, ok := c.lookupWorkspace(workspace)
 	if !ok {
-		return "", ErrBadRequest("unknown workspace")
+		return "", ErrBadRequest("ไม่รู้จัก workspace นี้")
 	}
 	if w.protected {
-		return "", ErrConflict("that workspace is the admin's; tasks are not sent to it")
+		return "", ErrConflict("workspace นั้นเป็นของ admin จึงไม่ส่งงานเข้าไป")
 	}
 	task, err := cleanText(task)
 	if err != nil {
 		return "", err
 	}
 	if engReserved[strings.ToLower(task)] {
-		return "", ErrBadRequest("task text is a reserved agcmd word; describe the task in a sentence")
+		return "", ErrBadRequest("ข้อความงานตรงกับคำสงวนของ agcmd ให้เขียนงานเป็นประโยค")
 	}
 	defer c.lockSend("ws:" + w.session)()
 	if err := c.requireAgentReady(ctx, w.session); err != nil {
@@ -418,7 +436,7 @@ func (c *Collector) Mission(ctx context.Context, workspace, task string) (string
 func (c *Collector) Message(ctx context.Context, workspace, message string) error {
 	w, ok := c.lookupWorkspace(workspace)
 	if !ok {
-		return ErrBadRequest("unknown workspace")
+		return ErrBadRequest("ไม่รู้จัก workspace นี้")
 	}
 	message, err := cleanText(message)
 	if err != nil {
@@ -444,11 +462,11 @@ func (c *Collector) lockSend(key string) func() {
 
 func (c *Collector) loadRun(id string) (runFile, error) {
 	if !runIDPattern.MatchString(id) {
-		return runFile{}, ErrBadRequest("invalid run id")
+		return runFile{}, ErrBadRequest("รหัส run ไม่ถูกต้อง")
 	}
 	rf, err := readRunFile(filepath.Join(c.RunsDir, id+".json"))
 	if err != nil {
-		return rf, ErrNotFound("run not found")
+		return rf, ErrNotFound("ไม่พบ run นี้")
 	}
 	return rf, nil
 }
@@ -460,7 +478,7 @@ func (c *Collector) Answer(ctx context.Context, id, answer string) error {
 		return err
 	}
 	if rf.Status != "WAITING_DECISION" {
-		return ErrConflict("run is " + rf.Status + ", not waiting for a decision")
+		return ErrConflict("run is " + rf.Status + " ไม่ได้รอการตัดสินใจ")
 	}
 	answer, err = cleanText(answer)
 	if err != nil {
@@ -483,11 +501,11 @@ func (c *Collector) SetRunStatus(ctx context.Context, id, action string) error {
 	switch action {
 	case "approve", "abort":
 	default:
-		return ErrBadRequest("unknown action")
+		return ErrBadRequest("ไม่รู้จักคำสั่งนี้")
 	}
 	switch rf.Status {
 	case "DONE", "ABORTED", "ARCHIVED":
-		return ErrConflict("run is already " + rf.Status)
+		return ErrConflict("run นี้เป็น " + rf.Status)
 	}
 	_, err = c.agcmd(ctx, "eng", action, id)
 	return err
@@ -508,7 +526,7 @@ func (c *Collector) Stop(ctx context.Context, sessionID string) (string, error) 
 		}
 	}
 	if target == nil || !target.Live {
-		return "", ErrNotFound("no live session with that id")
+		return "", ErrNotFound("ไม่พบ session ที่เปิดอยู่ด้วยรหัสนี้")
 	}
 	switch target.StopVia {
 	case "agcmdRestart":
@@ -520,18 +538,18 @@ func (c *Collector) Stop(ctx context.Context, sessionID string) (string, error) 
 			short = short[:8]
 		}
 		if !shortIDPattern.MatchString(short) {
-			return "", ErrConflict("unexpected session id format")
+			return "", ErrConflict("รูปแบบรหัส session ไม่ถูกต้อง")
 		}
 		for _, o := range snap.Sessions {
 			if o.Live && o.SessionID != target.SessionID && strings.HasPrefix(o.SessionID, short) {
-				return "", ErrConflict("short id " + short + " is ambiguous — stop it from a terminal")
+				return "", ErrConflict("รหัสย่อ " + short + " ซ้ำกับ session อื่น ให้หยุดจากเทอร์มินัล")
 			}
 		}
 		cctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 		defer cancel()
 		out, err := c.Runner.Run(cctx, c.ClaudeBin(), "stop", short)
 		if err != nil {
-			return "", &APIError{502, "AIAGENT_STOP_FAILED", "claude stop failed: " + truncateRunes(strings.TrimSpace(string(out)), 300)}
+			return "", &APIError{502, "AIAGENT_STOP_FAILED", "claude stop ไม่สำเร็จ: " + truncateRunes(strings.TrimSpace(string(out)), 300)}
 		}
 		return "claude stop " + short, nil
 	}

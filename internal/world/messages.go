@@ -56,14 +56,17 @@ func Redact(s string) string {
 }
 
 var (
-	reminderRE  = regexp.MustCompile(`(?s)<system-reminder>.*?</system-reminder>`)
-	bashInRE    = regexp.MustCompile(`(?s)<bash-input>(.*?)</bash-input>`)
-	internalRE  = regexp.MustCompile(`(?s)<(bash-stdout|bash-stderr|task-notification|local-command-stdout|local-command-stderr|command-message|command-args)>.*?</(bash-stdout|bash-stderr|task-notification|local-command-stdout|local-command-stderr|command-message|command-args)>`)
+	reminderRE = regexp.MustCompile(`(?s)<system-reminder>.*?</system-reminder>`)
+	bashInRE   = regexp.MustCompile(`(?s)<bash-input>(.*?)</bash-input>`)
+	internalRE = regexp.MustCompile(`(?s)<(bash-stdout|bash-stderr|task-notification|local-command-stdout|local-command-stderr|command-message|command-args)>.*?</(bash-stdout|bash-stderr|task-notification|local-command-stdout|local-command-stderr|command-message|command-args)>`)
+	// Claude Code wraps a long paste in these tags in the transcript.
+	pastedTagRE = regexp.MustCompile(`</?pasted_content\b[^>\n]*>`)
 	commandName = regexp.MustCompile(`(?s)<command-name>(.*?)</command-name>`)
 )
 
 func cleanTurn(s string) string {
 	s = reminderRE.ReplaceAllString(s, "")
+	s = pastedTagRE.ReplaceAllString(s, "")
 	s = bashInRE.ReplaceAllString(s, "! $1")
 	s = commandName.ReplaceAllString(s, "$1")
 	s = internalRE.ReplaceAllString(s, "")
@@ -149,27 +152,43 @@ var msgCache = struct {
 
 func claudeMessages(lines [][]byte) []Message { return claudeTurns(lines, false) }
 
+type claudeBody struct {
+	ID      string          `json:"id"`
+	Role    string          `json:"role"`
+	Content json.RawMessage `json:"content"`
+}
+
 // claudeTurns parses transcript lines; sidechain lines (a sub-agent's own
 // transcript) are kept only when side is true.
 func claudeTurns(lines [][]byte, side bool) []Message {
 	var out []Message
 	var lastID string
 	for _, raw := range lines {
-		if !bytes.Contains(raw, []byte(`"type":"user"`)) && !bytes.Contains(raw, []byte(`"type":"assistant"`)) {
+		if !bytes.Contains(raw, []byte(`"type":"user"`)) && !bytes.Contains(raw, []byte(`"type":"assistant"`)) && !bytes.Contains(raw, []byte(`"queued_command"`)) {
 			continue
 		}
 		var ln struct {
-			Type        string `json:"type"`
-			Timestamp   string `json:"timestamp"`
-			IsMeta      bool   `json:"isMeta"`
-			IsSidechain bool   `json:"isSidechain"`
-			Message     *struct {
-				ID      string          `json:"id"`
-				Role    string          `json:"role"`
-				Content json.RawMessage `json:"content"`
-			} `json:"message"`
+			Type        string      `json:"type"`
+			Timestamp   string      `json:"timestamp"`
+			IsMeta      bool        `json:"isMeta"`
+			IsSidechain bool        `json:"isSidechain"`
+			Message     *claudeBody `json:"message"`
+			Attachment  *struct {
+				Type        string          `json:"type"`
+				Prompt      json.RawMessage `json:"prompt"`
+				CommandMode string          `json:"commandMode"`
+			} `json:"attachment"`
 		}
-		if json.Unmarshal(raw, &ln) != nil || ln.Message == nil || ln.IsMeta || (ln.IsSidechain && !side) {
+		if json.Unmarshal(raw, &ln) != nil {
+			continue
+		}
+		// What a person sends while the agent works is taken into the running
+		// turn and recorded as an attachment, not as a user line.
+		if a := ln.Attachment; ln.Type == "attachment" && a != nil && a.Type == "queued_command" && a.CommandMode == "prompt" {
+			ln.Type = "user"
+			ln.Message = &claudeBody{Content: a.Prompt}
+		}
+		if (ln.Type != "user" && ln.Type != "assistant") || ln.Message == nil || ln.IsMeta || (ln.IsSidechain && !side) {
 			continue
 		}
 		var text string

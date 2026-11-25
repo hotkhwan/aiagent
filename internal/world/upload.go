@@ -93,21 +93,21 @@ func isZip(b []byte) bool {
 // the bytes are refused.
 func uploadKind(b []byte) (string, error) {
 	if len(b) == 0 {
-		return "", ErrBadRequest("empty upload")
+		return "", ErrBadRequest("ไฟล์ที่ส่งมาว่างเปล่า")
 	}
 	if ext := sniffImage(b); ext != "" {
 		if len(b) > maxUploadBytes {
-			return "", ErrBadRequest("image is larger than 3.5 MB")
+			return "", ErrBadRequest("รูปใหญ่เกิน 3.5 MB")
 		}
 		return ext, nil
 	}
 	if len(b) > maxZipBytes {
-		return "", ErrBadRequest("file is larger than 50 MB")
+		return "", ErrBadRequest("ไฟล์ใหญ่เกิน 50 MB")
 	}
 	if isZip(b) {
 		return ".zip", nil
 	}
-	return "", ErrBadRequest("only PNG, JPEG, GIF or WebP images and zip archives are accepted")
+	return "", ErrBadRequest("รับเฉพาะรูป PNG, JPEG, GIF, WebP และไฟล์ zip")
 }
 
 // SaveUpload validates and stores one image or zip archive; it returns the

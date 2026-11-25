@@ -108,13 +108,13 @@ func (s *Service) savePolicy(p Policy) error {
 // SetPolicy validates and stores the operator's settings.
 func (s *Service) SetPolicy(enabled bool, threshold float64, claudeModel, codexModel string) (Policy, error) {
 	if threshold < 30 || threshold > 99 {
-		return Policy{}, &APIError{400, "AIAGENT_BAD_THRESHOLD", "threshold must be 30–99%"}
+		return Policy{}, &APIError{400, "AIAGENT_BAD_THRESHOLD", "เกณฑ์ต้องเป็น 30–99%"}
 	}
 	if !claudeModelRE.MatchString(claudeModel) {
-		return Policy{}, &APIError{400, "AIAGENT_BAD_MODEL", "unknown Claude model"}
+		return Policy{}, &APIError{400, "AIAGENT_BAD_MODEL", "ไม่รู้จักโมเดล Claude นี้"}
 	}
 	if !codexModelRE.MatchString(codexModel) {
-		return Policy{}, &APIError{400, "AIAGENT_BAD_MODEL", "unknown Codex model"}
+		return Policy{}, &APIError{400, "AIAGENT_BAD_MODEL", "ไม่รู้จักโมเดล Codex นี้"}
 	}
 	policyMu.Lock()
 	defer policyMu.Unlock()
@@ -242,13 +242,13 @@ func (s *Service) PolicyTick(ctx context.Context) []string {
 // SetIdlePolicy stores the idle-ideas settings.
 func (s *Service) SetIdlePolicy(enabled bool, minutes int, maxQuota float64, target string) (Policy, error) {
 	if minutes < 10 || minutes > 24*60 {
-		return Policy{}, &APIError{400, "AIAGENT_BAD_IDLE", "idle minutes must be 10–1440"}
+		return Policy{}, &APIError{400, "AIAGENT_BAD_IDLE", "เวลาว่างต้องเป็น 10–1440 นาที"}
 	}
 	if maxQuota < 5 || maxQuota > 95 {
-		return Policy{}, &APIError{400, "AIAGENT_BAD_IDLE", "quota limit must be 5–95%"}
+		return Policy{}, &APIError{400, "AIAGENT_BAD_IDLE", "เพดาน quota ต้องเป็น 5–95%"}
 	}
 	if !regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,40}$`).MatchString(target) {
-		return Policy{}, &APIError{400, "AIAGENT_BAD_IDLE", "unknown workspace"}
+		return Policy{}, &APIError{400, "AIAGENT_BAD_IDLE", "ไม่รู้จัก workspace นี้"}
 	}
 	policyMu.Lock()
 	defer policyMu.Unlock()
@@ -334,7 +334,7 @@ func aliasOf(id string) string {
 // returning the previous value ("" when unset). Other lines are kept.
 func setCodexModel(path, model string) (string, error) {
 	if !codexModelRE.MatchString(model) {
-		return "", &APIError{400, "AIAGENT_BAD_MODEL", "unknown Codex model"}
+		return "", &APIError{400, "AIAGENT_BAD_MODEL", "ไม่รู้จักโมเดล Codex นี้"}
 	}
 	b, err := os.ReadFile(path)
 	if err != nil && !os.IsNotExist(err) {

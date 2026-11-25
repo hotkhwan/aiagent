@@ -113,7 +113,7 @@ func TestACopyOfTheSessionIsStoppedAndNeverTypedInto(t *testing.T) {
 	e.runner.noJob = true
 	e.runner.bgResumeOut = "backgrounded · cccc9999 (idle — send a prompt to start)\n"
 	_, err := e.col.SendToSession(context.Background(), outboxSession, "ทำต่อ")
-	if err == nil || !strings.Contains(err.Error(), "another Claude Code process") {
+	if err == nil || !strings.Contains(err.Error(), "Claude Code อีกที่") {
 		t.Fatalf("err = %v, want one that says the session is open elsewhere", err)
 	}
 	if timesTyped(e, "ทำต่อ") != 0 {

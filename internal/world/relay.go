@@ -78,7 +78,7 @@ func (c *Collector) SendToSession(ctx context.Context, id, message string) (stri
 		}
 	}
 	if target == nil || !target.Live {
-		return "", ErrNotFound("no live session with that id")
+		return "", ErrNotFound("ไม่พบ session ที่เปิดอยู่ด้วยรหัสนี้")
 	}
 	switch target.MessageVia {
 	case "agcmd":
@@ -87,7 +87,7 @@ func (c *Collector) SendToSession(ctx context.Context, id, message string) (stri
 		short := shortID(target.SessionID)
 		for _, o := range snap.Sessions {
 			if o.Live && o.SessionID != target.SessionID && strings.HasPrefix(o.SessionID, short) {
-				return "", ErrConflict("short id " + short + " is ambiguous")
+				return "", ErrConflict("รหัสย่อ " + short + " ซ้ำกับ session อื่น")
 			}
 		}
 		return "relay " + relayName(short), c.relaySend(ctx, target, message)
@@ -104,12 +104,12 @@ var ModelAliases = []string{"opus", "sonnet", "haiku", "fable"}
 // fixed aliases are accepted, so this cannot carry any other command.
 func (c *Collector) SetModel(ctx context.Context, id, alias string) (string, error) {
 	if !claudeModelRE.MatchString(alias) {
-		return "", &APIError{400, "AIAGENT_BAD_MODEL", "model must be one of " + strings.Join(ModelAliases, ", ") + " or a full Claude model id (claude-haiku-5-5)"}
+		return "", &APIError{400, "AIAGENT_BAD_MODEL", "โมเดลต้องเป็นหนึ่งใน " + strings.Join(ModelAliases, ", ") + " หรือรหัสโมเดล Claude แบบเต็ม (claude-haiku-5-5)"}
 	}
 	snap := c.Snapshot(ctx)
 	for _, s := range snap.Sessions {
 		if s.SessionID == id && s.RuntimeType != "claudeCode" {
-			return "", ErrConflict("model switching from the web is supported for Claude Code sessions only")
+			return "", ErrConflict("สลับโมเดลจากเว็บได้เฉพาะ session ของ Claude Code")
 		}
 	}
 	return c.SendToSession(ctx, id, "/model "+alias)
@@ -127,12 +127,12 @@ func (c *Collector) SetModel(ctx context.Context, id, alias string) (string, err
 // control characters, so it cannot carry a second command after the first.
 func (c *Collector) RenameInCLI(ctx context.Context, id, name string) (string, error) {
 	if name == "" {
-		return "", ErrBadRequest("a name is required to rename in the CLI")
+		return "", ErrBadRequest("ต้องใส่ชื่อเพื่อเปลี่ยนชื่อใน CLI")
 	}
 	snap := c.Snapshot(ctx)
 	for _, s := range snap.Sessions {
 		if s.SessionID == id && s.RuntimeType != "claudeCode" {
-			return "", ErrConflict("renaming through the CLI is supported for Claude Code sessions only")
+			return "", ErrConflict("เปลี่ยนชื่อผ่าน CLI ได้เฉพาะ session ของ Claude Code")
 		}
 	}
 	return c.SendToSession(ctx, id, "/rename "+name)
@@ -151,21 +151,21 @@ func (c *Collector) ResumeSession(ctx context.Context, id string) (string, error
 		}
 	}
 	if target == nil {
-		return "", ErrNotFound("no session with that id")
+		return "", ErrNotFound("ไม่พบ session รหัสนี้")
 	}
 	if target.Live {
 		return "running", nil
 	}
 	if target.RuntimeType != "claudeCode" || target.home != c.serviceHome() {
-		return "", ErrConflict("resume works for this machine's Claude Code sessions only")
+		return "", ErrConflict("เปิดต่อได้เฉพาะ session Claude Code ของเครื่องนี้")
 	}
 	if target.Cwd == "" {
-		return "", ErrConflict("the session has no folder to resume in")
+		return "", ErrConflict("session นี้ไม่มีโฟลเดอร์ให้เปิดต่อ")
 	}
 	short := shortID(target.SessionID)
 	for _, o := range snap.Sessions {
 		if o.Live && o.SessionID != target.SessionID && strings.HasPrefix(o.SessionID, short) {
-			return "", ErrConflict("short id " + short + " is ambiguous")
+			return "", ErrConflict("รหัสย่อ " + short + " ซ้ำกับ session อื่น")
 		}
 	}
 	defer c.lockSend("relay:" + relayName(short))()
@@ -198,23 +198,23 @@ const noJobReason = "No job matching"
 func (c *Collector) wakeInBackground(ctx context.Context, ss *Session, dir string) error {
 	// The id becomes an argument of the CLI; nothing but a session id may.
 	if !sessionUUIDRE.MatchString(ss.SessionID) {
-		return ErrConflict("the session id is not one Claude Code can resume")
+		return ErrConflict("Claude Code เปิดต่อ session รหัสนี้ไม่ได้")
 	}
 	c.trustFolder(dir)
 	cctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 	out, err := c.runIn(cctx, dir, "", c.ClaudeBin(), "--bg", "--resume", ss.SessionID)
 	if err != nil {
-		return &APIError{502, "AIAGENT_RESUME_FAILED", "claude --bg --resume failed: " + attachReason(out+"\n"+err.Error())}
+		return &APIError{502, "AIAGENT_RESUME_FAILED", "เปิด session ต่อไม่สำเร็จ: " + attachReason(out+"\n"+err.Error())}
 	}
 	m := backgrounded.FindStringSubmatch(out)
 	if m == nil {
-		return &APIError{502, "AIAGENT_RESUME_FAILED", "claude --bg --resume did not say which job it started: " + attachReason(out)}
+		return &APIError{502, "AIAGENT_RESUME_FAILED", "เปิด session ต่อแล้วแต่ไม่รู้ว่าเป็นงานไหน: " + attachReason(out)}
 	}
 	if m[1] != shortID(ss.SessionID) {
 		_, _ = c.Runner.Run(cctx, c.ClaudeBin(), "stop", m[1])
 		_, _ = c.Runner.Run(cctx, c.ClaudeBin(), "rm", m[1])
-		return ErrConflict("the session is open in another Claude Code process (a terminal or VS Code), so it cannot be continued from here; close it there, or send from there")
+		return ErrConflict("session นี้เปิดอยู่ใน Claude Code อีกที่ (เทอร์มินัลหรือ VS Code) จึงทำต่อจากที่นี่ไม่ได้ ให้ปิดที่นั่นก่อน หรือส่งจากที่นั่น")
 	}
 	return nil
 }
@@ -271,7 +271,7 @@ func attachReason(screen string) string {
 		}
 		return truncateRunes(Redact(l), 160)
 	}
-	return "it exited without saying why"
+	return "จบการทำงานโดยไม่บอกเหตุผล"
 }
 
 // relayDead reports whether the relay's pane has exited, and what it last said.
@@ -299,7 +299,7 @@ func (c *Collector) relayWait(ctx context.Context, name, dir string) (bool, stri
 	for i := 0; i < 40; i++ {
 		if dead, why := c.relayDead(ctx, name); dead {
 			if why == "" {
-				why = "it exited without saying why"
+				why = "จบการทำงานโดยไม่บอกเหตุผล"
 			}
 			return false, why
 		}
@@ -364,10 +364,10 @@ func OnDialog(screen string) bool { return onDialog(screen) }
 
 // dialogReasonPrefix starts every dialogReason, so the sender can tell it
 // from a refused attach.
-const dialogReasonPrefix = "Claude Code is showing a question or menu"
+const dialogReasonPrefix = "Claude Code กำลังแสดงคำถามหรือเมนู"
 
 func dialogReason(name string) string {
-	return dialogReasonPrefix + " in this session, and typing there would answer it; open it with `tmux attach -t " + name + "`, answer or press Esc, then send again"
+	return dialogReasonPrefix + " ใน session นี้ ถ้าพิมพ์จะกลายเป็นคำตอบ ให้เปิดด้วย `tmux attach -t " + name + "` แล้วตอบหรือกด Esc จากนั้นส่งใหม่"
 }
 
 // trustReason tells the operator where to answer the trust question. It is
@@ -375,14 +375,14 @@ func dialogReason(name string) string {
 // lets the CLI run its code.
 func trustReason(dir string) string {
 	if dir == "" {
-		return "Claude Code is asking whether to trust the session's folder; open the session once in a terminal and choose Yes"
+		return "Claude Code ถามว่าเชื่อถือโฟลเดอร์นี้หรือไม่ ให้เปิด session ในเทอร์มินัลหนึ่งครั้งแล้วเลือก Yes"
 	}
-	return "Claude Code is asking whether to trust " + dir + ", which is not under a trusted root; add one with `aiagent trust-roots add <folder>`, or run claude once in that folder in a terminal and choose \"Yes, I trust this folder\", then send again"
+	return "Claude Code ถามว่าเชื่อถือโฟลเดอร์นี้หรือไม่: " + dir + " ซึ่งไม่อยู่ใต้ trusted root ให้เพิ่มด้วย `aiagent trust-roots add <folder>` หรือรัน claude ในโฟลเดอร์นั้นหนึ่งครั้งแล้วเลือก \"Yes, I trust this folder\" จากนั้นส่งใหม่"
 }
 
 // trustReasonPrefix starts every trustReason, so a caller can tell the trust
 // question from other refusals.
-const trustReasonPrefix = "Claude Code is asking whether to trust"
+const trustReasonPrefix = "Claude Code ถามว่าเชื่อถือโฟลเดอร์นี้หรือไม่"
 
 // relayOnTrust reports a live relay pane that is showing the trust question.
 // Such a pane never loaded the conversation, so replacing it loses nothing.
@@ -433,7 +433,7 @@ func (c *Collector) relaySend(ctx context.Context, ss *Session, message string) 
 					return &APIError{409, "AIAGENT_RELAY_DIALOG", why}
 				}
 				return &APIError{504, "AIAGENT_RELAY_NOT_READY",
-					"the session did not become ready to receive text — it is probably still working; try again when it is idle"}
+					"session ยังไม่พร้อมรับข้อความ น่าจะยังทำงานอยู่ ลองใหม่เมื่อว่าง"}
 			}
 		}
 		_, _ = c.tmux(ctx, "kill-session", "-t", "="+name)
@@ -471,7 +471,7 @@ func (c *Collector) relaySend(ctx context.Context, ss *Session, message string) 
 			}
 			argv = append(argv, c.ClaudeBin(), "attach", short)
 			if _, err := c.tmux(ctx, argv...); err != nil {
-				return &APIError{502, "AIAGENT_RELAY_FAILED", "could not start relay: " + err.Error()}
+				return &APIError{502, "AIAGENT_RELAY_FAILED", "เปิด relay ไม่สำเร็จ: " + err.Error()}
 			}
 			// Keep the pane after the client exits, so a refused attach can be
 			// read back instead of vanishing. `claude attach` answers "No job
@@ -512,7 +512,7 @@ func (c *Collector) relaySend(ctx context.Context, ss *Session, message string) 
 		if why == "" {
 			// Alive, just busy: the outbox holds the message and tries later.
 			return &APIError{504, "AIAGENT_RELAY_NOT_READY",
-				"the session did not become ready to receive text — it is probably still working; try again when it is idle"}
+				"session ยังไม่พร้อมรับข้อความ น่าจะยังทำงานอยู่ ลองใหม่เมื่อว่าง"}
 		}
 		reason = why
 		if attempt > 0 && !strings.Contains(why, noJobReason) {
@@ -522,15 +522,17 @@ func (c *Collector) relaySend(ctx context.Context, ss *Session, message string) 
 		}
 	}
 	if reason != "" {
-		return &APIError{502, "AIAGENT_RELAY_FAILED", "the agent CLI refused to attach: " + reason}
+		return &APIError{502, "AIAGENT_RELAY_FAILED", "CLI ของ agent ไม่ยอมให้ต่อ: " + reason}
 	}
 	// "=name:" again, not "=name": send-keys takes a pane target too.
-	if _, err := c.tmux(ctx, "send-keys", "-t", "="+name+":", "-l", "--", message); err != nil {
-		return &APIError{502, "AIAGENT_RELAY_FAILED", "send failed"}
-	}
-	c.sleep(400 * time.Millisecond)
-	if _, err := c.tmux(ctx, "send-keys", "-t", "="+name+":", "Enter"); err != nil {
-		return &APIError{502, "AIAGENT_RELAY_FAILED", "send failed"}
+	switch c.submit(ctx, "="+name+":", message).(type) {
+	case nil:
+	case *ErrOnDialog:
+		return &APIError{409, "AIAGENT_RELAY_DIALOG", dialogReason(name)}
+	case *ErrNotSubmitted:
+		return errNotSubmitted()
+	default:
+		return &APIError{502, "AIAGENT_RELAY_FAILED", "พิมพ์ข้อความเข้า agent ไม่สำเร็จ"}
 	}
 	return nil
 }

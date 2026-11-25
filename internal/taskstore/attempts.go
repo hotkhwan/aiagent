@@ -211,7 +211,7 @@ func (s *Store) applyAttempt(t *Task, e Event) error {
 		return fmt.Errorf("no attempt %s on task %s", e.AttemptID, t.ID)
 	}
 	if !a.Status.live() {
-		return fmt.Errorf("attempt %s already ended (%s)", a.ID, a.Status)
+		return fmt.Errorf("รอบ %s จบแล้ว (%s)", a.ID, a.Status)
 	}
 	switch e.Type {
 	case evAttemptRunning:
@@ -246,12 +246,12 @@ func (s *Store) applyAttempt(t *Task, e Event) error {
 
 func (s *Store) applyStart(t *Task, e Event) error {
 	if t.Status != StatusReady {
-		return fmt.Errorf("task %s is %s; only a ready task can start an attempt", t.ID, t.Status)
+		return fmt.Errorf("งาน %s เป็น %s เริ่มได้เฉพาะงานที่อนุมัติแล้ว", t.ID, t.Status)
 	}
 	for _, o := range s.tasks {
 		if o.ProjectID == t.ProjectID {
 			if a := o.liveAttempt(); a != nil {
-				return fmt.Errorf("project %s already has attempt %s running; one writer per project", t.ProjectID, a.ID)
+				return fmt.Errorf("โปรเจกต์ %s มีรอบ %s ทำงานอยู่แล้ว ทำได้ทีละงานต่อโปรเจกต์", t.ProjectID, a.ID)
 			}
 		}
 	}

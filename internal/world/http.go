@@ -190,17 +190,17 @@ func (s *Service) gate(c fiber.Ctx) error {
 	now := time.Now()
 	ip := clientAddr(c)
 	if s.tooManyFailures(ip, now) {
-		return c.Status(fiber.StatusTooManyRequests).JSON(failEnv("AIAGENT_LOCKED", "too many wrong tokens — wait a few minutes"))
+		return c.Status(fiber.StatusTooManyRequests).JSON(failEnv("AIAGENT_LOCKED", "ใส่ token ผิดหลายครั้งเกินไป รอสักครู่แล้วลองใหม่"))
 	}
 	who, ok := s.Store.Identify(c.Get(TokenHeader))
 	if !ok {
 		s.recordFailure(ip, now)
-		return c.Status(fiber.StatusUnauthorized).JSON(failEnv("AIAGENT_TOKEN_INVALID", "missing or wrong AI Agent World token"))
+		return c.Status(fiber.StatusUnauthorized).JSON(failEnv("AIAGENT_TOKEN_INVALID", "ไม่มี token หรือ token ของ AI Agent World ไม่ถูกต้อง"))
 	}
 	c.Set("X-Content-Type-Options", "nosniff")
 	c.Locals("identity", who)
 	if who.Role != RoleAdmin && !s.userMay(c) {
-		return c.Status(fiber.StatusForbidden).JSON(failEnv("AIAGENT_ADMIN_ONLY", "this needs an admin token"))
+		return c.Status(fiber.StatusForbidden).JSON(failEnv("AIAGENT_ADMIN_ONLY", "ต้องใช้ token ของ admin"))
 	}
 	if s.OSUsers != nil {
 		target := who.OSUser
@@ -208,7 +208,7 @@ func (s *Service) gate(c fiber.Ctx) error {
 			target = strings.Clone(c.Get(AsHeader))
 		} else if target == "" {
 			// never let a user without an account reach the admin's own agents
-			return c.Status(fiber.StatusForbidden).JSON(failEnv("AIAGENT_ADMIN_ONLY", "this token has no workspace; ask an admin for a new one"))
+			return c.Status(fiber.StatusForbidden).JSON(failEnv("AIAGENT_ADMIN_ONLY", "token นี้ไม่มีห้อง ให้ขอ token ใหม่จาก admin"))
 		}
 		if target != "" && !localPath(strings.TrimPrefix(c.Path(), apiPrefix)) {
 			return s.forwardAudited(c, target)
@@ -455,7 +455,7 @@ func (s *Service) fail(c fiber.Ctx, err error) error {
 	if errors.As(err, &ae) {
 		return c.Status(ae.Status).JSON(failEnv(ae.Code, ae.Msg))
 	}
-	return c.Status(fiber.StatusInternalServerError).JSON(failEnv("AIAGENT_INTERNAL", "internal error"))
+	return c.Status(fiber.StatusInternalServerError).JSON(failEnv("AIAGENT_INTERNAL", "เกิดข้อผิดพลาดภายใน"))
 }
 
 func paramsHash(parts ...string) string {
@@ -473,7 +473,7 @@ func (s *Service) mutate(c fiber.Ctx, rpc string, params []string, fn func() (an
 	s.mu.Lock()
 	if time.Since(s.lastWrite) < writeSpacing {
 		s.mu.Unlock()
-		return c.Status(fiber.StatusTooManyRequests).JSON(failEnv("AIAGENT_SLOW_DOWN", "one action per second"))
+		return c.Status(fiber.StatusTooManyRequests).JSON(failEnv("AIAGENT_SLOW_DOWN", "ทำได้ 1 คำสั่งต่อวินาที รอสักครู่แล้วลองใหม่"))
 	}
 	s.lastWrite = time.Now()
 	s.mu.Unlock()
@@ -481,7 +481,7 @@ func (s *Service) mutate(c fiber.Ctx, rpc string, params []string, fn func() (an
 	sub := subject(c)
 	ph := paramsHash(params...)
 	if err := s.Auditor.Write(audit.Record{Event: "intent", RPC: rpc, AdminSub: sub, ParamsHash: ph}); err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(failEnv("AIAGENT_AUDIT_FAILED", "audit log unavailable — action not performed"))
+		return c.Status(fiber.StatusInternalServerError).JSON(failEnv("AIAGENT_AUDIT_FAILED", "เขียนบันทึก audit ไม่ได้ จึงไม่ได้ทำคำสั่งนี้"))
 	}
 	details, err := fn()
 	rec := audit.Record{Event: "result", RPC: rpc, AdminSub: sub, ParamsHash: ph, Result: "ok"}
@@ -507,7 +507,7 @@ func (s *Service) handleMission(c fiber.Ctx) error {
 		Task      string `json:"task"`
 	}
 	if err := c.Bind().Body(&body); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(failEnv("AIAGENT_BAD_REQUEST", "invalid JSON body"))
+		return c.Status(fiber.StatusBadRequest).JSON(failEnv("AIAGENT_BAD_REQUEST", "ข้อมูลที่ส่งมาไม่ใช่ JSON ที่ถูกต้อง"))
 	}
 	return s.mutate(c, "aiagent.mission", []string{body.Workspace, body.Provider, body.Task}, func() (any, error) {
 		runID, ws, err := s.Collector.Dispatch(c.Context(), body.Workspace, body.Provider, body.Task)
@@ -521,13 +521,21 @@ func (s *Service) handleMessage(c fiber.Ctx) error {
 		Message   string `json:"message"`
 	}
 	if err := c.Bind().Body(&body); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(failEnv("AIAGENT_BAD_REQUEST", "invalid JSON body"))
+		return c.Status(fiber.StatusBadRequest).JSON(failEnv("AIAGENT_BAD_REQUEST", "ข้อมูลที่ส่งมาไม่ใช่ JSON ที่ถูกต้อง"))
 	}
 	if w, ok := s.Collector.lookupWorkspace(body.Workspace); ok && w.protected && identity(c).Role != RoleAdmin {
-		return c.Status(fiber.StatusForbidden).JSON(failEnv("AIAGENT_ADMIN_ONLY", "this needs an admin token"))
+		return c.Status(fiber.StatusForbidden).JSON(failEnv("AIAGENT_ADMIN_ONLY", "ต้องใช้ token ของ admin"))
 	}
 	return s.mutate(c, "aiagent.message", []string{body.Workspace, body.Message}, func() (any, error) {
-		return fiber.Map{"workspace": body.Workspace}, s.Collector.Message(c.Context(), body.Workspace, body.Message)
+		sentAt := s.Collector.now()
+		if err := s.Collector.Message(c.Context(), body.Workspace, body.Message); err != nil {
+			return fiber.Map{"workspace": body.Workspace}, err
+		}
+		delivery := DeliveryUnknown
+		if id := s.Collector.workspaceSession(c.Context(), body.Workspace); id != "" {
+			delivery = s.Collector.AwaitDelivery(c.Context(), id, body.Message, sentAt)
+		}
+		return fiber.Map{"workspace": body.Workspace, "delivery": delivery}, nil
 	})
 }
 
@@ -536,7 +544,7 @@ func (s *Service) handleAnswer(c fiber.Ctx) error {
 		Answer string `json:"answer"`
 	}
 	if err := c.Bind().Body(&body); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(failEnv("AIAGENT_BAD_REQUEST", "invalid JSON body"))
+		return c.Status(fiber.StatusBadRequest).JSON(failEnv("AIAGENT_BAD_REQUEST", "ข้อมูลที่ส่งมาไม่ใช่ JSON ที่ถูกต้อง"))
 	}
 	id := c.Params("id")
 	return s.mutate(c, "aiagent.answer", []string{id, body.Answer}, func() (any, error) {
@@ -567,14 +575,14 @@ func (s *Service) handleMessages(c fiber.Ctx) error {
 
 func (s *Service) handleUpload(c fiber.Ctx) error {
 	if !s.uploads.allow(time.Now()) {
-		return c.Status(fiber.StatusTooManyRequests).JSON(failEnv("AIAGENT_SLOW_DOWN", "too many uploads — wait a minute"))
+		return c.Status(fiber.StatusTooManyRequests).JSON(failEnv("AIAGENT_SLOW_DOWN", "อัปโหลดถี่เกินไป รอ 1 นาที"))
 	}
 	body := c.Body()
 	sum := sha256.Sum256(body)
 	sub := subject(c)
 	ph := hex.EncodeToString(sum[:])[:32]
 	if err := s.Auditor.Write(audit.Record{Event: "intent", RPC: "aiagent.upload", AdminSub: sub, ParamsHash: ph}); err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(failEnv("AIAGENT_AUDIT_FAILED", "audit log unavailable — upload refused"))
+		return c.Status(fiber.StatusInternalServerError).JSON(failEnv("AIAGENT_AUDIT_FAILED", "เขียนบันทึก audit ไม่ได้ จึงไม่รับไฟล์"))
 	}
 	p, err := SaveUpload(filepath.Join(s.Store.dir, "uploads"), body, time.Now())
 	rec := audit.Record{Event: "result", RPC: "aiagent.upload", AdminSub: sub, ParamsHash: ph, Result: "ok"}
@@ -613,7 +621,7 @@ func (s *Service) handleSessionModel(c fiber.Ctx) error {
 		Model string `json:"model"`
 	}
 	if err := c.Bind().Body(&body); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(failEnv("AIAGENT_BAD_REQUEST", "invalid JSON body"))
+		return c.Status(fiber.StatusBadRequest).JSON(failEnv("AIAGENT_BAD_REQUEST", "ข้อมูลที่ส่งมาไม่ใช่ JSON ที่ถูกต้อง"))
 	}
 	id := c.Params("id")
 	return s.mutate(c, "aiagent.sessionModel", []string{id, body.Model}, func() (any, error) {
@@ -627,7 +635,7 @@ func (s *Service) handleSessionMessage(c fiber.Ctx) error {
 		Message string `json:"message"`
 	}
 	if err := c.Bind().Body(&body); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(failEnv("AIAGENT_BAD_REQUEST", "invalid JSON body"))
+		return c.Status(fiber.StatusBadRequest).JSON(failEnv("AIAGENT_BAD_REQUEST", "ข้อมูลที่ส่งมาไม่ใช่ JSON ที่ถูกต้อง"))
 	}
 	id := c.Params("id")
 	return s.mutate(c, "aiagent.sessionMessage", []string{id, body.Message}, func() (any, error) {
@@ -737,7 +745,7 @@ func (s *Service) handleLoginCode(c fiber.Ctx) error {
 		Code string `json:"code"`
 	}
 	if err := c.Bind().Body(&body); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(failEnv("AIAGENT_BAD_REQUEST", "invalid JSON body"))
+		return c.Status(fiber.StatusBadRequest).JSON(failEnv("AIAGENT_BAD_REQUEST", "ข้อมูลที่ส่งมาไม่ใช่ JSON ที่ถูกต้อง"))
 	}
 	p := c.Params("provider")
 	return s.mutate(c, "aiagent.accountCode", []string{p, body.Code}, func() (any, error) {
@@ -835,7 +843,7 @@ func (s *Service) handleReviewCompose(c fiber.Ctx) error {
 		Note  string       `json:"note"`
 	}
 	if err := c.Bind().Body(&body); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(failEnv("AIAGENT_BAD_REQUEST", "invalid JSON body"))
+		return c.Status(fiber.StatusBadRequest).JSON(failEnv("AIAGENT_BAD_REQUEST", "ข้อมูลที่ส่งมาไม่ใช่ JSON ที่ถูกต้อง"))
 	}
 	decision, reply, err := s.Collector.ComposeReview(c.Params("id"), body.Items, body.Note)
 	if err != nil {
@@ -852,7 +860,7 @@ func (s *Service) handleReviewDecision(c fiber.Ctx) error {
 		Send     bool         `json:"send"`
 	}
 	if err := c.Bind().Body(&body); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(failEnv("AIAGENT_BAD_REQUEST", "invalid JSON body"))
+		return c.Status(fiber.StatusBadRequest).JSON(failEnv("AIAGENT_BAD_REQUEST", "ข้อมูลที่ส่งมาไม่ใช่ JSON ที่ถูกต้อง"))
 	}
 	id := c.Params("id")
 	return s.mutate(c, "aiagent.reviewDecision", []string{id, body.Decision, body.Note, fmt.Sprint(body.Items), fmt.Sprint(body.Send)}, func() (any, error) {
@@ -928,7 +936,7 @@ func (s *Service) handleSetPolicy(c fiber.Ctx) error {
 		CodexModel   string  `json:"codexModel"`
 	}
 	if err := c.Bind().Body(&body); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(failEnv("AIAGENT_BAD_REQUEST", "invalid JSON body"))
+		return c.Status(fiber.StatusBadRequest).JSON(failEnv("AIAGENT_BAD_REQUEST", "ข้อมูลที่ส่งมาไม่ใช่ JSON ที่ถูกต้อง"))
 	}
 	return s.mutate(c, "aiagent.policy", []string{fmt.Sprint(body.Enabled), fmt.Sprint(body.ThresholdPct), body.ClaudeModel, body.CodexModel}, func() (any, error) {
 		p, err := s.SetPolicy(body.Enabled, body.ThresholdPct, body.ClaudeModel, body.CodexModel)
@@ -945,7 +953,7 @@ func (s *Service) handleCodexModel(c fiber.Ctx) error {
 		Model string `json:"model"`
 	}
 	if err := c.Bind().Body(&body); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(failEnv("AIAGENT_BAD_REQUEST", "invalid JSON body"))
+		return c.Status(fiber.StatusBadRequest).JSON(failEnv("AIAGENT_BAD_REQUEST", "ข้อมูลที่ส่งมาไม่ใช่ JSON ที่ถูกต้อง"))
 	}
 	return s.mutate(c, "aiagent.codexModel", []string{body.Model}, func() (any, error) {
 		known := false
@@ -953,7 +961,7 @@ func (s *Service) handleCodexModel(c fiber.Ctx) error {
 			known = known || m.ID == body.Model
 		}
 		if !known {
-			return nil, &APIError{400, "AIAGENT_BAD_MODEL", "unknown Codex model"}
+			return nil, &APIError{400, "AIAGENT_BAD_MODEL", "ไม่รู้จักโมเดล Codex นี้"}
 		}
 		prev, err := setCodexModel(filepath.Join(s.Collector.serviceHome(), ".codex", "config.toml"), body.Model)
 		return fiber.Map{"model": body.Model, "previous": prev}, err
@@ -968,7 +976,7 @@ func (s *Service) handleSetIdle(c fiber.Ctx) error {
 		Target   string  `json:"target"`
 	}
 	if err := c.Bind().Body(&body); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(failEnv("AIAGENT_BAD_REQUEST", "invalid JSON body"))
+		return c.Status(fiber.StatusBadRequest).JSON(failEnv("AIAGENT_BAD_REQUEST", "ข้อมูลที่ส่งมาไม่ใช่ JSON ที่ถูกต้อง"))
 	}
 	return s.mutate(c, "aiagent.idlePolicy", []string{fmt.Sprint(body.Enabled), fmt.Sprint(body.Minutes), fmt.Sprint(body.MaxQuota), body.Target}, func() (any, error) {
 		p, err := s.SetIdlePolicy(body.Enabled, body.Minutes, body.MaxQuota, body.Target)

@@ -276,11 +276,11 @@ func (s *Store) Create(nt NewTask, actor Actor, idemKey string) (Task, error) {
 	nt.Title = strings.TrimSpace(nt.Title)
 	switch {
 	case nt.ProjectID == "":
-		return Task{}, errors.New("a task needs a projectId")
+		return Task{}, errors.New("งานต้องมีโปรเจกต์")
 	case nt.Title == "":
-		return Task{}, errors.New("a task needs a title")
+		return Task{}, errors.New("งานต้องมีชื่อ")
 	case len(nonEmpty(nt.AcceptanceCriteria)) == 0:
-		return Task{}, errors.New("a task needs at least one acceptance criterion: without one it cannot be verified")
+		return Task{}, errors.New("งานต้องมีเกณฑ์ผ่านอย่างน้อย 1 ข้อ ไม่อย่างนั้นตรวจไม่ได้")
 	case actor != ActorUser && actor != ActorOrchestrator:
 		return Task{}, fmt.Errorf("%s cannot create tasks; the PM proposes and the user confirms", actor)
 	}

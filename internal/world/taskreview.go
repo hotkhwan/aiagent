@@ -152,7 +152,7 @@ func (s *Service) handleTaskReview(c fiber.Ctx) error {
 	}
 	t, ok := s.Tasks.Get(c.Params("id"))
 	if !ok {
-		return s.fail(c, ErrNotFound("no such task"))
+		return s.fail(c, ErrNotFound("ไม่พบงานนี้"))
 	}
 	return c.JSON(okEnv(s.buildReview(t)))
 }
@@ -178,16 +178,16 @@ func (s *Service) handleTaskAdvisory(c fiber.Ctx) error {
 	return s.mutate(c, "aiagent.taskAdvisory", []string{id}, func() (any, error) {
 		t, ok := s.Tasks.Get(id)
 		if !ok {
-			return nil, ErrNotFound("no such task")
+			return nil, ErrNotFound("ไม่พบงานนี้")
 		}
 		rv := s.buildReview(t)
 		if rv.Attempt == nil || rv.DiffError != "" {
-			return nil, ErrConflict("there is no readable diff to review: " + rv.DiffError)
+			return nil, ErrConflict("ไม่มี diff ที่อ่านได้ให้รีวิว: " + rv.DiffError)
 		}
 		key := rv.Attempt.ID
 		if err := s.PMThread.AdvisoryStart(key); err != nil {
 			if errors.Is(err, planner.ErrBusy) {
-				return nil, ErrConflict("a review note for this attempt is already being written")
+				return nil, ErrConflict("กำลังเขียนบันทึกรีวิวของรอบนี้อยู่แล้ว")
 			}
 			return nil, err
 		}

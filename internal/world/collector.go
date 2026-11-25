@@ -462,5 +462,5 @@ func (c *Collector) Detail(ctx context.Context, id string) (SessionDetail, error
 			return SessionDetail{Session: s, Timeline: tl}, nil
 		}
 	}
-	return SessionDetail{}, ErrNotFound("session not found")
+	return SessionDetail{}, ErrNotFound("ไม่พบ session นี้")
 }

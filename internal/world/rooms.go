@@ -265,7 +265,7 @@ func (s *Service) handleSetRooms(c fiber.Ctx) error {
 	}
 	var p RoomPolicy
 	if err := c.Bind().Body(&p); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(failEnv("AIAGENT_BAD_REQUEST", "invalid JSON body"))
+		return c.Status(fiber.StatusBadRequest).JSON(failEnv("AIAGENT_BAD_REQUEST", "ข้อมูลที่ส่งมาไม่ใช่ JSON ที่ถูกต้อง"))
 	}
 	return s.mutate(c, "aiagent.roomPolicy", []string{}, func() (any, error) {
 		return fiber.Map{"policy": p}, s.saveRoomPolicy(p)

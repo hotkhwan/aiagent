@@ -95,10 +95,10 @@ func cleanSessionName(name string) (string, error) {
 	}, name))
 	name = strings.Join(strings.Fields(name), " ")
 	if utf8.RuneCountInString(name) > maxNameRunes {
-		return "", ErrBadRequest("name is too long")
+		return "", ErrBadRequest("ชื่อยาวเกินไป")
 	}
 	if !utf8.ValidString(name) {
-		return "", ErrBadRequest("name must be valid UTF-8")
+		return "", ErrBadRequest("ชื่อต้องเป็น UTF-8 ที่ถูกต้อง")
 	}
 	return name, nil
 }
@@ -112,7 +112,7 @@ func cleanSessionName(name string) (string, error) {
 // few bytes and shows up nowhere.
 func (s *Service) SetSessionName(sessionID, name, over string) (string, error) {
 	if strings.TrimSpace(sessionID) == "" {
-		return "", ErrBadRequest("session id is required")
+		return "", ErrBadRequest("ต้องใส่รหัส session")
 	}
 	name, err := cleanSessionName(name)
 	if err != nil {

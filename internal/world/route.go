@@ -35,7 +35,7 @@ func (c *Collector) Dispatch(ctx context.Context, workspace, provider, task stri
 
 func (c *Collector) routeMission(ctx context.Context, provider string) (workspaceEntry, error) {
 	if provider != "auto" && providerQuota[provider] == "" {
-		return workspaceEntry{}, ErrBadRequest("name a workspace, or a provider: claude, codex, gemini or auto")
+		return workspaceEntry{}, ErrBadRequest("ให้ระบุ workspace หรือ provider: claude, codex, gemini หรือ auto")
 	}
 	return pickWorkspace(c.Workspaces, provider, c.Snapshot(ctx).Quotas, c.workspaceReady(ctx))
 }
@@ -70,7 +70,7 @@ func pickWorkspace(ws []workspaceEntry, provider string, quotas []Quota, ready f
 			}
 		}
 	}
-	return workspaceEntry{}, ErrConflict("no configured " + provider + " workspace has a running agent")
+	return workspaceEntry{}, ErrConflict("ไม่มี workspace ของ " + provider + " ที่มี agent รันอยู่")
 }
 
 // usedForRouting is the plan share a provider has used, or past 100 when there
