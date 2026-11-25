@@ -38,6 +38,21 @@ func (t procTable) startTime(pid int) (string, bool) {
 	return p.start, true
 }
 
+// unclaimedSpare is a background process Claude Code keeps warm and has given
+// no conversation yet: nothing to show or talk to. Once claimed it has a
+// transcript, whatever its argv still says.
+func (t procTable) unclaimedSpare(s Session) bool {
+	if s.sourcePath != "" || s.Kind != "bg" {
+		return false
+	}
+	for _, a := range t[s.Pid].argv {
+		if a == "bg-spare" || a == "--bg-spare" {
+			return true
+		}
+	}
+	return false
+}
+
 func (t procTable) parent(pid int) int { return t[pid].ppid }
 
 // descendsFrom reports whether pid is ancestor itself or one of its

@@ -255,6 +255,13 @@ var EN = {
   // user tokens
   'อ่านรายการ token ไม่ได้: ': 'Cannot read the token list: ',
   'ชื่อผู้ใช้': 'User name',
+  'ชื่อผู้ใช้ (a-z, 0-9, -)': 'User name (a-z, 0-9, -)',
+  'ลบ OS user และหยุด agent ทุกตัวของผู้ใช้นี้ ไฟล์จะถูกเก็บสำรองไว้บนเครื่องก่อนลบ': 'Removes the OS user and stops all of their agents. Their files are archived on this machine first.',
+  'ลบไม่สำเร็จ กดเพิกถอนอีกครั้ง': 'Removal failed; revoke again',
+  'เข้าห้อง / login': 'Open / sign in',
+  'สร้าง token = สร้าง OS user และห้องทำงานแยกบนเครื่องนี้ ใช้เวลาราว 10 วินาที จากนั้นเข้าห้องเพื่อ login Claude ให้ผู้ใช้': 'Creating a token also creates an OS user with a separate workspace on this machine (about 10 seconds). Then open it to sign Claude in for them.',
+  'กำลังดูห้องของ': 'Viewing the workspace of',
+  'กลับห้อง admin': 'Back to admin',
   'เพิกถอน token': 'Revoke token',
   'ผู้ใช้นี้จะเข้าใช้งานไม่ได้ทันที': 'This user loses access at once',
   'เพิกถอน': 'Revoke',

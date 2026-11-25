@@ -47,12 +47,17 @@ type UserToken struct {
 	Name      string    `json:"name"`
 	Hash      string    `json:"hash"`
 	CreatedAt time.Time `json:"createdAt"`
+	// OSUser is the account this token works in; empty when the service does
+	// not manage OS users. An entry whose Hash is empty is being removed.
+	OSUser string `json:"osUser,omitempty"`
 }
 
 // Identity is who a presented token belongs to.
 type Identity struct {
 	Role string `json:"role"`
 	Name string `json:"name,omitempty"`
+	// OSUser is the instance this token's requests are sent to.
+	OSUser string `json:"osUser,omitempty"`
 }
 
 var (
@@ -62,7 +67,7 @@ var (
 
 func hashMatches(storedHex string, presented [32]byte) bool {
 	want, err := hex.DecodeString(storedHex)
-	return err == nil && subtle.ConstantTimeCompare(want, presented[:]) == 1
+	return err == nil && len(want) == len(presented) && subtle.ConstantTimeCompare(want, presented[:]) == 1
 }
 
 // Identify names the holder of a token; ok is false for an unknown token and
@@ -81,14 +86,14 @@ func (s *Store) Identify(presented string) (Identity, bool) {
 	}
 	for _, u := range st.Users {
 		if hashMatches(u.Hash, sum) {
-			return Identity{Role: RoleUser, Name: u.Name}, true
+			return Identity{Role: RoleUser, Name: u.Name, OSUser: u.OSUser}, true
 		}
 	}
 	return Identity{}, false
 }
 
 // AddUser mints a user token and returns it once.
-func (s *Store) AddUser(name string) (UserToken, string, error) {
+func (s *Store) AddUser(name, osUser string) (UserToken, string, error) {
 	name = strings.TrimSpace(name)
 	if !userNameRE.MatchString(name) {
 		return UserToken{}, "", ErrBadRequest("name must be 1-40 letters, digits, spaces, dots or dashes")
@@ -116,7 +121,7 @@ func (s *Store) AddUser(name string) (UserToken, string, error) {
 		return UserToken{}, "", err
 	}
 	sum := sha256.Sum256([]byte(token))
-	u := UserToken{ID: hex.EncodeToString(id[:]), Name: name, Hash: hex.EncodeToString(sum[:]), CreatedAt: time.Now().UTC()}
+	u := UserToken{ID: hex.EncodeToString(id[:]), Name: name, Hash: hex.EncodeToString(sum[:]), CreatedAt: time.Now().UTC(), OSUser: osUser}
 	// a fresh slice: Load's result shares its array with the cache
 	st.Users = append(append([]UserToken{}, st.Users...), u)
 	return u, token, s.write(st)
@@ -141,6 +146,26 @@ func (s *Store) RevokeUser(id string) error {
 	}
 	st.Users = kept
 	return s.write(st)
+}
+
+// BlockUser ends a token's access while its entry stays listed, so a removal
+// that fails half-way can be retried.
+func (s *Store) BlockUser(id string) (UserToken, error) {
+	tokensMu.Lock()
+	defer tokensMu.Unlock()
+	st, err := s.Load()
+	if err != nil {
+		return UserToken{}, err
+	}
+	users := append([]UserToken{}, st.Users...)
+	for i := range users {
+		if users[i].ID == id {
+			users[i].Hash = ""
+			st.Users = users
+			return users[i], s.write(st)
+		}
+	}
+	return UserToken{}, ErrNotFound("no such token")
 }
 
 func identity(c fiber.Ctx) Identity {
@@ -362,9 +387,9 @@ func (s *Service) handleTokens(c fiber.Ctx) error {
 	}
 	out := []fiber.Map{}
 	for _, u := range st.Users {
-		out = append(out, fiber.Map{"id": u.ID, "name": u.Name, "createdAt": u.CreatedAt})
+		out = append(out, fiber.Map{"id": u.ID, "name": u.Name, "createdAt": u.CreatedAt, "osUser": u.OSUser, "removing": u.Hash == ""})
 	}
-	return c.JSON(okEnv(fiber.Map{"tokens": out}))
+	return c.JSON(okEnv(fiber.Map{"tokens": out, "osUsers": s.OSUsers != nil}))
 }
 
 func (s *Service) handleTokenCreate(c fiber.Ctx) error {
@@ -376,9 +401,24 @@ func (s *Service) handleTokenCreate(c fiber.Ctx) error {
 	}
 	c.Set("Cache-Control", "no-store")
 	return s.mutate(c, "aiagent.tokenCreate", []string{body.Name}, func() (any, error) {
-		u, token, err := s.Store.AddUser(body.Name)
+		osUser := ""
+		if s.OSUsers != nil {
+			osUser = strings.TrimSpace(body.Name)
+			if !osUserRE.MatchString(osUser) {
+				return nil, ErrBadRequest("user name must be lower-case letters, digits or dashes, starting with a letter")
+			}
+		}
+		u, token, err := s.Store.AddUser(body.Name, osUser)
 		if err != nil {
 			return nil, err
+		}
+		if s.OSUsers != nil {
+			// context.Background: a browser that goes away must not leave a
+			// half-made account
+			if err := s.OSUsers.unit(context.Background(), "add", osUser); err != nil {
+				_ = s.Store.RevokeUser(u.ID)
+				return nil, err
+			}
 		}
 		return fiber.Map{"id": u.ID, "name": u.Name, "token": token}, nil
 	})
@@ -387,6 +427,17 @@ func (s *Service) handleTokenCreate(c fiber.Ctx) error {
 func (s *Service) handleTokenRevoke(c fiber.Ctx) error {
 	id := strings.Clone(c.Params("id"))
 	return s.mutate(c, "aiagent.tokenRevoke", []string{id}, func() (any, error) {
+		if s.OSUsers != nil {
+			u, err := s.Store.BlockUser(id)
+			if err != nil {
+				return nil, err
+			}
+			if u.OSUser != "" {
+				if err := s.OSUsers.unit(context.Background(), "del", u.OSUser); err != nil {
+					return nil, err
+				}
+			}
+		}
 		return fiber.Map{"id": id}, s.Store.RevokeUser(id)
 	})
 }

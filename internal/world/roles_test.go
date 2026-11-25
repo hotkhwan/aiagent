@@ -16,11 +16,11 @@ func TestUserTokenLifecycleAndLimits(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, user, err := e.store.AddUser("สมชาย")
+	_, user, err := e.store.AddUser("ทีมหนึ่ง", "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if id, ok := e.store.Identify(user); !ok || id.Role != RoleUser || id.Name != "สมชาย" {
+	if id, ok := e.store.Identify(user); !ok || id.Role != RoleUser || id.Name != "ทีมหนึ่ง" {
 		t.Fatalf("identify = %+v %v", id, ok)
 	}
 	if e.store.VerifyToken(user) {
@@ -74,15 +74,15 @@ func TestProtectedSessionIsOnlyListedToUsers(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, user, err := e.store.AddUser("a")
+	_, user, err := e.store.AddUser("a", "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	const id = "5f2e5f0a-010c-4088-94db-321e7bb0c222"
+	const id = "0a1b2c3d-0000-4000-8000-00000000abcd"
 	if err := os.WriteFile(filepath.Join(e.store.dir, protectedFile), []byte(`{"sessions":["`+id+`"]}`), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	for _, p := range []string{id, strings.ToUpper(id), id[:8], "%35" + id[1:], id + "%20"} {
+	for _, p := range []string{id, strings.ToUpper(id), id[:8], "%30" + id[1:], id + "%20"} {
 		for _, r := range []struct{ m, tail string }{{"GET", ""}, {"GET", "/messages"}, {"GET", "/suggest"}, {"POST", "/message"}, {"POST", "/model"}, {"POST", "/stop"}} {
 			body := ""
 			if r.m == "POST" {
@@ -136,7 +136,7 @@ func TestProtectedWorkspaceTakesNoWork(t *testing.T) {
 	if _, err := e.store.Enable("test"); err != nil {
 		t.Fatal(err)
 	}
-	_, user, _ := e.store.AddUser("a")
+	_, user, _ := e.store.AddUser("a", "")
 	if code, _, _ := e.do(t, "POST", apiPrefix+"/messages", user, `{"workspace":"admin","message":"hi"}`); code != 403 {
 		t.Errorf("user message to the admin workspace = %d", code)
 	}

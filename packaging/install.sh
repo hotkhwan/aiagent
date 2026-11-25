@@ -124,7 +124,8 @@ if [ "$with_service" = yes ]; then
 		# the unit must run the binary this script just installed
 		sed "s|/usr/local/bin/aiagent|$bindir/aiagent|" "$root/packaging/aiagent@.service" > "$tmp/aiagent@.service"
 		cp "$root/packaging/aiagent-tmux@.service" "$tmp/aiagent-tmux@.service"
-		for u in aiagent@.service aiagent-tmux@.service; do
+		cp "$root"/packaging/aiagent-user@.socket "$root"/packaging/aiagent-user@.service "$root"/packaging/aiagent-user-tmux@.service "$root"/packaging/aiagent-osuser-*.service "$tmp/"
+		for u in aiagent@.service aiagent-tmux@.service aiagent-user@.socket aiagent-user@.service aiagent-user-tmux@.service aiagent-osuser-add@.service aiagent-osuser-del@.service; do
 			echo "installing $unitdir/$u"
 			if [ -w "$unitdir" ]; then
 				install -m 0644 "$tmp/$u" "$unitdir/$u"

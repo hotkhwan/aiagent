@@ -97,13 +97,14 @@ func serve(args []string) {
 	keyFile := fs.String("tls-key", "", "TLS private key (PEM)")
 	workerRepo := fs.String("worker-repo", "", "git checkout that headless workers branch from; empty leaves headless dispatch off")
 	workerTest := fs.String("worker-test", "go test ./...", "command that verifies a worker's commit in --worker-repo")
+	osUsers := fs.Bool("os-users", false, "give each user token its own OS user and instance (Linux, systemd, root)")
 	_ = fs.Parse(args)
 
 	if (*certFile == "") != (*keyFile == "") {
 		log.Fatal("--tls-cert and --tls-key must be given together")
 	}
 	tls := *certFile != ""
-	if !tls && !isLoopback(*listen) {
+	if !tls && *listen != "systemd" && !isLoopback(*listen) {
 		// Deliberately no self-signed fallback. A certificate the operator must
 		// click past teaches them to click past certificate warnings, and this
 		// service can type into their agents. Terminate TLS in front of it
@@ -180,6 +181,9 @@ func serve(args []string) {
 			svc.PM, svc.PMThread = &planner.Cloud{Exec: planner.OSExec{}, Path: col.ClaudeBin()}, th
 		}
 	}
+	if *osUsers {
+		svc.OSUsers = &world.OSUsers{SocketDir: "/run/aiagent-users", TokenDir: filepath.Join(dir, "instances"), Runner: world.ExecRunner{}}
+	}
 	svc.Mount(app)
 
 	scheme := "http"
@@ -194,6 +198,17 @@ func serve(args []string) {
 	cfg := fiber.ListenConfig{DisableStartupMessage: true}
 	if tls {
 		cfg.CertFile, cfg.CertKeyFile = *certFile, *keyFile
+	}
+	if *listen == "systemd" {
+		// socket activation: a root-owned unix socket, handed over as fd 3
+		ln, err := net.FileListener(os.NewFile(3, "systemd"))
+		if err != nil {
+			log.Fatalf("--listen systemd needs a socket unit: %v", err)
+		}
+		if err := app.Listener(ln, cfg); err != nil {
+			log.Fatalf("listen: %v", err)
+		}
+		return
 	}
 	if err := app.Listen(*listen, cfg); err != nil {
 		log.Fatalf("listen: %v", err)

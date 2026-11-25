@@ -117,10 +117,20 @@ function agentColor (sess) { return sess.runtimeType === 'codexCli' ? 'var(--cod
 function agentHex (sess) { return sess.runtimeType === 'codexCli' ? '#5CC8F0' : '#E48D62' }
 
 // ---------- api ----------
+// st.as: the user whose workspace an admin is looking at
+function authHeaders () { return st.as ? { 'X-Aiagent-Token': st.token, 'X-Aiagent-As': st.as } : { 'X-Aiagent-Token': st.token } }
+function viewAs (name) {
+  st.as = name
+  st.snap = null; st.accSig = ''; st.models = null; st.sel = null
+  $('asBar').hidden = !name
+  $('asName').textContent = name
+  $('accountsDlg').close()
+  poll()
+}
 async function api (path, opts) {
   const res = await fetch('/aiagent/api' + path, {
     method: (opts && opts.method) || 'GET',
-    headers: Object.assign({ 'X-Aiagent-Token': st.token }, opts && opts.body ? { 'Content-Type': 'application/json' } : {}),
+    headers: Object.assign(authHeaders(), opts && opts.body ? { 'Content-Type': 'application/json' } : {}),
     body: opts && opts.body ? JSON.stringify(opts.body) : undefined,
     cache: 'no-store'
   })
@@ -144,6 +154,7 @@ async function poll () {
   if (!st.token) { showLogin(); return }
   try {
     if (st.meFor !== st.token) {
+      st.as = ''; $('asBar').hidden = true
       $('accountsBtn').hidden = true
       st.me = await api('/me')
       st.meFor = st.token
@@ -2049,7 +2060,7 @@ async function shrink (blob) {
 // re-encodes a picture.
 async function uploadFile (blob, raw) {
   const body = raw ? blob : await shrink(blob)
-  const res = await fetch('/aiagent/api/uploads', { method: 'POST', headers: { 'X-Aiagent-Token': st.token, 'Content-Type': body.type || 'application/octet-stream' }, body, cache: 'no-store' })
+  const res = await fetch('/aiagent/api/uploads', { method: 'POST', headers: { ...authHeaders(), 'Content-Type': body.type || 'application/octet-stream' }, body, cache: 'no-store' })
   let j = null
   try { j = await res.json() } catch (e) { j = null }
   if (!res.ok) throw new Error((j && j.message) || ('HTTP ' + res.status))
@@ -2072,7 +2083,7 @@ function msgImages (text) {
 }
 async function loadUpload (name) {
   if (st.imgCache[name]) return st.imgCache[name]
-  const res = await fetch('/aiagent/api/uploads/' + encodeURIComponent(name), { headers: { 'X-Aiagent-Token': st.token } })
+  const res = await fetch('/aiagent/api/uploads/' + encodeURIComponent(name), { headers: authHeaders() })
   if (!res.ok) return ''
   st.imgCache[name] = URL.createObjectURL(await res.blob())
   return st.imgCache[name]
@@ -2671,14 +2682,14 @@ async function openAccounts () {
 // ----- user tokens: the server refuses these calls without an admin token -----
 async function drawTokens (fresh) {
   if (!$('accountsDlg').open) return
-  let list
-  try { list = (await api('/tokens')).tokens } catch (e) { $('tokenBody').replaceChildren(h('p', { class: 'note' }, tr('อ่านรายการ token ไม่ได้: ') + e.message)); return }
-  const name = h('input', { type: 'text', id: 'tokenName', maxlength: '40', placeholder: tr('ชื่อผู้ใช้'), autocomplete: 'off' })
+  let list, osUsers
+  try { const r = await api('/tokens'); list = r.tokens; osUsers = r.osUsers } catch (e) { $('tokenBody').replaceChildren(h('p', { class: 'note' }, tr('อ่านรายการ token ไม่ได้: ') + e.message)); return }
+  const name = h('input', { type: 'text', id: 'tokenName', maxlength: '40', placeholder: osUsers ? tr('ชื่อผู้ใช้ (a-z, 0-9, -)') : tr('ชื่อผู้ใช้'), autocomplete: 'off' })
   const create = async () => {
     try { drawTokens(await api('/tokens', { method: 'POST', body: { name: name.value.trim() } })) } catch (e) { toast(tr('ไม่สำเร็จ: ') + e.message, true) }
   }
   const revoke = async t => {
-    if (!await confirmBox(tr('เพิกถอน token'), tr('ผู้ใช้นี้จะเข้าใช้งานไม่ได้ทันที'), t.name, tr('เพิกถอน'))) return
+    if (!await confirmBox(tr('เพิกถอน token'), t.osUser ? tr('ลบ OS user และหยุด agent ทุกตัวของผู้ใช้นี้ ไฟล์จะถูกเก็บสำรองไว้บนเครื่องก่อนลบ') : tr('ผู้ใช้นี้จะเข้าใช้งานไม่ได้ทันที'), t.name, tr('เพิกถอน'))) return
     try { await api('/tokens/' + t.id + '/revoke', { method: 'POST', body: {} }) } catch (e) { toast(tr('ไม่สำเร็จ: ') + e.message, true) }
     drawTokens()
   }
@@ -2686,7 +2697,8 @@ async function drawTokens (fresh) {
     h('div', { class: 'accTop' }, h('b', null, tr('Token ของผู้ใช้'))),
     fresh ? h('p', null, fresh.name + ': ', h('code', { class: 'devCode' }, fresh.token), ' ', h('button', { type: 'button', class: 'ghost', onclick: e => copyText(fresh.token, e.currentTarget) }, tr('คัดลอก'))) : null,
     fresh ? h('p', { class: 'note' }, tr('token นี้แสดงครั้งเดียว ส่งให้ผู้ใช้ทางช่องทางส่วนตัว')) : null,
-    list.length ? h('ul', null, ...list.map(t => h('li', null, h('b', null, t.name), ' ', h('button', { type: 'button', class: 'warn', onclick: () => revoke(t) }, tr('เพิกถอน'))))) : h('p', { class: 'note' }, tr('ยังไม่มี token ของผู้ใช้')),
+    list.length ? h('ul', null, ...list.map(t => h('li', null, h('b', null, t.name), t.removing ? h('span', { class: 'note' }, ' · ' + tr('ลบไม่สำเร็จ กดเพิกถอนอีกครั้ง')) : null, ' ', t.osUser && !t.removing ? h('button', { type: 'button', class: 'ghost', onclick: () => viewAs(t.osUser) }, tr('เข้าห้อง / login')) : null, ' ', h('button', { type: 'button', class: 'warn', onclick: () => revoke(t) }, tr('เพิกถอน'))))) : h('p', { class: 'note' }, tr('ยังไม่มี token ของผู้ใช้')),
+    osUsers ? h('p', { class: 'note' }, tr('สร้าง token = สร้าง OS user และห้องทำงานแยกบนเครื่องนี้ ใช้เวลาราว 10 วินาที จากนั้นเข้าห้องเพื่อ login Claude ให้ผู้ใช้')) : null,
     h('div', { class: 'accRow' }, name, h('button', { type: 'button', class: 'pri', onclick: create }, tr('สร้าง token')))))
 }
 
@@ -2788,6 +2800,7 @@ function accountCard (a) {
     f && !f.running ? out : null)
 }
 $('accountsBtn').addEventListener('click', openAccounts)
+$('asBack').addEventListener('click', () => viewAs(''))
 
 // The agent's own face, cropped out of the walking sprite it already uses in
 // the village, so the panel and the room show the same character (owner,

@@ -1,0 +1,8 @@
+; packaging/aiagent-osuser-del@.service — started by the admin service.
+[Unit]
+Description=Archive and remove the OS user %i
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/lib/aiagent/osuser.sh del %i
+TimeoutStartSec=600

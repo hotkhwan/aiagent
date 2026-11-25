@@ -52,6 +52,12 @@ it, `--no-clis` skips this step. `--skills DIR` copies a folder of skills into
 `~/.claude/skills`; memory and settings are never copied. Sign Claude and Codex
 in from the web (Accounts); Gemini is signed in from a terminal for now.
 
+With `aiagent serve --os-users` (Linux, systemd, service run as root, `aiagent`
+and `claude` in `/usr/local/bin`, `packaging/osuser.sh` in
+`/usr/local/lib/aiagent`), every user token an admin makes gets its own OS user
+and its own instance; revoking it archives the home to
+`/var/backups/aiagent-users` and removes the account.
+
 This installs two binaries into `~/.local/bin`: **`aiagent`**, the service and
 its switch, and **`agcmd`**, the small tool that actually talks to the agents
 through tmux. A clone is usable immediately — there is nothing else to fetch.

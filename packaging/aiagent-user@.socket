@@ -1,0 +1,14 @@
+; packaging/aiagent-user@.socket — how the admin service reaches one user's
+; instance. Root-owned, so no local user can listen in its place.
+[Unit]
+Description=AI Agent World instance socket (%i)
+
+[Socket]
+ListenStream=/run/aiagent-users/%i.sock
+SocketUser=root
+SocketGroup=root
+SocketMode=0600
+DirectoryMode=0700
+
+[Install]
+WantedBy=sockets.target

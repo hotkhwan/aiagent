@@ -1,0 +1,24 @@
+; packaging/aiagent-user-tmux@.service — one user's tmux server and agent.
+; The agent waits for a Claude sign-in (made from the web), then starts.
+[Unit]
+Description=agent of %i
+After=network-online.target
+
+[Service]
+Type=forking
+User=%i
+WorkingDirectory=/home/%i/work
+RuntimeDirectory=aiagent-tmux/%i
+RuntimeDirectoryMode=0700
+RuntimeDirectoryPreserve=yes
+Environment=PATH=/home/%i/.local/bin:/usr/local/bin:/usr/bin:/bin LANG=C.UTF-8 TERM=xterm-256color SHELL=/bin/bash
+Environment=TMUX_TMPDIR=/run/aiagent-tmux/%i
+ExecStart=/usr/bin/tmux new-session -d -s core -n %i -x 180 -y 50 "until claude auth status >/dev/null 2>&1; do sleep 5; done; exec claude"
+Restart=always
+RestartSec=5
+NoNewPrivileges=yes
+MemoryMax=8G
+TasksMax=1024
+
+[Install]
+WantedBy=multi-user.target

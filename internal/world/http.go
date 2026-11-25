@@ -83,6 +83,10 @@ type Service struct {
 	PM       PMAgent
 	PMThread *planner.Thread
 
+	// OSUsers is set when each user token gets its own OS user (osusers.go).
+	OSUsers     *OSUsers
+	userTickets map[string]userTicket
+
 	mu        sync.Mutex
 	failures  map[string][]time.Time
 	lastWrite time.Time
@@ -191,6 +195,18 @@ func (s *Service) gate(c fiber.Ctx) error {
 	c.Locals("identity", who)
 	if who.Role != RoleAdmin && !s.userMay(c) {
 		return c.Status(fiber.StatusForbidden).JSON(failEnv("AIAGENT_ADMIN_ONLY", "this needs an admin token"))
+	}
+	if s.OSUsers != nil {
+		target := who.OSUser
+		if who.Role == RoleAdmin {
+			target = strings.Clone(c.Get(AsHeader))
+		} else if target == "" {
+			// never let a user without an account reach the admin's own agents
+			return c.Status(fiber.StatusForbidden).JSON(failEnv("AIAGENT_ADMIN_ONLY", "this token has no workspace; ask an admin for a new one"))
+		}
+		if target != "" && !localPath(strings.TrimPrefix(c.Path(), apiPrefix)) {
+			return s.forwardAudited(c, target)
+		}
 	}
 	return c.Next()
 }
@@ -730,6 +746,9 @@ func (s *Service) handleReviewView(c fiber.Ctx) error {
 		return hidden(c)
 	}
 	t := strings.Clone(c.Params("ticket"))
+	if done, err := s.userReview(c, t); done {
+		return err
+	}
 	s.mu.Lock()
 	v, ok := s.tickets[t]
 	delete(s.tickets, t)

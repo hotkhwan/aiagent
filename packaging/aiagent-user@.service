@@ -1,0 +1,25 @@
+; packaging/aiagent-user@.service — one user's own instance, running as them.
+[Unit]
+Description=AI Agent World instance (%i)
+Requires=aiagent-user@%i.socket
+After=aiagent-user@%i.socket aiagent-user-tmux@%i.service
+Wants=aiagent-user-tmux@%i.service
+
+[Service]
+User=%i
+Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/bin
+Environment=TMUX_TMPDIR=/run/aiagent-tmux/%i
+ExecStart=/usr/local/bin/aiagent serve --listen systemd
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadWritePaths=/home/%i /run/aiagent-tmux/%i
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+
+[Install]
+WantedBy=multi-user.target
