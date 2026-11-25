@@ -75,6 +75,18 @@ issue. There is one maintainer, so expect a human-speed reply, not an SLA.
   gets a live capability address can read that one page; and a script running
   in another application **on the preview origin itself** can act as its viewer
   there, because it shares the origin.
+- A **room's agent** runs every command in Claude Code's bubblewrap sandbox,
+  where `~/.claude` is read-only and unix sockets are blocked. It files reviews
+  and asks for captures by leaving a file in `~/work/.aiagent/in/`, which the
+  room's own instance (the same user, outside that sandbox) collects. The
+  instance never follows a link there, refuses hard links, fifos, files of
+  another owner and world-writable folders, writes only names it chose
+  (created fresh, then renamed), and checks that a page is UTF-8 HTML of at
+  most 3 MB. A capture is started by the admin service only: it polls each
+  room's instance over that room's root-owned socket, so the room is the socket
+  it dialled; the only thing it takes from a room is a 32-hex request id. It
+  captures that room's page alone, with the viewer grant checks, one at a time,
+  20 an hour per room, audited, and returns the pictures over the same socket.
 - Scene images are served from an embedded filesystem through a name
   allowlist, so a path can never escape into the real filesystem.
 

@@ -69,6 +69,7 @@ sudo ./packaging/setup.sh --site ชื่อไซต์
 | Kubernetes | ใส่ `GATEWAY` ถึง `PORT` แล้ว `systemctl enable --now aiagent-preview-routes.timer` |
 | ชื่อที่ห้ามใช้เป็นห้อง | มีชุดพื้นฐาน (ci, cd, api, …) เพิ่มได้ที่ `RESERVED` |
 | จับภาพ | ใส่ `CHROMIUM` (chrome-headless-shell ใต้ `/opt` หรือ `/usr`) และติดตั้งฟอนต์ไทยบนเครื่อง |
+| agent ของห้องจับภาพเอง | `aiagent capture` ในห้อง ได้ไฟล์ 390 และ 1440 px ใน `~/work/.aiagent/captures/` บริการ admin ถามห้องผ่าน socket ของห้องนั้นเอง ทีละครั้ง ไม่เกิน 20 ครั้งต่อชั่วโมงต่อห้อง และบันทึก audit (`aiagent.roomCapture`) |
 | ปิดสิทธิ์ | เพิกถอนหรือออก token ใหม่ของห้อง ทุกหน้าที่เปิดอยู่ของห้องนั้นใช้ไม่ได้ทันที |
 
 ห้องเลือกเองว่าแสดงอะไรใน `~/work/preview.json` (โฟลเดอร์ หรือพอร์ต 3000-5999 ที่ user ของห้องเปิดเอง) หน้าเว็บถูกครอบ sandbox ไม่มี cookie และไม่มีสิทธิ์ของโดเมนนั้น
@@ -167,4 +168,5 @@ sudo ./packaging/uninstall.sh --purge    # รวม login บทสนทนา
 | quota ไม่อัปเดต | `systemctl status aiagent-quota@root.timer` |
 | หน้าพรีวิวตอบ 404 | `journalctl -u aiagent@root` ต้องเห็น `preview on …`; ดู `HOST`, เส้นทาง และชื่อสงวน |
 | จับภาพไม่ได้ | `journalctl -u 'aiagent-capture@*' -n 20` |
+| agent ส่งรีวิวแล้วบอกว่า service ยังไม่รับ | บริการของห้องยังเป็นรุ่นเก่าหรือหยุดอยู่: `systemctl restart aiagent-user@<ห้อง>` หน้าที่ค้างใน `~/work/.aiagent/in` จะถูกส่งเอง |
 | กติกากลางไม่ถึงห้อง | `journalctl -u aiagent-room-share -n 20` |

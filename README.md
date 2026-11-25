@@ -214,6 +214,16 @@ home and no network but that one page (`packaging/capture-box.sh`). Without
 language system-wide (for Thai, a package such as `fonts-noto-core`), and
 `chrome-headless-shell` with the shared libraries it needs.
 
+A room's agent can capture its own page too, to check it before asking for a
+review: `aiagent capture` prints two JPEG paths in `~/work/.aiagent/captures/`.
+The agent's shell cannot reach the admin service, so the request is a file in
+its work folder; the admin service asks each room's instance, over that room's
+root-owned socket, whether a capture is wanted, so the room is always the one
+whose socket it dialled. It captures only that room's own page, one at a time
+per room and on the machine, at most 20 an hour per room, audited, and sends
+the pictures back over the same socket; the room's instance writes them as the
+room's user. Nothing a room names reaches root but a random request id.
+
 Any reverse proxy can stand in front; send only `/dev/<room>` and what is below
 it, and pass the host name on:
 
@@ -373,6 +383,15 @@ aiagent review --title "What I changed" summary.html
 It appears in the testing room. You open it in a sandboxed iframe behind a
 single-use ticket that expires in two minutes, then press **ตกลง ปิดงาน** or
 **ขอแก้ไข**, and your answer can be sent straight back to that session.
+
+Pages are stored in `~/.claude/aiagent-reviews`. Claude Code started with
+`CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1`, as rooms are, runs every command in a
+bubblewrap sandbox where `~/.claude` is read-only and unix sockets are
+blocked. There `aiagent review` leaves the page in `~/work/.aiagent/in/`
+instead and waits for the user's own `aiagent serve` (a room's instance) to
+file it: as that user, never through a link, a hard link or a file of another
+owner, and only UTF-8 HTML up to 3 MB. Reviews filed either way are listed,
+answered and pruned the same.
 
 ## Security
 

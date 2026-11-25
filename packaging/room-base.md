@@ -18,12 +18,18 @@ The user sees this room's page at `https://<preview host>/dev/<this room's name>
 
 With no file it shows the newest `~/work/*/site`, `dist` or `public` with an `index.html`. It reloads by itself when files change (a dev server's own hot reload works too). The page is sandboxed: no localStorage or cookies, use hash routes and relative addresses. Never ask for a password or a token on it.
 
-Before you file a review, ask the user to look at that page; they can also capture it at 390 and 1440 px and send it to review from there.
+Before you ask for a review of a page, look at it yourself at both widths:
+
+    aiagent capture
+
+It prints the paths of two JPEGs, 390 and 1440 px wide, in `~/work/.aiagent/captures/`; open them with your Read tool. It takes up to two minutes, one at a time, at most 20 an hour. If it says capture is not available, ask the user to look at the page instead. The user can also capture it from the Preview page and send it to review from there.
 
 ## Handing work to the admin
 
 When a piece of work is ready for the admin to look at, write a short HTML page (what changed and why, how it was tested, the version you bumped to, how to undo it) and file it:
 
     aiagent review --title "<short title>" --summary "<one line>" page.html
+
+Put the page in `~/work` (the HTML must be UTF-8, at most 3 MB; images as `data:` URLs). Your shell cannot write `~/.claude`, so the command leaves the page in `~/work/.aiagent/` and this room's service files it; wait for `filed review r…`. Do not file it a second time if it says the service has not picked it up yet, and do not touch `~/work/.aiagent/` yourself.
 
 The user checks it in the Review view first; the admin sees the same page, marked with this room, and answers there. Wait for that answer; do not push or merge yourself.

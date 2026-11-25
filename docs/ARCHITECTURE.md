@@ -16,7 +16,7 @@ browser ──HTTP(loopback)──▶ cmd/aiagent ──▶ internal/world
 
 | Path | Role |
 |---|---|
-| `cmd/aiagent` | CLI and service entry point: `serve`, `enable`, `disable`, `rotate-token`, `status`, `statusline`, `review` |
+| `cmd/aiagent` | CLI and service entry point: `serve`, `enable`, `disable`, `rotate-token`, `status`, `statusline`, `review`, `capture` |
 | `cmd/agcmd` | The write path, as a binary of its own: resolves a workspace, checks the pane is an agent, pastes the message, keeps run records. The service shells out to it; a human can run the same commands |
 | `internal/world` | Everything else; the package is deliberately flat |
 | `internal/audit` | Append-only JSONL log: intent before an action, result after |
@@ -54,6 +54,9 @@ browser ──HTTP(loopback)──▶ cmd/aiagent ──▶ internal/world
 - `state.go` — the switch and the token hash (`0600`)
 - `policy.go` — automatic model downgrade and idle proposals
 - `reviews.go` — agent-authored review pages, ticketed and sandboxed
+- `roomspool.go` — what a room's sandboxed agent leaves in `~/work/.aiagent`
+  (reviews, capture requests), collected by its instance; the admin side of
+  `aiagent capture`
 - `upload.go` — image and zip attachments, verified by content
 - `paths.go` — XDG state directory resolution
 
