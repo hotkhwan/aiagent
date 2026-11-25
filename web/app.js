@@ -4379,6 +4379,8 @@ function renderTaskReview () {
   const pages = openPages()
   if (!st.tasks) {
     st.rvKey = ''
+    // users have no task board: their review tab is the pages agents filed
+    if (isUser()) { box.replaceChildren(reviewList(true)); return }
     box.replaceChildren(pages.length ? reviewList(false) : '', h('div', { class: 'tasksEmpty' }, tr('ระบบงานยังไม่เปิดบนเครื่องนี้ — อัปเดต aiagent แล้ว restart service')))
     return
   }
