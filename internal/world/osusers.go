@@ -22,6 +22,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gofiber/fiber/v3"
@@ -105,6 +106,15 @@ func (o *OSUsers) do(ctx context.Context, name, method, uri, contentType string,
 
 // forward answers an API request from a user's instance.
 func (s *Service) forward(c fiber.Ctx, name string) error {
+	if m := sessionPathRE.FindStringSubmatch(strings.TrimPrefix(c.Path(), apiPrefix)); m != nil && identity(c).Role == RoleUser {
+		if mate := s.teammateOf(c.Context(), name, m[1]); mate != "" {
+			tail := strings.TrimPrefix(strings.TrimPrefix(c.Path(), apiPrefix), m[0])
+			if c.Method() != "GET" || (tail != "" && tail != "/messages") {
+				return c.Status(fiber.StatusForbidden).JSON(failEnv("AIAGENT_READ_ONLY", "a teammate's session can only be read"))
+			}
+			name = mate
+		}
+	}
 	status, hdr, b, err := s.OSUsers.do(c.Context(), name, c.Method(), c.OriginalURL(), c.Get("Content-Type"), c.Body())
 	if err != nil {
 		return s.fail(c, err)
@@ -116,7 +126,7 @@ func (s *Service) forward(c fiber.Ctx, name string) error {
 	}
 	path := strings.TrimPrefix(c.Path(), apiPrefix)
 	if status == 200 && path == "/snapshot" && identity(c).Role == RoleUser {
-		b = s.withAdminPresence(c, b)
+		b = s.withOthers(c, name, b)
 	}
 	if m := ticketRE.FindSubmatch(b); m != nil && c.Method() == "POST" && strings.HasPrefix(path, "/reviews/") {
 		s.mu.Lock()
@@ -173,9 +183,90 @@ func (s *Service) userReview(c fiber.Ctx, ticket string) (bool, error) {
 	return true, c.Send(b)
 }
 
-// withAdminPresence adds this service's live protected sessions, existence and
-// state only, to a user's own snapshot.
-func (s *Service) withAdminPresence(c fiber.Ctx, b []byte) []byte {
+// instanceSessions lists one user's own sessions, kept for a few seconds since
+// every open tab polls.
+func (s *Service) instanceSessions(ctx context.Context, name string) []Session {
+	s.mates.Lock()
+	if e, ok := s.mates.m[name]; ok && time.Since(e.at) < mateTTL {
+		s.mates.Unlock()
+		return e.list
+	}
+	s.mates.Unlock()
+	ctx, cancel := context.WithTimeout(ctx, 4*time.Second)
+	defer cancel()
+	var env struct {
+		Details struct {
+			Sessions []Session `json:"sessions"`
+		} `json:"details"`
+	}
+	status, _, b, err := s.OSUsers.do(ctx, name, "GET", apiPrefix+"/snapshot", "", nil)
+	if err != nil || status != 200 || json.Unmarshal(b, &env) != nil {
+		env.Details.Sessions = nil
+	}
+	s.mates.Lock()
+	if s.mates.m == nil {
+		s.mates.m = map[string]mateEntry{}
+	}
+	s.mates.m[name] = mateEntry{at: time.Now(), list: env.Details.Sessions}
+	s.mates.Unlock()
+	return env.Details.Sessions
+}
+
+const mateTTL = 3 * time.Second
+
+type mateEntry struct {
+	at   time.Time
+	list []Session
+}
+
+type mateCache struct {
+	sync.Mutex
+	m map[string]mateEntry
+}
+
+// teammates maps each session another user may read to its owner. A user's
+// own sessions and the admin's are never in it, whatever an instance claims:
+// instances are their users' own processes.
+func (s *Service) teammates(ctx context.Context, name string) ([]Session, map[string]string) {
+	st, err := s.Store.Load()
+	if err != nil {
+		return nil, nil
+	}
+	taken := map[string]bool{}
+	for _, ss := range s.instanceSessions(ctx, name) {
+		taken[ss.SessionID] = true
+	}
+	p := s.protections(ctx)
+	var list []Session
+	owner := map[string]string{}
+	for _, u := range st.Users {
+		if u.OSUser == "" || u.OSUser == name || u.Hash == "" {
+			continue
+		}
+		for _, ss := range s.instanceSessions(ctx, u.OSUser) {
+			if taken[ss.SessionID] || ss.SessionID == "" || p.covers(ss.SessionID) {
+				continue
+			}
+			taken[ss.SessionID] = true
+			owner[ss.SessionID] = u.OSUser
+			why := "ห้องของ " + u.OSUser + " — อ่านบทสนทนาได้ ส่งข้อความไม่ได้"
+			ss.Owner, ss.RepoID, ss.ReadOnly, ss.Protected = u.OSUser, u.OSUser, true, false
+			ss.MessageVia, ss.StopVia, ss.DispatchVia, ss.Workspace, ss.Cwd, ss.Pid = "", "", "", "", "", 0
+			ss.MessageBlocked, ss.StopBlocked = why, why
+			list = append(list, ss)
+		}
+	}
+	return list, owner
+}
+
+func (s *Service) teammateOf(ctx context.Context, name, sessionID string) string {
+	_, owner := s.teammates(ctx, name)
+	return owner[sessionID]
+}
+
+// withOthers adds to a user's own snapshot their teammates' sessions, to read,
+// and this service's live protected sessions, existence and state only.
+func (s *Service) withOthers(c fiber.Ctx, name string, b []byte) []byte {
 	var env struct {
 		Code    string                     `json:"code"`
 		Details map[string]json.RawMessage `json:"details"`
@@ -184,11 +275,15 @@ func (s *Service) withAdminPresence(c fiber.Ctx, b []byte) []byte {
 	if json.Unmarshal(b, &env) != nil || env.Details == nil || json.Unmarshal(env.Details["sessions"], &own) != nil {
 		return b
 	}
+	others, _ := s.teammates(c.Context(), name)
 	for _, ss := range s.forRole(identity(c), s.Collector.Snapshot(c.Context())).Sessions {
 		if ss.Protected && ss.Live {
-			if j, err := json.Marshal(ss); err == nil {
-				own = append(own, j)
-			}
+			others = append(others, ss)
+		}
+	}
+	for _, ss := range others {
+		if j, err := json.Marshal(ss); err == nil {
+			own = append(own, j)
 		}
 	}
 	j, err := json.Marshal(own)

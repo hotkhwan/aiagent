@@ -38,19 +38,11 @@ func (t procTable) startTime(pid int) (string, bool) {
 	return p.start, true
 }
 
-// unclaimedSpare is a background process Claude Code keeps warm and has given
-// no conversation yet: nothing to show or talk to. Once claimed it has a
-// transcript, whatever its argv still says.
-func (t procTable) unclaimedSpare(s Session) bool {
-	if s.sourcePath != "" || s.Kind != "bg" {
-		return false
-	}
-	for _, a := range t[s.Pid].argv {
-		if a == "bg-spare" || a == "--bg-spare" {
-			return true
-		}
-	}
-	return false
+// emptyBackground is a background process Claude Code started (a warm spare, or
+// an agent view nobody has typed into) that holds no conversation yet: nothing
+// to show or talk to. It is listed once it has a transcript or a name.
+func emptyBackground(s Session) bool {
+	return s.Kind == "bg" && s.sourcePath == "" && len(s.SessionID) >= 8 && s.DisplayName == s.SessionID[:8]
 }
 
 func (t procTable) parent(pid int) int { return t[pid].ppid }

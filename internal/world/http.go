@@ -86,6 +86,7 @@ type Service struct {
 	// OSUsers is set when each user token gets its own OS user (osusers.go).
 	OSUsers     *OSUsers
 	userTickets map[string]userTicket
+	mates       mateCache
 
 	mu        sync.Mutex
 	failures  map[string][]time.Time

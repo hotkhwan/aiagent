@@ -231,7 +231,7 @@ func (c *Collector) collectLocked(ctx context.Context) Snapshot {
 	for _, h := range c.homes() {
 		owner := filepath.Base(h)
 		for _, s := range c.collectClaude(h, owner, since, pt) {
-			if pt.unclaimedSpare(s) {
+			if emptyBackground(s) {
 				continue
 			}
 			if !seen[s.RuntimeType+s.SessionID] {

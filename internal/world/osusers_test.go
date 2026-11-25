@@ -68,8 +68,14 @@ func TestUserRequestsGoOnlyToTheirInstance(t *testing.T) {
 	if code != 200 || !strings.Contains(body, `"from":"vibe-a"`) {
 		t.Fatalf("snapshot = %d %s", code, body)
 	}
-	if len(seen) != 1 || seen[0] != "GET "+apiPrefix+"/snapshot inst-vibe-a" {
-		t.Fatalf("instance saw %v", seen)
+	// (read again for the teammate list)
+	for _, x := range seen {
+		if x != "GET "+apiPrefix+"/snapshot inst-vibe-a" {
+			t.Fatalf("instance saw %v", seen)
+		}
+	}
+	if len(seen) == 0 {
+		t.Fatal("nothing was forwarded")
 	}
 	// admin-only routes are refused here, before anything is forwarded; and a
 	// user cannot name another instance
@@ -139,12 +145,80 @@ func TestTokenCreatesAndRemovesTheOSUser(t *testing.T) {
 	}
 }
 
-func TestUnclaimedSpareIsNotListed(t *testing.T) {
-	pt := procTable{7: {argv: []string{"claude", "bg-spare", "--bg-spare", "/x"}}}
-	if !pt.unclaimedSpare(Session{Pid: 7, Kind: "bg"}) {
-		t.Error("a spare was listed")
+func TestEmptyBackgroundIsNotListed(t *testing.T) {
+	e := Session{SessionID: "e27d2e78-1bb9", Kind: "bg", DisplayName: "e27d2e78"}
+	if !emptyBackground(e) {
+		t.Error("an empty background process was listed")
 	}
-	if pt.unclaimedSpare(Session{Pid: 7, Kind: "bg", sourcePath: "/t.jsonl"}) {
-		t.Error("a claimed session was hidden")
+	named, used, term := e, e, e
+	named.DisplayName = "anna"
+	used.sourcePath = "/t.jsonl"
+	term.Kind = "interactive"
+	for _, s := range []Session{named, used, term} {
+		if emptyBackground(s) {
+			t.Errorf("hidden: %+v", s)
+		}
+	}
+}
+
+func TestUserReadsTeammatesButCannotWrite(t *testing.T) {
+	e, _, o := osUserEnv(t)
+	if _, err := e.store.Enable("t"); err != nil {
+		t.Fatal(err)
+	}
+	_, a, _ := e.store.AddUser("anna", "anna")
+	_, _, _ = e.store.AddUser("bob", "bob")
+	if err := os.WriteFile(filepath.Join(e.store.dir, protectedFile), []byte(`{"sessions":["adm-0000-1111"]}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	var bobSaw, annaSaw []string
+	serve := func(saw *[]string, sessions string) http.HandlerFunc {
+		return func(w http.ResponseWriter, r *http.Request) {
+			*saw = append(*saw, r.Method+" "+strings.TrimPrefix(r.URL.Path, apiPrefix))
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"code":"SUCCESS","details":{"sessions":` + sessions + `}}`))
+		}
+	}
+	instance(t, o, "anna", serve(&annaSaw, `[{"sessionId":"anna-sess","displayName":"anna","live":true,"messageVia":"agcmd"}]`))
+	// bob also claims anna's session and the admin's: neither may be taken over
+	instance(t, o, "bob", serve(&bobSaw, `[{"sessionId":"bob-sess","displayName":"bob","live":true,"messageVia":"agcmd","stopVia":"x"},{"sessionId":"anna-sess","live":true},{"sessionId":"adm-0000-1111","live":true,"title":"FAKE"}]`))
+
+	code, _, body := e.do(t, "GET", apiPrefix+"/snapshot", a, "")
+	if code != 200 || !strings.Contains(body, "bob-sess") || strings.Contains(body, "FAKE") || strings.Count(body, "anna-sess") != 1 {
+		t.Fatalf("snapshot = %d %s", code, body)
+	}
+	i := strings.Index(body, `"sessionId":"bob-sess"`)
+	if b := body[i:]; !strings.Contains(b, `"readOnly":true`) || strings.Contains(b[:strings.Index(b, "}")], `"messageVia"`) {
+		t.Fatalf("a teammate's session is writable: %s", b)
+	}
+	bobSaw, annaSaw = nil, nil
+	if code, _, _ := e.do(t, "GET", apiPrefix+"/sessions/bob-sess/messages", a, ""); code != 200 || len(bobSaw) == 0 || bobSaw[len(bobSaw)-1] != "GET /sessions/bob-sess/messages" {
+		t.Fatalf("reading a teammate = %d, bob saw %v", code, bobSaw)
+	}
+	for _, r := range []string{"message", "model", "stop", "name"} {
+		bobSaw = nil
+		if code, _, _ := e.do(t, "POST", apiPrefix+"/sessions/bob-sess/"+r, a, `{"message":"x"}`); code != 403 {
+			t.Errorf("POST %s to a teammate = %d", r, code)
+		}
+		for _, x := range bobSaw {
+			if strings.HasPrefix(x, "POST") {
+				t.Errorf("a write reached the teammate: %s", x)
+			}
+		}
+	}
+	if code, _, _ := e.do(t, "GET", apiPrefix+"/sessions/bob-sess/suggest", a, ""); code != 403 {
+		t.Errorf("suggest on a teammate = %d", code)
+	}
+	if code, _, _ := e.do(t, "GET", apiPrefix+"/sessions/adm-0000-1111/messages", a, ""); code != 403 {
+		t.Errorf("the admin's chat = %d", code)
+	}
+	annaSaw = nil
+	if code, _, _ := e.do(t, "POST", apiPrefix+"/sessions/anna-sess/message", a, `{"message":"x"}`); code != 200 || annaSaw[len(annaSaw)-1] != "POST /sessions/anna-sess/message" {
+		t.Errorf("own message = %d %v", code, annaSaw)
+	}
+	for _, p := range []string{"/pm", "/tasks", "/runs/x/log"} {
+		if code, _, _ := e.do(t, "GET", apiPrefix+p, a, ""); code != 403 {
+			t.Errorf("user GET %s = %d", p, code)
+		}
 	}
 }

@@ -33,7 +33,7 @@ func TestUserTokenLifecycleAndLimits(t *testing.T) {
 	for _, p := range []struct{ m, path string }{
 		{"GET", "/tokens"}, {"POST", "/tokens"}, {"POST", "/tokens/x/revoke"}, {"GET", "/accounts"}, {"GET", "/Accounts"}, {"GET", "/accounts/"},
 		{"POST", "/accounts/claude/login"}, {"POST", "/clis/update"}, {"POST", "/policy"}, {"POST", "/codex/model"}, {"GET", "/TOKENS"},
-		{"POST", "/sessions/abc/resume"}, {"POST", "/sessions/abc/name"}, {"POST", "/pm/reset"}, {"POST", "/tasks/T-0001/delete"}, {"GET", "/sessions/%2561bc"},
+		{"POST", "/sessions/abc/resume"}, {"POST", "/missions"}, {"GET", "/pm"}, {"GET", "/tasks"}, {"POST", "/pm/reset"}, {"POST", "/tasks/T-0001/delete"}, {"GET", "/sessions/%2561bc"},
 	} {
 		body := ""
 		if p.m == "POST" {

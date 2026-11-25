@@ -117,6 +117,8 @@ function agentColor (sess) { return sess.runtimeType === 'codexCli' ? 'var(--cod
 function agentHex (sess) { return sess.runtimeType === 'codexCli' ? '#5CC8F0' : '#E48D62' }
 
 // ---------- api ----------
+// a vibe user: own agents only, no PM, no task board (the server refuses both)
+function isUser () { return !!st.me && st.me.role === 'user' }
 // st.as: the user whose workspace an admin is looking at
 function authHeaders () { return st.as ? { 'X-Aiagent-Token': st.token, 'X-Aiagent-As': st.as } : { 'X-Aiagent-Token': st.token } }
 function viewAs (name) {
@@ -159,6 +161,8 @@ async function poll () {
       st.me = await api('/me')
       st.meFor = st.token
       $('accountsBtn').hidden = st.me.role !== 'admin'
+      $('viewPM').hidden = $('viewTasks').hidden = isUser()
+      if (isUser() && (st.view === 'pm' || st.view === 'tasks')) setView('list')
     }
     st.snap = await api('/snapshot')
     st.lastOk = Date.now()
@@ -366,7 +370,7 @@ function renderComposerTargets () {
     }
     sel.append(g)
   }
-  const usable = st.snap.workspaces.filter(w => w.dirExists)
+  const usable = isUser() ? [] : st.snap.workspaces.filter(w => w.dirExists)
   if (usable.length) {
     const g = h('optgroup', { label: 'workspace (agcmd)' })
     for (const w of usable) {
@@ -379,11 +383,16 @@ function renderComposerTargets () {
   for (const [id, label] of [['auto', tr('อัตโนมัติ · agent ที่เหลือ quota มากกว่า')], ['claude', 'Claude'], ['codex', 'Codex'], ['gemini', 'Gemini']]) {
     pg.append(h('option', { value: 'provider:' + id }, label))
   }
-  sel.append(pg)
+  if (!isUser()) sel.append(pg)
   // never pick a target for the operator: only an explicit choice or the
   // selected agent's own workspace
   const stillThere = cur && ((cur === 'pm' && st.pm) || cur.startsWith('provider:') || ready.some(w => w.name === cur) || live.some(x => 'session:' + x.sessionId === cur))
-  sel.value = stillThere ? cur : ''
+  // a user has one room, so their only agent is the obvious target
+  // reading someone else's room: typing is off, so nothing meant for them
+  // lands in the user's own agent
+  const look = isUser() && st.sel && st.sel.kind === 'session' && st.snap.sessions.find(x => x.sessionId === st.sel.id && !x.messageVia)
+  $('askText').disabled = sel.disabled = $('askClip').disabled = !!look
+  sel.value = look ? '' : stillThere ? cur : isUser() && live.length === 1 ? 'session:' + live[0].sessionId : ''
   updateComposerHint()
 }
 
@@ -406,7 +415,7 @@ function updateComposerHint () {
   setTimeout(drawSuggest, 0)
   const chip = $('askTarget')
   $('askWs').hidden = !!sess
-  $('askMode').hidden = !!sess
+  $('askMode').hidden = isUser() || !!sess
   chip.hidden = !sess
   if (sess) {
     chip.replaceChildren(h('span', null, tr('ส่งถึง: ') + sess.displayName), h('small', null, sess.messageVia === 'relay' ? 'relay' : 'agcmd ' + sess.dispatchVia), h('button', { type: 'button', class: 'ghost', title: tr('เปลี่ยนเป็นส่งตาม workspace'), onclick: () => { back() } }, '×'))
@@ -436,7 +445,7 @@ function updateComposerHint () {
   }
   // A mission is an agcmd run and needs a workspace; a session can only be
   // messaged, so hide the mode picker rather than offer a choice that fails.
-  $('askMode').hidden = !!picked || ws === 'pm'
+  $('askMode').hidden = isUser() || !!picked || ws === 'pm'
   // A provider target and the PM are sendable too. Send used to be disabled
   // for "by provider", which left a phone — no Enter-to-send — unable to use it.
   $('askGo').disabled = !w && !picked && ws !== 'pm' && !ws.startsWith('provider:')
@@ -1713,8 +1722,8 @@ function renderList () {
   box.replaceChildren(
     h('h3', null, tr('Agent ที่ออนไลน์ (') + live.length + ')'),
     live.length ? h('div', { class: 'sCards' }, live.map(sessionCard)) : h('p', { class: 'note' }, tr('ยังไม่มี agent ที่ออนไลน์')),
-    h('h3', null, tr('งาน agcmd (') + st.snap.runs.length + ')'),
-    h('table', { class: 'runs' }, head('Run', 'Workspace', tr('สถานะ'), tr('งาน')), h('tbody', null, st.snap.runs.map(rowR))),
+    isUser() ? '' : h('h3', null, tr('งาน agcmd (') + st.snap.runs.length + ')'),
+    isUser() ? '' : h('table', { class: 'runs' }, head('Run', 'Workspace', tr('สถานะ'), tr('งาน')), h('tbody', null, st.snap.runs.map(rowR))),
     h('h3', null, tr('Session ที่จบแล้ววันนี้ (') + ended.length + ')'),
     ended.length ? h('div', { class: 'sCards' }, ended.map(sessionCard)) : h('p', { class: 'note' }, tr('ยังไม่มี'))
   )
@@ -1726,6 +1735,7 @@ function targetFor (kind, id) {
   if (kind === 'session') {
     const sess = st.snap.sessions.find(x => x.sessionId === id)
     if (sess && sess.dispatchVia) return sess.dispatchVia
+    if (sess && (sess.readOnly || sess.protected) && sess.messageBlocked) { st.blockReason = sess.messageBlocked; return '' }
     st.blockReason = (sess ? sess.displayName : tr('agent นี้')) + tr(' ไม่ได้รันใน tmux ของ agcmd — รับงานจากเว็บไม่ได้ (ดูได้อย่างเดียว)')
     return ''
   }
@@ -1837,7 +1847,7 @@ function sessionHeader (sess) {
       h('button', { type: 'button', class: 'ghost', onclick: back }, tr('← ภาพรวม')),
       h('div', { class: 'who' }, ava, h('div', null,
         h('h2', { class: 'nameRow' }, h('span', null, sess.displayName),
-          h('button', { type: 'button', class: 'ghost renameBtn', title: tr('เปลี่ยนชื่อที่แสดงในเว็บ'), 'aria-label': tr('เปลี่ยนชื่อ'), onclick: () => renameSession(sess) }, '✎')),
+          sess.readOnly || sess.protected && isUser() ? null : h('button', { type: 'button', class: 'ghost renameBtn', title: tr('เปลี่ยนชื่อที่แสดงในเว็บ'), 'aria-label': tr('เปลี่ยนชื่อ'), onclick: () => renameSession(sess) }, '✎')),
         h('p', null, runtimeName[sess.runtimeType] + ' · ' + (sess.repoId || '—')))),
       h('div', { class: 'state' }, stateDot, stateText(sess),
         !sess.live && sess.runtimeType === 'claudeCode' && sess.cwd ? h('button', { type: 'button', class: 'pill work', title: tr('เปิดบทสนทนานี้ต่อ โดยไม่พิมพ์ข้อความเข้าไป'), onclick: () => doResume(sess) }, tr('เปิดต่อ')) : null,
@@ -2200,7 +2210,7 @@ function overviewPanel () {
     h('h3', null, tr('พลังงาน AI')),
     quotas,
     quotaAdvice(),
-    policySlot(),
+    isUser() ? null : policySlot(),
     h('p', { class: 'note' }, tr('ตัวเลข quota มาจากผู้ให้บริการเท่านั้น ถ้าไม่มีข้อมูลจะแสดง “ไม่ทราบ” ไม่ประมาณเอง')),
     h('h3', null, tr('วิธีใช้')),
     h('p', { class: 'note' }, tr('คลิกตัวละครหรือแถวในมุมมองรายการเพื่อดูรายละเอียด · ช่องด้านล่างใช้สั่งงานไปยัง agent ใน workspace ของ agcmd'))
@@ -3925,6 +3935,7 @@ async function loadBoard () {
       return null
     }
   }
+  if (isUser()) { st.tasks = null; st.pm = null; return }
   const [t, pm] = await Promise.all([get('/tasks'), get('/pm')])
   // A read that failed keeps what was last known; the connection banner is
   // what says the page is stale. Only a first read that fails means "off".

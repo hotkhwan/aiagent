@@ -2,7 +2,8 @@
 //
 // Two kinds of token. The admin token (made on the host with `aiagent enable`)
 // may do everything. A user token, made by an admin on the web, may watch and
-// talk to agents but not manage the machine: userRoutes lists what it may call
+// talk to their own agents but not manage the machine, and has no PM or task
+// board: userRoutes lists what it may call
 // and everything else is refused, so a new route is closed to users until
 // someone decides otherwise.
 //
@@ -188,18 +189,13 @@ const apiPrefix = "/aiagent/api"
 // double-encoded id slips past the protected-session check below.
 var userRoutes = map[string][]*regexp.Regexp{
 	"GET": compileAll(
-		`/me`, `/snapshot`, `/models`, `/reviews`, `/pm`, `/tasks`,
+		`/me`, `/snapshot`, `/models`, `/reviews`,
 		`/sessions/[A-Za-z0-9-]+`, `/sessions/[A-Za-z0-9-]+/(messages|suggest)`,
-		`/runs/[A-Za-z0-9-]+/log`, `/uploads/[A-Za-z0-9.-]+`,
-		`/tasks/[A-Za-z0-9-]+`, `/tasks/[A-Za-z0-9-]+/review`,
+		`/uploads/[A-Za-z0-9.-]+`,
 	),
 	"POST": compileAll(
-		`/missions`, `/messages`, `/uploads`,
-		`/sessions/[A-Za-z0-9-]+/(message|model|stop)`,
-		`/runs/[A-Za-z0-9-]+/(answer|approve|abort)`,
-		`/tasks`, `/tasks/[A-Za-z0-9-]+/(transition|dispatch|advisory)`,
-		`/tasks/[A-Za-z0-9-]+/attempts/[A-Za-z0-9-]+/confirm`,
-		`/pm/messages`, `/pm/proposals/[A-Za-z0-9-]+/(confirm|dismiss)`,
+		`/messages`, `/uploads`,
+		`/sessions/[A-Za-z0-9-]+/(message|model|stop|name)`,
 		`/reviews/[A-Za-z0-9._-]+/(view|compose|decision)`,
 	),
 }

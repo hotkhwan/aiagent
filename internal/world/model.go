@@ -86,6 +86,8 @@ type Session struct {
 	Usage        Usage      `json:"usage"`
 	// Protected marks an admin's session: users see that it exists, no more.
 	Protected bool `json:"protected,omitempty"`
+	// ReadOnly marks a teammate's session: its chat can be read, nothing else.
+	ReadOnly bool `json:"readOnly,omitempty"`
 	// Kind is Claude Code's own session kind ("bg" | "interactive").
 	Kind string `json:"kind,omitempty"`
 	// AgentState is the agent-view state from `claude agents --json`

@@ -1,5 +1,5 @@
 ; packaging/aiagent-user-tmux@.service — one user's tmux server and agent.
-; The agent waits for a Claude sign-in (made from the web), then starts.
+; A session named after the user is open from the start (agent-loop.sh).
 [Unit]
 Description=agent of %i
 After=network-online.target
@@ -13,9 +13,11 @@ RuntimeDirectoryMode=0700
 RuntimeDirectoryPreserve=yes
 Environment=PATH=/home/%i/.local/bin:/usr/local/bin:/usr/bin:/bin LANG=C.UTF-8 TERM=xterm-256color SHELL=/bin/bash
 Environment=TMUX_TMPDIR=/run/aiagent-tmux/%i
-ExecStart=/usr/bin/tmux new-session -d -s core -n %i -x 180 -y 50 "until claude auth status >/dev/null 2>&1; do sleep 5; done; exec claude"
+ExecStart=/usr/bin/tmux new-session -d -s core -n %i -x 180 -y 50 "/usr/local/lib/aiagent/agent-loop.sh %i"
 Restart=always
 RestartSec=5
+; the loop would reopen claude; nothing here needs a slow goodbye
+TimeoutStopSec=3
 NoNewPrivileges=yes
 MemoryMax=8G
 TasksMax=1024
