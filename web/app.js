@@ -2883,6 +2883,31 @@ function accountCard (a) {
         a.loggedIn ? h('button', { type: 'button', class: 'warn', onclick: logout }, 'Logout') : null),
     f && !f.running ? out : null)
 }
+// ----- manuals and slides -----
+async function downloadGuide (name) {
+  try {
+    const res = await fetch('/aiagent/api/guides/' + name, { headers: authHeaders(), cache: 'no-store' })
+    if (!res.ok) throw new Error(String(res.status))
+    const url = URL.createObjectURL(await res.blob())
+    const a = h('a', { href: url, download: 'aiagent-' + name + '.pdf' })
+    document.body.append(a); a.click(); a.remove()
+    setTimeout(() => URL.revokeObjectURL(url), 10000)
+  } catch (e) { toast(tr('ดาวน์โหลดไม่สำเร็จ: ') + e.message, true) }
+}
+function helpMenu () {
+  const old = document.querySelector('.helpPop')
+  if (old) { old.remove(); return }
+  const row = (name, label) => h('button', { type: 'button', class: 'ghost', onclick: () => { downloadGuide(name); pop.remove() } }, '⬇ ' + label)
+  const pop = h('div', { class: 'qPop helpPop' },
+    h('b', null, tr('สำหรับผู้ใช้')), row('user-manual', tr('คู่มือ (PDF)')), row('user-slides', tr('สไลด์ (PDF)')),
+    ...(isUser() ? [] : [h('b', null, tr('สำหรับผู้ดูแล')), row('admin-manual', tr('คู่มือ (PDF)')), row('admin-slides', tr('สไลด์ (PDF)'))]))
+  const at = $('helpBtn').getBoundingClientRect()
+  pop.style.top = Math.round(at.bottom + 8) + 'px'
+  pop.style.right = Math.max(8, Math.round(window.innerWidth - at.right)) + 'px'
+  document.body.append(pop)
+}
+$('helpBtn').addEventListener('click', e => { e.stopPropagation(); helpMenu() })
+document.addEventListener('click', e => { const p = document.querySelector('.helpPop'); if (p && !p.contains(e.target)) p.remove() })
 $('accountsBtn').addEventListener('click', openAccounts)
 $('asBack').addEventListener('click', () => viewAs(''))
 

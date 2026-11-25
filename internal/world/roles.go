@@ -189,7 +189,7 @@ const apiPrefix = "/aiagent/api"
 // double-encoded id slips past the protected-session check below.
 var userRoutes = map[string][]*regexp.Regexp{
 	"GET": compileAll(
-		`/me`, `/snapshot`, `/models`, `/reviews`,
+		`/me`, `/guides/user-(manual|slides)`, `/snapshot`, `/models`, `/reviews`,
 		`/sessions/[A-Za-z0-9-]+`, `/sessions/[A-Za-z0-9-]+/(messages|suggest)`,
 		`/uploads/[A-Za-z0-9.-]+`,
 	),

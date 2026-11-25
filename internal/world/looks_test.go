@@ -70,3 +70,20 @@ func TestAdminActsOnRoomsFromTheListWithTheSameLook(t *testing.T) {
 		t.Fatalf("stopping a room from the list = %d %v", code, seen)
 	}
 }
+
+func TestGuidesAreSplitByRole(t *testing.T) {
+	e := newEnv(t)
+	admin, err := e.store.Enable("t")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, user, _ := e.store.AddUser("anna", "")
+	for _, c := range []struct {
+		tok, name string
+		want      int
+	}{{admin, "admin-manual", 200}, {admin, "user-slides", 200}, {user, "user-manual", 200}, {user, "admin-manual", 403}, {user, "admin-slides", 403}, {admin, "../state", 404}, {"", "user-manual", 401}} {
+		if code, _, _ := e.do(t, "GET", apiPrefix+"/guides/"+c.name, c.tok, ""); code != c.want {
+			t.Errorf("%s as %q = %d, want %d", c.name, c.tok[:min(4, len(c.tok))], code, c.want)
+		}
+	}
+}

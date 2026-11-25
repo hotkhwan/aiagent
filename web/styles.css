@@ -1726,3 +1726,10 @@ button.rtChip:hover { background: #1D2440 }
 /* the one badge is short enough to stay on a narrow header too */
 @media (max-width: 1320px) { .energy { display: flex } }
 @media (max-width: 700px) { .energy { width: auto; order: 0 } }
+
+.helpPop { display: flex; flex-direction: column; gap: 6px; min-width: 220px }
+.helpPop b { font-size: 12.5px; color: var(--muted); margin-top: 4px }
+.helpPop button { text-align: left }
+/* The connection mark says nothing while all is well, so it is shown only
+   when the page is not live (connecting, lost, an error). */
+.conn.ok.live { display: none }
