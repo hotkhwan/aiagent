@@ -3134,9 +3134,8 @@ async function doStop (sess) {
   const short = sess.sessionId.slice(0, 8)
   const how = sess.stopVia === 'claudeStop'
     ? tr('จะรัน claude stop ') + short + tr(' — หยุด background session นี้ บทสนทนายังเก็บไว้ เปิดต่อได้ด้วย claude attach ') + short
-    : tr('จะรัน agcmd restart ') + sess.dispatchVia + tr(' — ปิดโปรแกรม agent ในหน้าต่าง tmux ของ workspace นี้ทันที งานที่ทำค้างจะหยุด')
-  const self = sess.dispatchVia ? tr('\nหมายเหตุ: agent นี้คือตัวที่รับงานจากเว็บผ่าน ') + sess.dispatchVia + tr(' หยุดแล้วจะสั่งงานจากเว็บไม่ได้จนกว่าจะเปิดใหม่') : ''
-  if (!await confirmBox(tr('หยุด ') + sess.displayName + '?', how + self, sess.title || '', tr('หยุด agent'))) return
+    : tr('จะรัน agcmd restart ') + sess.dispatchVia + tr(' — ส่ง Escape ขัดงานรอบนี้ โปรแกรม agent ยังเปิดอยู่และสั่งต่อได้')
+  if (!await confirmBox(tr('หยุด ') + sess.displayName + '?', how, sess.title || '', tr('หยุด agent'))) return
   act('/sessions/' + encodeURIComponent(sess.sessionId) + '/stop', null, r => tr('หยุด ') + sess.displayName + tr(' แล้ว (') + (r.via || '') + ')')
 }
 

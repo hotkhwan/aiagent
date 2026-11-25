@@ -1672,5 +1672,5 @@ button.rtChip:hover { background: #1D2440 }
 #accountsDlg[open] > .spBody { flex: none; overflow: visible; max-height: none }
 #accountsDlg[open] > .spHead { position: sticky; top: 0; z-index: 1 }
 
-.asBar { position: fixed; left: 50%; top: 8px; transform: translateX(-50%); z-index: 60; display: flex; align-items: center; gap: 10px; padding: 6px 14px; border-radius: 999px; background: #FFC24D; color: #14182B }
+.asBar { display: flex; align-items: center; gap: 10px; padding: 6px 14px; border-radius: 999px; background: #FFC24D; color: #14182B }
 .asBar .ghost { color: #14182B; border-color: #14182B }

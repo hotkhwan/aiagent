@@ -342,11 +342,8 @@ var EN = {
   ' — หยุด background session นี้ บทสนทนายังเก็บไว้ เปิดต่อได้ด้วย claude attach ':
     ' — stops this background session. The conversation is kept, and can be reopened with claude attach ',
   'จะรัน agcmd restart ': 'Will run agcmd restart ',
-  ' — ปิดโปรแกรม agent ในหน้าต่าง tmux ของ workspace นี้ทันที งานที่ทำค้างจะหยุด':
-    ' — closes the agent program in this workspace tmux window at once. Work in progress stops',
-  '\nหมายเหตุ: agent นี้คือตัวที่รับงานจากเว็บผ่าน ': '\nNote: this is the agent that takes web jobs through ',
-  ' หยุดแล้วจะสั่งงานจากเว็บไม่ได้จนกว่าจะเปิดใหม่':
-    ' — once stopped, the web cannot send it work until it is started again',
+  ' — ส่ง Escape ขัดงานรอบนี้ โปรแกรม agent ยังเปิดอยู่และสั่งต่อได้':
+    ' — sends Escape to interrupt this turn. The agent stays open and takes new messages.',
   'หยุด ': 'Stop ',
   'หยุด agent': 'Stop the agent',
   'อนุมัติ': 'Approve',
