@@ -49,6 +49,25 @@ func emptyBackground(s Session) bool {
 	return s.Kind == "bg" && s.sourcePath == "" && len(s.SessionID) >= 8 && s.DisplayName == s.SessionID[:8]
 }
 
+// dropParked removes a terminal whose conversation moved to a background job
+// that is itself listed: the same agent would show twice, the stale half
+// first. The terminal is kept when its job is not there to stand for it.
+func dropParked(sessions []Session) []Session {
+	out := sessions[:0]
+	for _, s := range sessions {
+		dup := false
+		if len(s.parkedJob) >= 8 {
+			for _, o := range sessions {
+				dup = dup || (o.Live && o.SessionID != s.SessionID && strings.HasPrefix(o.SessionID, s.parkedJob))
+			}
+		}
+		if !dup {
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
 func (t procTable) parent(pid int) int { return t[pid].ppid }
 
 // descendsFrom reports whether pid is ancestor itself or one of its

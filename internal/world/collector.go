@@ -231,7 +231,8 @@ func (c *Collector) collectLocked(ctx context.Context) Snapshot {
 	for _, h := range c.homes() {
 		owner := filepath.Base(h)
 		for _, s := range c.collectClaude(h, owner, since, pt) {
-			if emptyBackground(s) {
+			// the one-shot run behind a message suggestion is not an agent
+			if emptyBackground(s) || (s.Cwd != "" && s.Cwd == c.suggestDir()) {
 				continue
 			}
 			if !seen[s.RuntimeType+s.SessionID] {
@@ -250,7 +251,7 @@ func (c *Collector) collectLocked(ctx context.Context) Snapshot {
 			reading = r
 		}
 	}
-	snap.Sessions = c.mergeDaemon(ctx, snap.Sessions)
+	snap.Sessions = dropParked(c.mergeDaemon(ctx, snap.Sessions))
 	for i := range snap.Sessions {
 		s := &snap.Sessions[i]
 		if s.Live && s.RuntimeType == "claudeCode" && s.sourcePath != "" {

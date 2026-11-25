@@ -165,6 +165,17 @@ func TestEmptyBackgroundIsNotListed(t *testing.T) {
 	}
 }
 
+func TestParkedTerminalIsNotListedBesideItsJob(t *testing.T) {
+	term := Session{SessionID: "ddf84e75-aaaa", Live: true, parkedJob: "95126f47"}
+	job := Session{SessionID: "95126f47-bbbb", Live: true}
+	if got := dropParked([]Session{term, job}); len(got) != 1 || got[0].SessionID != job.SessionID {
+		t.Fatalf("both listed: %v", got)
+	}
+	if got := dropParked([]Session{term}); len(got) != 1 {
+		t.Fatal("the terminal was dropped with no job to stand for it")
+	}
+}
+
 func TestUserReadsTeammatesButCannotWrite(t *testing.T) {
 	e, _, o := osUserEnv(t)
 	if _, err := e.store.Enable("t"); err != nil {

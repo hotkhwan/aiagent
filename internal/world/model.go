@@ -122,6 +122,7 @@ type Session struct {
 	turnInProgress bool
 	home           string
 	parked         bool
+	parkedJob      string
 	inPane         string
 }
 

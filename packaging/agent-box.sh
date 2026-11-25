@@ -15,6 +15,9 @@ if [ -r "$conf" ]; then
 fi
 cli=${1:?}
 mode=${2:-}
+# Commands run in agy's own sandbox, which has no network, without asking; one
+# that needs to leave it asks at the terminal, where only the admin answers.
+agyset='{"toolPermission":"proceed-in-sandbox"}'
 run() {
 	case "$cli:$mode" in
 	codex:*)
@@ -23,10 +26,10 @@ run() {
 		if [ -n "$(find "$HOME/.codex/sessions" -name '*.jsonl' -print -quit 2>/dev/null)" ]; then exec codex resume --last --no-daemon "$@"; fi
 		exec codex --no-daemon "$@" ;;
 	agy:usage) exec agy -p /usage --output-format json ;;
-	agy:login) exec agy --sandbox ;;
+	agy:login) exec agy --sandbox --settings "$agyset" ;;
 	agy:*)
-		if ls "$HOME"/.gemini/antigravity-cli/conversations/* >/dev/null 2>&1; then exec agy --sandbox --continue; fi
-		exec agy --sandbox ;;
+		if ls "$HOME"/.gemini/antigravity-cli/conversations/* >/dev/null 2>&1; then exec agy --sandbox --settings "$agyset" --continue; fi
+		exec agy --sandbox --settings "$agyset" ;;
 	esac
 }
 case "$cli" in codex) own=.codex ;; agy) own=.gemini ;; *) exit 2 ;; esac
