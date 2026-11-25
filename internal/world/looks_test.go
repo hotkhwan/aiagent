@@ -43,7 +43,7 @@ func TestLooksAreSaved(t *testing.T) {
 	}
 }
 
-func TestAdminSeesRoomsReadOnlyAndTheSameLook(t *testing.T) {
+func TestAdminActsOnRoomsFromTheListWithTheSameLook(t *testing.T) {
 	e, _, o := osUserEnv(t)
 	admin, err := e.store.Enable("t")
 	if err != nil {
@@ -58,7 +58,7 @@ func TestAdminSeesRoomsReadOnlyAndTheSameLook(t *testing.T) {
 		_, _ = w.Write([]byte(`{"code":"SUCCESS","details":{"sessions":[{"sessionId":"11111111-room","displayName":"vibe-a","live":true,"look":"cx-fox","messageVia":"agcmd"}]}}`))
 	})
 	code, _, body := e.do(t, "GET", apiPrefix+"/snapshot", admin, "")
-	if code != 200 || !strings.Contains(body, `"look":"cx-fox"`) || !strings.Contains(body, `"readOnly":true`) || strings.Contains(body, `"messageVia":"agcmd"`) {
+	if code != 200 || !strings.Contains(body, `"look":"cx-fox"`) || strings.Contains(body, `"readOnly":true`) || !strings.Contains(body, `"messageVia":"agcmd"`) {
 		t.Fatalf("admin snapshot = %d %s", code, body)
 	}
 	seen = nil
@@ -66,12 +66,7 @@ func TestAdminSeesRoomsReadOnlyAndTheSameLook(t *testing.T) {
 		t.Fatalf("reading a room = %d %v", code, seen)
 	}
 	seen = nil
-	if code, _, _ := e.do(t, "POST", apiPrefix+"/sessions/11111111-room/message", admin, `{"message":"x"}`); code == 200 {
-		t.Fatal("wrote to a room from the admin list")
-	}
-	for _, x := range seen {
-		if strings.HasPrefix(x, "POST") {
-			t.Fatalf("a write reached the room: %s", x)
-		}
+	if code, _, _ := e.do(t, "POST", apiPrefix+"/sessions/11111111-room/stop", admin, `{}`); code != 200 || len(seen) != 1 || seen[0] != "POST "+apiPrefix+"/sessions/11111111-room/stop" {
+		t.Fatalf("stopping a room from the list = %d %v", code, seen)
 	}
 }

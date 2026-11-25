@@ -208,11 +208,12 @@ func (s *Service) gate(c fiber.Ctx) error {
 		if target != "" && !localPath(strings.TrimPrefix(c.Path(), apiPrefix)) {
 			return s.forwardAudited(c, target)
 		}
-		// an admin reads a room's session from the list, as a teammate would
-		if target == "" && c.Method() == "GET" {
-			if m := roomReadRE.FindStringSubmatch(strings.TrimPrefix(c.Path(), apiPrefix)); m != nil {
+		// an admin acts on a room's session straight from the list: the
+		// request goes to the room that session lives in
+		if target == "" {
+			if m := sessionPathRE.FindStringSubmatch(strings.TrimPrefix(c.Path(), apiPrefix)); m != nil {
 				if mate := s.teammateOf(c.Context(), "", m[1]); mate != "" {
-					return s.forward(c, strings.Clone(mate))
+					return s.forwardAudited(c, strings.Clone(mate))
 				}
 			}
 		}

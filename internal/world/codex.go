@@ -19,6 +19,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 )
 
@@ -108,6 +109,15 @@ func codexThreadNames(home string) map[string]string {
 	return out
 }
 
+// ownProcess: an unprivileged service owns its own processes; root owns all
+// but the rooms' (their uid range, packaging/osuser.sh).
+func ownProcess(uid, me uint32) bool {
+	if me != 0 {
+		return uid == me
+	}
+	return uid < 700000 || uid > 799999
+}
+
 // codexProc is a running codex process and its working directory.
 type codexProc struct {
 	pid    int
@@ -133,6 +143,13 @@ func codexProcesses(procRoot string) []codexProc {
 		argv0 := string(bytes.SplitN(cmd, []byte{0}, 2)[0])
 		if filepath.Base(argv0) != "codex" {
 			continue
+		}
+		// Another account's Codex is not this service's agent: a room sees
+		// every process, and the service itself must not list a room's.
+		if fi, err := os.Stat(filepath.Join(procRoot, e.Name())); err == nil {
+			if st, ok := fi.Sys().(*syscall.Stat_t); ok && !ownProcess(st.Uid, uint32(os.Getuid())) {
+				continue
+			}
 		}
 		// Codex's own background server and its updater are not agents
 		if strings.Contains(argv0, "/app-server-daemon/") {

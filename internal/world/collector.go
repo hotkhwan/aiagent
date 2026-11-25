@@ -295,6 +295,9 @@ func (c *Collector) collectLocked(ctx context.Context) Snapshot {
 			if pane := tm.agentPid[w.TmuxSession]; w.AgentReady && pane > 0 && pt.descendsFrom(ss.Pid, pane) {
 				ss.DispatchVia = w.Name
 				ss.inPane = w.Name
+				if ss.RuntimeType == "agyCli" {
+					break // agySessions has read its screen
+				}
 				// A question on its screen (a permission prompt, a menu) is
 				// invisible in the transcript; without this the web shows an
 				// idle agent that takes no messages.

@@ -240,9 +240,6 @@ type mateCache struct {
 	m map[string]mateEntry
 }
 
-// roomReadRE is what may be read of a session in somebody's room.
-var roomReadRE = regexp.MustCompile(`^/sessions/([A-Za-z0-9-]+)(?:/messages)?$`)
-
 // teammates maps each session another user may read to its owner. A user's
 // own sessions and the admin's are never in it, whatever an instance claims:
 // instances are their users' own processes.
@@ -279,9 +276,15 @@ func (s *Service) teammates(ctx context.Context, name string) ([]Session, map[st
 			if !lookRE.MatchString(ss.Look) {
 				ss.Look = ""
 			}
-			ss.Owner, ss.RepoID, ss.ReadOnly, ss.Protected = u.OSUser, u.OSUser, true, false
-			ss.MessageVia, ss.StopVia, ss.DispatchVia, ss.Workspace, ss.Cwd, ss.Pid = "", "", "", "", "", 0
-			ss.MessageBlocked, ss.StopBlocked = why, why
+			ss.Owner, ss.RepoID, ss.Protected = u.OSUser, u.OSUser, false
+			ss.Workspace, ss.Cwd, ss.Pid = "", "", 0
+			// name == "" is the admin, who may type into a room and stop it
+			// (the request is sent on to that room); a user only reads.
+			if name != "" {
+				ss.ReadOnly = true
+				ss.MessageVia, ss.StopVia, ss.DispatchVia = "", "", ""
+				ss.MessageBlocked, ss.StopBlocked = why, why
+			}
 			list = append(list, ss)
 		}
 	}
