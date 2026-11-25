@@ -121,6 +121,7 @@ type Session struct {
 	// the transcript ends inside a turn (see transcriptState.turnInProgress)
 	turnInProgress bool
 	home           string
+	parked         bool
 	inPane         string
 }
 

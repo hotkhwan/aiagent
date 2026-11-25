@@ -22,6 +22,8 @@ def sessions():
             continue
         if not ID.match(sid):
             continue
+        if d.get("parkedJobId") and not glob.glob(os.path.expanduser("~/.claude/projects/*/" + sid + ".jsonl")):
+            continue  # a terminal showing the agent view, not an agent
         name = clean(d.get("name")) or sid[:8]
         if d.get("kind") == "bg":
             rows.append((name, "background", ["claude", "attach", sid[:8]]))

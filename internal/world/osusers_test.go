@@ -150,6 +150,10 @@ func TestEmptyBackgroundIsNotListed(t *testing.T) {
 	if !emptyBackground(e) {
 		t.Error("an empty background process was listed")
 	}
+	view := Session{SessionID: "9ded4266-1cb6", Kind: "interactive", DisplayName: "web-23", parked: true}
+	if !emptyBackground(view) {
+		t.Error("a terminal on the agent view was listed")
+	}
 	named, used, term := e, e, e
 	named.DisplayName = "anna"
 	used.sourcePath = "/t.jsonl"

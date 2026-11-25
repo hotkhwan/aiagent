@@ -32,6 +32,9 @@ type claudeRegistry struct {
 	Kind      string `json:"kind"`
 	Status    string `json:"status"`
 	UpdatedAt int64  `json:"updatedAt"`
+	// Parked is set on a terminal whose own conversation moved to the
+	// background: it now only shows other sessions.
+	Parked string `json:"parkedJobId"`
 }
 
 type claudeLine struct {
@@ -323,6 +326,7 @@ func (c *Collector) collectClaude(home, owner string, since time.Time, pt procTa
 			LiveEvidence: "pid+procStart",
 			Pid:          reg.Pid,
 			Kind:         reg.Kind,
+			parked:       reg.Parked != "",
 			home:         home,
 			Status:       StatusRunning,
 			ActivityType: ActivityUnknown,

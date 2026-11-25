@@ -108,6 +108,12 @@ func (c *Collector) claudeAccount(ctx context.Context) Account {
 func (c *Collector) codexAccount(ctx context.Context) Account {
 	a := Account{Provider: "codex"}
 	out, _ := c.run(ctx, c.codexBin(), "login", "status")
+	// the service sees the home read-only, which Codex warns about first
+	if i := strings.Index(out, "WARNING:"); i >= 0 {
+		if j := strings.Index(out[i:], "\n"); j >= 0 {
+			out = out[:i] + out[i+j:]
+		}
+	}
 	out = strings.TrimSpace(out)
 	low := strings.ToLower(out)
 	a.LoggedIn = strings.Contains(low, "logged in") && !strings.Contains(low, "not logged in")

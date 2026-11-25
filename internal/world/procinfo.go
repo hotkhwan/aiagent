@@ -40,8 +40,12 @@ func (t procTable) startTime(pid int) (string, bool) {
 
 // emptyBackground is a background process Claude Code started (a warm spare, or
 // an agent view nobody has typed into) that holds no conversation yet: nothing
-// to show or talk to. It is listed once it has a transcript or a name.
+// to show or talk to. It is listed once it has a transcript or a name. A
+// terminal left on the agent view (parked) is the same: a window, not an agent.
 func emptyBackground(s Session) bool {
+	if s.parked && s.sourcePath == "" {
+		return true
+	}
 	return s.Kind == "bg" && s.sourcePath == "" && len(s.SessionID) >= 8 && s.DisplayName == s.SessionID[:8]
 }
 
