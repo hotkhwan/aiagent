@@ -309,6 +309,7 @@ func (s *Service) Mount(app *fiber.App) {
 	api.Get("/tokens", s.handleTokens)
 	api.Post("/tokens", s.handleTokenCreate)
 	api.Post("/tokens/:id/revoke", s.handleTokenRevoke)
+	api.Post("/tokens/:id/reissue", s.handleTokenReissue)
 	api.Get("/snapshot", s.handleSnapshot)
 	api.Get("/sessions/:id", s.handleSession)
 	api.Get("/runs/:id/log", s.handleRunLog)

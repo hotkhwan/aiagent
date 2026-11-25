@@ -128,6 +128,36 @@ func (s *Store) AddUser(name, osUser string) (UserToken, string, error) {
 	return u, token, s.write(st)
 }
 
+// ReissueUser replaces a user's token and returns the new one once. The old
+// one stops working at once; the room behind it is untouched. A token cannot
+// be shown again, only replaced: only its hash is kept.
+func (s *Store) ReissueUser(id string) (UserToken, string, error) {
+	tokensMu.Lock()
+	defer tokensMu.Unlock()
+	st, err := s.Load()
+	if err != nil || !st.Enabled {
+		return UserToken{}, "", ErrConflict("the service is not enabled")
+	}
+	users := append([]UserToken{}, st.Users...)
+	for i := range users {
+		if users[i].ID != id {
+			continue
+		}
+		if users[i].Hash == "" {
+			return UserToken{}, "", ErrConflict("this user is being removed")
+		}
+		token, err := newToken()
+		if err != nil {
+			return UserToken{}, "", err
+		}
+		sum := sha256.Sum256([]byte(token))
+		users[i].Hash = hex.EncodeToString(sum[:])
+		st.Users = users
+		return users[i], token, s.write(st)
+	}
+	return UserToken{}, "", ErrNotFound("no such token")
+}
+
 // RevokeUser removes a user token; it stops working at once.
 func (s *Store) RevokeUser(id string) error {
 	tokensMu.Lock()
@@ -417,6 +447,18 @@ func (s *Service) handleTokenCreate(c fiber.Ctx) error {
 				_ = s.Store.RevokeUser(u.ID)
 				return nil, err
 			}
+		}
+		return fiber.Map{"id": u.ID, "name": u.Name, "token": token}, nil
+	})
+}
+
+func (s *Service) handleTokenReissue(c fiber.Ctx) error {
+	id := strings.Clone(c.Params("id"))
+	c.Set("Cache-Control", "no-store")
+	return s.mutate(c, "aiagent.tokenReissue", []string{id}, func() (any, error) {
+		u, token, err := s.Store.ReissueUser(id)
+		if err != nil {
+			return nil, err
 		}
 		return fiber.Map{"id": u.ID, "name": u.Name, "token": token}, nil
 	})

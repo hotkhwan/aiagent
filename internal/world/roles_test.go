@@ -165,3 +165,32 @@ func TestWorkspacesShareOneTmuxSession(t *testing.T) {
 		t.Fatal("a ':' in a tmux name was accepted")
 	}
 }
+
+func TestReissueReplacesAUsersTokenAndKeepsTheRoom(t *testing.T) {
+	e := newEnv(t)
+	admin, err := e.store.Enable("t")
+	if err != nil {
+		t.Fatal(err)
+	}
+	u, old, _ := e.store.AddUser("anna", "")
+	if code, _, _ := e.do(t, "POST", apiPrefix+"/tokens/"+u.ID+"/reissue", old, `{}`); code != 403 {
+		t.Fatalf("a user reissued a token: %d", code)
+	}
+	code, m, _ := e.do(t, "POST", apiPrefix+"/tokens/"+u.ID+"/reissue", admin, `{}`)
+	fresh, _ := m["details"].(map[string]any)["token"].(string)
+	if code != 200 || fresh == "" || fresh == old {
+		t.Fatalf("reissue = %d %v", code, m)
+	}
+	if _, ok := e.store.Identify(old); ok {
+		t.Error("the old token still works")
+	}
+	if id, ok := e.store.Identify(fresh); !ok || id.Name != "anna" || id.Role != RoleUser {
+		t.Errorf("the new token = %+v %v", id, ok)
+	}
+	if st, _ := e.store.Load(); len(st.Users) != 1 || st.Users[0].ID != u.ID {
+		t.Errorf("the entry changed: %+v", st.Users)
+	}
+	if _, _, err := e.store.ReissueUser("nope"); err == nil {
+		t.Error("an unknown id was reissued")
+	}
+}
