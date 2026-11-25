@@ -667,15 +667,7 @@ func (p *Preview) shellCapture(w http.ResponseWriter, r *http.Request, room stri
 		pvJSON(w, http.StatusInternalServerError, failEnv("AIAGENT_AUDIT_FAILED", "audit log unavailable — action not performed"))
 		return
 	}
-	shots, err := p.capture.run(r.Context(), room, func(base string) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if !strings.HasPrefix(r.URL.EscapedPath(), base) || !p.holds(ss.grant) {
-				contentError(w, http.StatusNotFound)
-				return
-			}
-			p.content(w, r, room, base)
-		})
-	})
+	shots, err := p.captureRoom(r.Context(), room, ss.grant)
 	_ = p.audit("result", "aiagent.previewCapture", ss.grant, err)
 	if err != nil {
 		pvFail(w, err)
@@ -690,6 +682,20 @@ func (p *Preview) shellCapture(w http.ResponseWriter, r *http.Request, room stri
 	ss.shots, ss.shotID, ss.shotAt = shots, id, p.now()
 	p.mu.Unlock()
 	pvJSON(w, http.StatusOK, okEnv(map[string]any{"id": id, "images": shots}))
+}
+
+// captureRoom takes the pictures of room's page. The box is answered that
+// room's content only, and only while g holds.
+func (p *Preview) captureRoom(ctx context.Context, room string, g pvGrant) ([]captureImage, error) {
+	return p.capture.run(ctx, room, func(base string) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if !strings.HasPrefix(r.URL.EscapedPath(), base) || !p.holds(g) {
+				contentError(w, http.StatusNotFound)
+				return
+			}
+			p.content(w, r, room, base)
+		})
+	})
 }
 
 func (p *Preview) shellReview(w http.ResponseWriter, r *http.Request, room string) {

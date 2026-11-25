@@ -91,6 +91,7 @@ type Service struct {
 	// Preview is set when rooms have pages of their own (preview.go).
 	Preview *Preview
 	roomRev roomReviewCache
+	roomCap roomCaptureState
 	mates   mateCache
 
 	mu        sync.Mutex
@@ -330,6 +331,10 @@ func (s *Service) Mount(app *fiber.App) {
 	api.Get("/preview/state", s.handlePreviewState)
 	api.Get("/preview/file", s.handlePreviewFile)
 	api.Post("/preview/review", s.handlePreviewReview)
+	// a room's agent asked for a capture (roomspool.go); only the admin
+	// service, through the room's socket, calls these
+	api.Get("/preview/capture/wanted", s.handleCaptureWanted)
+	api.Post("/preview/capture/result", s.handleCaptureResult)
 	api.Get("/snapshot", s.handleSnapshot)
 	api.Get("/sessions/:id", s.handleSession)
 	api.Get("/runs/:id/log", s.handleRunLog)

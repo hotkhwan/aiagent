@@ -5,6 +5,7 @@
 //	aiagent enable | disable | rotate-token | status
 //	aiagent statusline                       (for Claude Code settings.json)
 //	aiagent review --title "..." page.html   (an agent hands work back)
+//	aiagent capture                          (a room's agent: its page at 390 and 1440 px)
 //	aiagent trust-roots list | add DIR | remove DIR | ensure DIR | forget DIR
 //
 // Safe by default: the listener is loopback-only, and while the switch is off
@@ -15,6 +16,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"log"
@@ -23,6 +25,7 @@ import (
 	"os/user"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/gofiber/fiber/v3"
@@ -43,6 +46,8 @@ const usage = `aiagent — a village view of the AI coding agents running on thi
   aiagent statusline        Claude Code status line command; also records plan usage
   aiagent review --title "..." [--summary "..."] [--session ID] page.html
                             file an HTML page for the operator to review
+  aiagent capture           (in a room) screenshots of the room's preview page
+                            at 390 and 1440 px, saved in ~/work/.aiagent/captures
   aiagent trust-roots list | add DIR | remove DIR
                             folders under which Claude Code's folder-trust
                             question is answered Yes before a session starts
@@ -74,6 +79,8 @@ func main() {
 		captureBox(os.Args[2:])
 	case "review":
 		review(os.Args[2:])
+	case "capture":
+		capture(os.Args[2:])
 	case "enable", "rotate-token", "disable", "status":
 		switchCmd(os.Args[1], os.Args[2:])
 	case "trust-roots":
@@ -193,6 +200,9 @@ func serve(args []string) {
 	}
 	svc.Mount(app)
 	svc.StartRooms(context.Background())
+	// a room's own instance collects what its sandboxed agent leaves in its
+	// work folder (reviews, capture requests)
+	svc.StartSpool(context.Background())
 
 	scheme := "http"
 	if tls {
@@ -398,12 +408,81 @@ func review(args []string) {
 	}
 	home, _ := os.UserHomeDir()
 	cwd, _ := os.Getwd()
+	id := ""
 	r, err := world.FileReview(home, *title, *summary, sid, runtime, cwd, page, time.Now())
+	if err != nil && spoolable(err) {
+		// Inside Claude Code's command sandbox ~/.claude is read-only. The
+		// room's own instance files the page from the work folder instead.
+		id, err = spoolReview(home, world.SpoolRequest{Title: *title, Summary: *summary, SessionID: sid, Runtime: runtime, Cwd: cwd, Page: page})
+	}
 	if err != nil {
 		log.Fatalf("review: %v", err)
 	}
-	fmt.Printf("filed review %s — open AI Agent World → ห้องทดสอบ to check it\n", r.ID)
+	if r != nil {
+		id = r.ID
+	}
+	fmt.Printf("filed review %s — open AI Agent World → ห้องทดสอบ to check it\n", id)
 	if sid == "" {
 		fmt.Println("note: no session id, so the reply can only be copied (pass --session to let the web send it back)")
+	}
+}
+
+// spoolable: the review folder cannot be written here, but the work folder
+// may be.
+func spoolable(err error) bool {
+	return errors.Is(err, syscall.EROFS) || errors.Is(err, syscall.EACCES) || errors.Is(err, syscall.EPERM)
+}
+
+func spoolReview(home string, req world.SpoolRequest) (string, error) {
+	id, err := world.SpoolReview(home, req)
+	if err != nil {
+		return "", err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	r, err := world.SpoolWait(ctx, home, id)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "review: left in %s/work/.aiagent/in as %s, but this room's service has not picked it up yet.\n"+
+			"It is filed when the service runs; do not file it again. Tell the user if it does not show in the Review view.\n", home, id)
+		os.Exit(3)
+	}
+	if r.Error != "" {
+		return "", errors.New(r.Error)
+	}
+	return r.ReviewID, nil
+}
+
+// capture asks the room's own service for screenshots of the room's preview
+// page. The admin service makes them in its capture box.
+func capture(args []string) {
+	fs := flag.NewFlagSet("aiagent capture", flag.ExitOnError)
+	wait := fs.Duration("wait", 110*time.Second, "how long to wait for the pictures")
+	fs.Usage = func() {
+		fmt.Fprintln(os.Stderr, "usage: aiagent capture [--wait 110s]\n\nScreenshots of this room's preview page at 390 and 1440 px, saved in ~/work/.aiagent/captures.")
+		fs.PrintDefaults()
+	}
+	_ = fs.Parse(args)
+	if fs.NArg() != 0 {
+		fs.Usage()
+		os.Exit(2)
+	}
+	home, _ := os.UserHomeDir()
+	id, err := world.SpoolCapture(home)
+	if err != nil {
+		log.Fatalf("capture: %v", err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), *wait)
+	defer cancel()
+	r, err := world.SpoolWait(ctx, home, id)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "capture: no answer yet (request %s). Captures are made only in a room whose admin set up the preview;\n"+
+			"if one comes, the pictures appear in %s/work/.aiagent/captures.\n", id, home)
+		os.Exit(3)
+	}
+	if r.Error != "" {
+		log.Fatalf("capture: %s", r.Error)
+	}
+	for _, f := range r.Files {
+		fmt.Println(f)
 	}
 }

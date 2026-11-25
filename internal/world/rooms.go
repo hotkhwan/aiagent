@@ -206,6 +206,7 @@ func (s *Service) StartRooms(ctx context.Context) {
 	if s.OSUsers == nil {
 		return
 	}
+	s.StartRoomCaptures(ctx)
 	go func() {
 		t := time.NewTicker(time.Minute)
 		defer t.Stop()
