@@ -1247,6 +1247,7 @@ function applyPose (act) {
   const pose = act.poi >= 0 ? pois[act.poi][2] : 'stand'
   act.el.classList.toggle('lie', pose === 'lie')
   act.el.classList.toggle('sitting', pose === 'sit')
+  place(act)
   act.mood = pose === 'work' ? 'work' : pose === 'stand' ? (act.a.mood === 'sleep' && act.a.label === tr('เสร็จแล้ว') ? 'cheer' : 'think') : 'rest'
   setAnim(act, act.mood)
 }
@@ -1312,6 +1313,12 @@ function renderRoomFocus () {
       act.sig = sig
       fillActor(act, a)
       act.el.classList.add('big')
+      if (act.tag) act.tag.remove()
+      act.tag = act.el.querySelector('.tag')
+      act.tag.classList.add('big')
+      act.tagW = 0
+      F.stage.append(act.tag)
+      if (act.poi >= 0) place(act)
       if (act.poi >= 0) applyPose(act)
       if (moodChanged && !act.dragging) { act.nextMove = 0 }
     }
@@ -1326,7 +1333,7 @@ function renderRoomFocus () {
     if (act.leaving) continue
     act.leaving = true
     act.poi = -1
-    walk(act, [[doorSpot[0] * F.FS, doorSpot[1] * F.FS]], () => { act.el.remove(); delete F.actors[id] })
+    walk(act, [[doorSpot[0] * F.FS, doorSpot[1] * F.FS]], () => { act.el.remove(); if (act.tag) act.tag.remove(); delete F.actors[id]; placeTags() })
   }
   updateMonitor(want)
 }
@@ -1669,7 +1676,41 @@ function doorsNear (x, y) {
   if (sd && Math.abs(x - frontDoor.x) < 60 && Math.abs(y - hallA) < 50) openDoor(sd, 'side')
 }
 
+// tagY is how far below an agent's spot its name starts: under the feet.
+const tagH = 40
+function tagY (act) {
+  const c = act.el.classList
+  return c.contains('lie') ? -40 : c.contains('sitting') ? 24 : 2
+}
+
+// placeTags puts the names of a room's agents in one layer over everybody, so
+// neither their own feet nor a neighbour covers one, and stacks those that
+// would lie on each other.
+function placeTags () {
+  const F = st.focus
+  const done = []
+  const acts = Object.values(F.actors).filter(a => a.tag && a.vx !== undefined).sort((a, b) => b.y - a.y)
+  for (const act of acts) {
+    const w = act.tagW = act.tagW || act.tag.offsetWidth || 160
+    const x = Math.max(w / 2 + 8, Math.min(1492 - w / 2, act.vx))
+    let y = act.vy + tagY(act)
+    for (const o of done) if (Math.abs(o.x - x) < (o.w + w) / 2 && Math.abs(o.y - y) < tagH) y = o.y - tagH
+    done.push({ x, y, w })
+    act.tag.style.transform = 'translate(' + (x - w / 2).toFixed(1) + 'px,' + y.toFixed(1) + 'px)'
+  }
+}
+
 function place (act) {
+  if (act.tag) {
+    // keep the agent, and the name under it, inside the room
+    const c = act.el.classList
+    act.vx = Math.max(90, Math.min(1410, act.x))
+    act.vy = Math.min(RH * st.focus.FS - tagH - (c.contains('lie') ? 0 : 26), act.y)
+    act.el.style.transform = 'translate(' + act.vx.toFixed(1) + 'px,' + act.vy.toFixed(1) + 'px)'
+    act.el.style.zIndex = Math.round(act.vy)
+    placeTags()
+    return
+  }
   act.el.style.transform = 'translate(' + act.x.toFixed(1) + 'px,' + act.y.toFixed(1) + 'px)'
   act.el.style.zIndex = Math.round(act.y)
 }

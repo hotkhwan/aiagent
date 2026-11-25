@@ -397,7 +397,6 @@ dialog { margin: auto }
 .focusRoom .roomArt { border-radius: 28px }
 .actor.big { width: 170px; margin-left: -85px; margin-top: -150px }
 .actor.big .spr { width: 150px; height: 150px }
-.actor.big .tag { font-size: 14px; padding: 2px 10px }
 .emptyRoom { position: absolute; left: 50%; bottom: 40px; transform: translateX(-50%); padding: 8px 18px; border-radius: 999px; background: rgba(40,32,26,.8); color: #FFF4DE; font-size: 18px }
 .monitor { position: absolute; display: flex; flex-direction: column; border-radius: 24px; background: #121A2E; border: 6px solid #2C3554; box-shadow: 0 18px 40px rgba(0,0,0,.45), inset 0 0 40px rgba(0,220,130,.05); overflow: hidden }
 .monHead { display: flex; align-items: center; gap: 10px; padding: 16px 20px; font-size: 18px; font-weight: 600; color: #E9FFF5; background: #182340; border-bottom: 1px solid #2C3554 }
@@ -517,9 +516,7 @@ dialog { margin: auto }
 .actor.big.dragging .spr { transform: scale(1.08) rotate(-4deg) }
 .actor.big.sitting .spr { transform: translateY(14px) }
 .actor.big.lie .spr { transform: rotate(-78deg) translate(-26px, 6px) }
-.actor.big.lie .tag { margin-top: -30px }
 .actor.big .say { font-size: 19px; padding: 5px 14px }
-.actor.big .tag { font-size: 16px; padding: 3px 12px }
 .actor.big .fx { width: 40px }
 .focusRoom .rlabel2 { padding: 8px 22px } .focusRoom .rlabel2 b { font-size: 30px } .focusRoom .rlabel2 span { font-size: 19px }
 .wallScreen.live .scrHead { font-size: 15px }
@@ -672,14 +669,12 @@ body:not([data-phase="night"]) .focusHint { color: #2C3654 }
 /* ---------- v12: bigger in-room characters, follow chip ---------- */
 .actor.big { width: 250px; margin-left: -125px; margin-top: -232px }
 .actor.big .spr { width: 232px; height: 232px; margin: 0 auto }
-.actor.big .tag { font-size: 16px; padding: 3px 12px; max-width: 240px }
 .actor.big .say { font-size: 16px }
 .actor.big .fx { width: 40px !important }
 .actor.big.sub .spr { width: 170px; height: 170px; margin-top: 62px }
 .actor.big.sitting .spr { transform: translateY(26px) }
 .actor.big.lie .spr { transform: rotate(-78deg) translate(-40px, 10px) }
 .actor.big.lie .spr.still { transform: rotate(-80deg) translate(-46px, 6px) }
-.actor.big.lie .tag { margin-top: -50px }
 .followChip { margin-left: 8px; padding: 4px 12px; border-radius: 999px; border: 1px solid rgba(0,220,130,.6); background: rgba(10,30,24,.85); color: #BFF5DD; font: inherit; font-size: 13px; cursor: pointer }
 .followChip:hover { background: rgba(0,220,130,.25) }
 .followChip[hidden] { display: none }
@@ -1707,7 +1702,10 @@ button.rtChip:hover { background: #1D2440 }
 .screenWrap .scrHead { font-size: 16px }
 .screenWrap.tvLive .zoomBadge { font-size: 12.5px; padding: 3px 10px }
 .actor.big .say { font-size: 24px }
-.actor.big .tag { font-size: 21px }
+.tag.big { position: absolute; left: 0; top: 0; z-index: 5000; pointer-events: none; display: flex; align-items: center; gap: 6px; height: 36px; padding: 0 14px; max-width: 300px; border-radius: 999px; background: rgba(18,20,38,.94); color: #F1F3FF; font-size: 21px; white-space: nowrap }
+.tag.big.reach { box-shadow: 0 0 0 1.5px rgba(0,220,130,.8) }
+.tag.big.codex { background: rgba(16,48,74,.95) }
+.tag.big i { width: 8px; height: 8px; border-radius: 50%; background: #00DC82 }
 .focusRoom .rlabel2 b { font-size: 36px } .focusRoom .rlabel2 span { font-size: 24px }
 .board.village .hcard { max-width: 520px; padding: 16px 20px }
 .board.village .hcard b { font-size: 28px }
