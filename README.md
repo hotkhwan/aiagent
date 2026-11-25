@@ -55,7 +55,10 @@ restrict third-party tools; read them before letting other agents send it work.
 
 The installer also sets up the site: one tmux session (`--site NAME`, the host
 name by default) with a window per agent, each working in its own folder under
-`ai-work` (`--code DIR` lets them read your checkouts). After a restart
+`ai-work` (`--code DIR` lets them read your checkouts). With `--os-users`, the admin's skills and the rules in
+`/etc/aiagent/room-base.md` reach every room, and Codex and Antigravity as
+`AGENTS.md`, within a minute (`/etc/aiagent/share.conf`; a memory file is shared
+only when its frontmatter says `share: rooms`). After a restart
 `aiagent-agents@` opens the windows again, each on its last conversation, and
 restarts the Claude background sessions that were running.
 

@@ -185,6 +185,13 @@ if [ "$with_service" = yes ]; then
 		if [ "$os_users" = yes ]; then
 			install -D -m 0755 "$root/packaging/osuser.sh" /usr/local/lib/aiagent/osuser.sh
 			install -m 0755 "$root/packaging/agent-loop.sh" /usr/local/lib/aiagent/agent-loop.sh
+			# what every agent knows: the admin's rules, skills and marked memories
+			install -m 0755 "$root/packaging/room-share.py" /usr/local/lib/aiagent/room-share.py
+			install -m 0644 "$root/packaging/aiagent-room-share.service" "$root/packaging/aiagent-room-share.timer" "$unitdir/"
+			mkdir -p /usr/local/share/aiagent/room /etc/aiagent
+			[ -e /etc/aiagent/room-base.md ] || install -m 0644 "$root/packaging/room-base.md" /etc/aiagent/room-base.md
+			[ -e /usr/local/share/aiagent/room/settings.json ] || install -m 0644 "$root/packaging/room-settings.json" /usr/local/share/aiagent/room/settings.json
+			[ -e /etc/aiagent/share.conf ] || printf 'BASE=/etc/aiagent/room-base.md\nRULES=\nSKILLS=%s/.claude/skills\nMEMORY=\n' "$HOME" > /etc/aiagent/share.conf
 			install -m 0755 "$root/packaging/claude-token.sh" /usr/local/sbin/aiagent-claude-token
 			c=$(PATH="$HOME/.local/bin:$PATH" command -v claude || true)
 			if [ -n "$c" ] && [ "$c" != /usr/local/bin/claude ]; then
@@ -197,7 +204,7 @@ if [ "$with_service" = yes ]; then
 First run (as root), in this order:
 
   systemctl daemon-reload
-  systemctl enable --now aiagent-tmux@root aiagent@root aiagent-agents@root aiagent-keep@root.timer aiagent-quota@root.timer
+  systemctl enable --now aiagent-tmux@root aiagent@root aiagent-agents@root aiagent-keep@root.timer aiagent-quota@root.timer aiagent-room-share.timer
   aiagent enable              keep the admin token it prints (shown once)
   claude setup-token          sign in with YOUR Claude account, copy the token
   aiagent-claude-token set    paste it (hidden); every room uses it from now on

@@ -1,0 +1,9 @@
+[Unit]
+Description=share the admin's rules, skills and marked memories with the agents
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=1min
+
+[Install]
+WantedBy=timers.target

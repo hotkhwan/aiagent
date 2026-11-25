@@ -1,0 +1,6 @@
+[Unit]
+Description=share the admin's rules, skills and marked memories with the agents
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/lib/aiagent/room-share.py
