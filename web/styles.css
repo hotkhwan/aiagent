@@ -1742,3 +1742,5 @@ button.rtChip:hover { background: #1D2440 }
 .promptBox button { text-align: left; display: flex; flex-direction: column; gap: 2px; white-space: normal }
 .promptBox button small { color: var(--muted); font-weight: 400 }
 .promptBox button[disabled] { opacity: .5; cursor: not-allowed }
+#vaultBody .accRow { flex-wrap: wrap }
+#vaultBody .accRow input { min-width: 180px }

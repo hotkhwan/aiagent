@@ -2777,7 +2777,43 @@ async function openAccounts () {
   await drawAccounts()
   await drawCLIs()
   await drawTokens()
+  await drawVault()
   await drawRooms()
+}
+
+// ----- vault: access tokens for GitLab, GitHub and others. A value is shown to
+// the server once and never read back; the list shows names and purposes only.
+async function drawVault (fresh) {
+  if (!$('accountsDlg').open) return
+  let list
+  try { list = (await api('/vault')).entries } catch (e) { $('vaultBody').replaceChildren(h('p', { class: 'note' }, tr('อ่านรายการ token ไม่ได้: ') + e.message)); return }
+  const name = h('input', { type: 'text', id: 'vaultName', maxlength: '40', placeholder: tr('ชื่อ เช่น gitlab-netra-ui'), autocomplete: 'off' })
+  const prov = h('select', { id: 'vaultProv', 'aria-label': tr('ประเภท') }, h('option', { value: 'gitlab' }, 'GitLab'), h('option', { value: 'github' }, 'GitHub'), h('option', { value: 'other' }, tr('อื่นๆ')))
+  const purpose = h('input', { type: 'text', id: 'vaultPurpose', maxlength: '300', placeholder: tr('ใช้กับอะไร เช่น push netra-ui และเปิด MR'), autocomplete: 'off' })
+  const value = h('input', { type: 'password', id: 'vaultValue', maxlength: '400', placeholder: tr('ค่า token (แสดงครั้งเดียว ไม่มีการอ่านกลับ)'), autocomplete: 'off', spellcheck: 'false' })
+  const save = async () => {
+    try {
+      await api('/vault', { method: 'POST', body: { name: name.value.trim(), provider: prov.value, purpose: purpose.value.trim(), value: value.value } })
+      value.value = ''
+      toast(tr('บันทึก token แล้ว'))
+    } catch (e) { toast(tr('ไม่สำเร็จ: ') + e.message, true) }
+    drawVault()
+  }
+  const remove = async e => {
+    if (!await confirmBox(tr('ลบ token'), tr('ระบบที่ใช้ token นี้จะใช้ไม่ได้จนกว่าจะใส่ใหม่'), e.name, tr('ลบ'))) return
+    try { await api('/vault/' + e.id + '/remove', { method: 'POST', body: {} }) } catch (err) { toast(tr('ไม่สำเร็จ: ') + err.message, true) }
+    drawVault()
+  }
+  $('vaultBody').replaceChildren(h('div', { class: 'accCard' },
+    h('div', { class: 'accTop' }, h('b', null, tr('Token ของบริการภายนอก'))),
+    list.length ? h('ul', null, ...list.map(e => h('li', null, h('b', null, e.name), ' · ' + e.provider + ' · ' + e.purpose,
+      e.lastUsed ? h('span', { class: 'note' }, ' · ' + tr('ใช้ล่าสุด ') + ago(e.lastUsed)) : null, ' ',
+      h('button', { type: 'button', class: 'warn', onclick: () => remove(e) }, tr('ลบ'))))) : h('p', { class: 'note' }, tr('ยังไม่มี token')),
+    h('div', { class: 'accRow' }, name, prov),
+    h('div', { class: 'accRow' }, purpose),
+    h('div', { class: 'accRow' }, value, h('button', { type: 'button', class: 'pri', onclick: save }, tr('บันทึก'))),
+    h('p', { class: 'note' }, tr('ห้องของ user ไม่เห็นค่า token นี้ ใช้ได้เฉพาะระบบของ admin เช่น การส่ง MR และ CI')),
+    null))
 }
 
 // ----- user tokens: the server refuses these calls without an admin token -----
