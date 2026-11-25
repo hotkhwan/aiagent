@@ -17,7 +17,7 @@ Environment=PATH=%h/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin
 ; One session holds every agent, a window each ("tmuxWindow" in
 ; workspaces.json). Set its name per machine with a drop-in.
 Environment=AIAGENT_TMUX=aiagent
-ExecStart=-/usr/bin/tmux new-session -d -s ${AIAGENT_TMUX} -n host "sleep infinity"
+ExecStart=-/usr/bin/tmux new-session -d -s ${AIAGENT_TMUX} -n host "/usr/local/lib/aiagent/host-menu.py || sleep infinity"
 ; Stopping or restarting this unit must never kill the agents inside.
 KillMode=process
 

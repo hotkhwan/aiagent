@@ -123,6 +123,11 @@ function agentHex (sess) { return sess.runtimeType === 'codexCli' ? '#5CC8F0' : 
 // the token, so a refresh does not make the admin wait either. It only paints
 // the menu: the server decides every request by the token.
 function safeLocal (k) { try { return !!localStorage.getItem(k) } catch (e) { return false } }
+// Users know a protected session only as "admin"; the admin sees the same word
+// first, then its own name.
+function nameOf (sess) {
+  return sess.protected && !isUser() ? 'admin · ' + sess.displayName.replace(/\s*\(admin\)$/, '') : sess.displayName
+}
 function showMenu (role) {
   for (const id of ['viewPM', 'viewTasks', 'accountsBtn']) $(id).hidden = role !== 'admin'
 }
@@ -328,7 +333,7 @@ function filterPanel (key) {
     cards = snap.sessions.filter(x => x.live && want.includes(x.status)).map(sess => {
       const ex = h('div', { class: 'excerpt', 'data-sid': sess.sessionId }, key === 'needsInput' ? tr('กำลังโหลดข้อความล่าสุด…') : (sess.title || ''))
       return h('div', { class: 'card ' + (key === 'needsInput' ? 'warn' : ''), tabindex: 0, onclick: () => { st.tab = 'chat'; flyTo('session', sess.sessionId) }, onkeydown: e => { if (e.key === 'Enter') { st.tab = 'chat'; flyTo('session', sess.sessionId) } } },
-        h('b', null, sess.displayName),
+        h('b', null, nameOf(sess)),
         h('small', null, (sess.repoId || '—') + ' · ' + stateText(sess) + ' · ' + ago(sess.lastEventAt) + (sess.messageVia ? tr(' · ตอบจากเว็บได้') : tr(' · ดูได้อย่างเดียว'))),
         ex)
     })
@@ -539,7 +544,7 @@ function actorsFor () {
       mood: waiting ? 'ask' : (resting && ci) ? 'work' : (resting && rev) ? 'ask' : resting ? 'sleep' : 'work',
       label: waiting ? tr('รอคุณตอบ') : (resting && ci) ? tr('รอ CI: ') + ci.label : (resting && rev) ? tr('รอคุณตรวจงาน (') + rev + ')' : s2 === 'completed' ? tr('เสร็จแล้ว') : resting ? tr('ว่าง') : activityLabel[sess.activityType],
       watches: sess.watches || [],
-      name: (sess.dispatchVia ? '@' + sess.dispatchVia + ' ' : '') + sess.displayName,
+      name: (sess.dispatchVia ? '@' + sess.dispatchVia + ' ' : '') + nameOf(sess),
       canTake: !!sess.messageVia
     })
     for (const sa of sess.subAgents || []) {
@@ -593,7 +598,7 @@ function applyZoom () {
   // The heading's height varies (chips, wrapping), so the scene starts below it.
   if (window.matchMedia('(min-width: 901px)').matches) {
     const head = document.querySelector('.stageHead')
-    v.style.top = Math.max(92, head.offsetTop + head.offsetHeight + 8) + 'px'
+    v.style.top = head.offsetTop + head.offsetHeight + 8 + 'px'
   } else v.style.top = ''
   const fit = (inRoom && isPhone() ? v.clientWidth / b.w : Math.min(v.clientWidth / b.w, v.clientHeight / b.h)) || 1
   const zl = zoomLevel()
@@ -879,21 +884,21 @@ const screenGlass = {
 }
 const screenRatio = { 'scr-lamp': 0.57, 'scr-blue': 0.57, 'scr-bunny': 0.77, 'scr-white': 0.63, 'scr-robot': 0.55, 'scr-tablet': 0.77 }
 const roomDefs = {
-  code: { th: tr('ห้องพัฒนา'), en: 'Development', bg: 'bg-code', screen: ['scr-robot', 302, 112, 196, '</> Dev Monitor'], clock: [70, 150, 38],
+  code: { th: tr('ห้องพัฒนา'), en: 'Development', bg: 'bg-code', screen: ['scr-robot', 348, 92, 340, '</> Dev Monitor'], clock: [70, 150, 38],
     items: [['plant-big', 6, 330, 74], ['desk-blue2', 64, 296, 180], ['desk-pink2', 310, 296, 180], ['desk-white2', 556, 296, 180], ['cactus', 742, 404, 48]] },
-  test: { th: tr('ห้องทดสอบ'), en: 'Testing', bg: 'bg-test', screen: ['scr-blue', 284, 78, 232, '▶ Test Runner'],
+  test: { th: tr('ห้องทดสอบ'), en: 'Testing', bg: 'bg-test', screen: ['scr-blue', 230, 70, 340, '▶ Test Runner'],
     items: [['filing-blue', 600, 214, 70], ['desk-white2', 70, 290, 180], ['desk-blue2', 300, 290, 180], ['printer2', 640, 310, 116], ['hydrangea', 14, 404, 64]] },
-  library: { th: tr('ห้องวิจัย'), en: 'Research', bg: 'bg-library', screen: ['scr-white', 306, 106, 188, '📖 Research Notes'],
+  library: { th: tr('ห้องวิจัย'), en: 'Research', bg: 'bg-library', screen: ['scr-white', 180, 78, 320, '📖 Research Notes'],
     items: [['shelf-big', 70, 176, 210], ['shelf-tall', 566, 190, 96], ['globe', 680, 296, 56], ['table-meet', 284, 292, 232], ['plant-stand', 30, 380, 66], ['books2', 600, 420, 70]] },
-  plan: { th: tr('ห้องวางแผน'), en: 'Planning', bg: 'bg-plan', screen: ['scr-white', 292, 118, 216, '◷ Plan Board'], clock: [690, 150, 40],
+  plan: { th: tr('ห้องวางแผน'), en: 'Planning', bg: 'bg-plan', screen: ['scr-white', 368, 45, 340, '◷ Plan Board'], clock: [745, 150, 40],
     items: [['desk-boss2', 70, 270, 240], ['table-meet', 450, 296, 226], ['plant-big', 8, 362, 70], ['calendar', 720, 420, 56]] },
-  approval: { th: tr('รอคุณตอบ'), en: 'Waiting for Reply', bg: 'bg-approval', screen: ['scr-bunny', 270, 92, 260, tr('💬 รอคุณตอบ')],
+  approval: { th: tr('รอคุณตอบ'), en: 'Waiting for Reply', bg: 'bg-approval', screen: ['scr-bunny', 250, 40, 300, tr('💬 รอคุณตอบ')],
     items: [['reception2', 34, 312, 260], ['sofa-yellow2', 480, 330, 270], ['water', 734, 268, 58], ['flowers-pot', 330, 420, 52], ['pillow-bunny', 520, 352, 52]] },
-  ops: { th: tr('ห้องระบบ'), en: 'Infrastructure', bg: 'bg-ops', screen: ['scr-robot', 238, 110, 324, '◉ System Monitor'],
+  ops: { th: tr('ห้องระบบ'), en: 'Infrastructure', bg: 'bg-ops', screen: ['scr-robot', 213, 62, 340, '◉ System Monitor'],
     items: [['servers2', 22, 200, 196], ['filing-blue', 700, 262, 66], ['desk-white2', 300, 316, 180], ['printer2', 556, 362, 104], ['plant-big', 722, 380, 70]] },
-  deploy: { th: tr('ห้อง Deploy'), en: 'Deploy', bg: 'bg-deploy', screen: ['scr-lamp', 236, 128, 328, '🚀 Deployment Board'],
+  deploy: { th: tr('ห้อง Deploy'), en: 'Deploy', bg: 'bg-deploy', screen: ['scr-lamp', 367, 70, 350, '🚀 Deployment Board'],
     items: [['desk-pink2', 24, 324, 176], ['desk-pink2', 600, 324, 176], ['rug-pink2', 240, 404, 320], ['rocket', 352, 352, 96], ['bean-pink', 266, 404, 84], ['bean-yellow', 452, 404, 84], ['box-pallet', 220, 320, 74], ['handtruck', 528, 316, 54]] },
-  lounge: { th: tr('ห้องพัก'), en: 'Lounge', bg: 'bg-lounge', screen: ['scr-tablet', 312, 104, 176, '☕ TV'], clock: [736, 214, 34],
+  lounge: { th: tr('ห้องพัก'), en: 'Lounge', bg: 'bg-lounge', screen: ['scr-tablet', 255, 40, 290, '☕ TV'], clock: [736, 214, 34],
     items: [['rug-cloud', 196, 418, 250], ['sofa-pink2', 52, 318, 276], ['armchair2', 352, 330, 112], ['hammock2', 494, 318, 236], ['bean-purple', 290, 424, 76], ['water', 742, 296, 52], ['plant-stand', 8, 392, 58]] },
   entrance: { th: tr('ทางเข้า'), en: 'Entrance', garden: true,
     items: [['signboard', 40, 160, 120], ['sakura2', 280, 70, 240], ['bench2', 560, 230, 190], ['flowerbox3', 40, 380, 150], ['lamppost', 720, 210, 46], ['bush2b', 560, 400, 160]] }
@@ -952,13 +957,18 @@ const npcs = {
   approval: ['cx-kid7', 440, tr('ห้องรอคุณตอบ 💬'), tr('agent ที่ถามคำถามหรือรอให้คุณยืนยัน จะมารอที่นี่ — คลิก agent แล้วตอบได้จากช่องด้านล่าง')],
   lounge: ['cx-panda', 470, tr('ห้องพัก ☕'), tr('agent ที่ทำงานเสร็จแล้วหรือว่างรอคำสั่งใหม่ จะมาพักที่นี่')]
 }
+// The bubble is kept inside the room: a guide near a wall would lose its text.
+const NPC_SAY_W = 300
 function npcEl (key, big) {
   const [ch, x, title, text] = npcs[key]
   const n = box('npc', x - 40, 360, 80, 140)
   n.append(img(ch, 0, 0, 80, { cls: 'npcImg' }))
-  n.title = title + ' — ' + text
-  if (big) {
+  if (!big) n.title = title + ' — ' + text
+  else {
+    n.setAttribute('aria-label', title + ' — ' + text)
     const say = h('div', { class: 'npcSay' }, h('b', null, title), h('p', null, text))
+    say.style.width = NPC_SAY_W + 'px'
+    say.style.left = Math.max(10, Math.min(RW - NPC_SAY_W - 10, x - NPC_SAY_W / 2)) - (x - 40) + 'px'
     n.append(say)
     n.addEventListener('click', e => { e.stopPropagation(); n.classList.toggle('talk') })
     setTimeout(() => n.classList.add('talk'), 400)
@@ -1048,8 +1058,16 @@ const animSpec = { walkR: [6, 0.62], walkL: [6, 0.62], work: [4, 0.9], think: [4
 
 // A character the grown-up chose for one agent in this browser; otherwise the
 // one its id hashes to.
+// A look saved on the server is the same on every browser and for every role;
+// one picked before that existed stays in this browser.
+function sharedLook (id) {
+  const s = st.snap && st.snap.sessions && st.snap.sessions.find(x => x.sessionId === id)
+  return s ? s.look || '' : ''
+}
 const charKey = id => 'aiagentChar:' + id
 function charFor (id) {
+  const sh = sharedLook(id)
+  if (charPool.includes(sh)) return sh
   let pick = ''
   try { pick = localStorage.getItem(charKey(id)) || '' } catch (e) { pick = '' }
   if (charPool.includes(pick)) return pick
@@ -1064,6 +1082,11 @@ function repaintActor (act) {
 }
 
 function chooseChar (id, c) {
+  const own = st.snap && st.snap.sessions && st.snap.sessions.find(x => x.sessionId === id)
+  if (own && !own.readOnly && !(own.protected && isUser())) {
+    own.look = c
+    api('/sessions/' + encodeURIComponent(id) + '/look', { method: 'POST', body: JSON.stringify({ look: c }) }).catch(e => toast(e.message))
+  }
   try {
     if (c) localStorage.setItem(charKey(id), c)
     else localStorage.removeItem(charKey(id))
@@ -1132,8 +1155,8 @@ const roomTitle = {
   code: tr('ห้องพัฒนา'), test: tr('ห้องทดสอบ'), library: tr('ห้องวิจัย'), plan: tr('ห้องบริหาร · วางแผน'), approval: tr('รอคุณตอบ'),
   ops: tr('ห้องระบบ'), deploy: tr('ห้อง Deploy'), lounge: tr('ห้องพัก'), entrance: tr('ทางเข้า')
 }
-const FW = 1640
-const FH = 990
+const FW = 1520
+const FH = 950
 
 function flyTo (kind, id) {
   const a = actorsFor().find(x => x.id === id)
@@ -1237,7 +1260,7 @@ function renderRoomFocus () {
     st.actors = {}
     const b = sceneBoard(FW, FH, 'focus')
     const FS = 1500 / RW
-    const stageEl = box('focusRoom', 70, 10, 1500, RH * FS)
+    const stageEl = box('focusRoom', 10, 6, 1500, RH * FS)
     const screen = composeRoom(stageEl, key, FS, true)
     if (screen) {
       screen.classList.add('live')
@@ -1252,7 +1275,7 @@ function renderRoomFocus () {
       tv.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openScreenPop(key) } })
     }
     b.append(stageEl)
-    b.append(box('focusHint', 70, RH * FS + 26, 1500, 0))
+    b.append(box('focusHint', 10, RH * FS - 34, 1500, 0))
     b.querySelector('.focusHint').textContent = tr('ลาก agent ไปวางที่โซฟา เก้าอี้ เปล หรือจุดไหนก็ได้ · คลิก agent เพื่อเปิดแชต · คลิกจอเพื่อขยาย · ← หรือ Esc กลับ')
     st.focus = { key, stage: stageEl, FS, actors: {} }
     tickClocks()
@@ -1711,7 +1734,7 @@ function sessionCard (sess) {
   },
   ava,
   h('div', { class: 'sMain' },
-    h('b', null, sess.displayName),
+    h('b', null, nameOf(sess)),
     h('span', { class: 'sMeta' }, runtimeName[sess.runtimeType] + ' · ' + (sess.repoId || '—') + (sess.gitBranch ? ' · ' + sess.gitBranch : ''))),
   h('div', { class: 'sRight' },
     h('em', { class: 'pill ' + tone }, state),
@@ -1861,7 +1884,7 @@ function sessionHeader (sess) {
     h('div', { class: 'sessTop' },
       h('button', { type: 'button', class: 'ghost', onclick: back }, tr('← ภาพรวม')),
       h('div', { class: 'who' }, ava, h('div', null,
-        h('h2', { class: 'nameRow' }, h('span', null, sess.displayName),
+        h('h2', { class: 'nameRow' }, h('span', null, nameOf(sess)),
           sess.readOnly || sess.protected && isUser() ? null : h('button', { type: 'button', class: 'ghost renameBtn', title: tr('เปลี่ยนชื่อที่แสดงในเว็บ'), 'aria-label': tr('เปลี่ยนชื่อ'), onclick: () => renameSession(sess) }, '✎')),
         h('p', null, runtimeName[sess.runtimeType] + ' · ' + (sess.repoId || '—')))),
       h('div', { class: 'state' }, stateDot, stateText(sess),

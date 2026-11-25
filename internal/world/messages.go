@@ -36,6 +36,7 @@ var redactions = []struct {
 	{regexp.MustCompile(`\bkaw_[A-Za-z0-9_-]{20,}`), "«aiagent token redacted»"},
 	{regexp.MustCompile(`\bgithub_pat_[A-Za-z0-9_]{20,}`), "«github token redacted»"},
 	{regexp.MustCompile(`\bgh[pousr]_[A-Za-z0-9]{20,}`), "«github token redacted»"},
+	{regexp.MustCompile(`\bglpat-[A-Za-z0-9_.-]{20,}`), "«gitlab token redacted»"},
 	{regexp.MustCompile(`\bsk-[A-Za-z0-9_-]{20,}`), "«api key redacted»"},
 	{regexp.MustCompile(`\bAKIA[0-9A-Z]{16}\b`), "«aws key redacted»"},
 	{regexp.MustCompile(`\bxox[abprs]-[A-Za-z0-9-]{10,}`), "«slack token redacted»"},

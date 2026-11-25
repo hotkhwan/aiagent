@@ -142,6 +142,9 @@ if [ "$with_service" = yes ]; then
 				sudo install -m 0644 "$tmp/$u" "$unitdir/$u"
 			fi
 		done
+		if [ -w /usr/local/lib ]; then
+			install -D -m 0755 "$root/packaging/host-menu.py" /usr/local/lib/aiagent/host-menu.py
+		fi
 		if [ "$os_users" = yes ]; then
 			install -D -m 0755 "$root/packaging/osuser.sh" /usr/local/lib/aiagent/osuser.sh
 			install -m 0755 "$root/packaging/agent-loop.sh" /usr/local/lib/aiagent/agent-loop.sh

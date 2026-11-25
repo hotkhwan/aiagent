@@ -84,6 +84,8 @@ type Session struct {
 	StartedAt    *time.Time `json:"startedAt,omitempty"`
 	LastEventAt  *time.Time `json:"lastEventAt,omitempty"`
 	Usage        Usage      `json:"usage"`
+	// Look is the character chosen for this session, the same for everyone.
+	Look string `json:"look,omitempty"`
 	// Protected marks an admin's session: users see that it exists, no more.
 	Protected bool `json:"protected,omitempty"`
 	// ReadOnly marks a teammate's session: its chat can be read, nothing else.

@@ -195,7 +195,7 @@ var userRoutes = map[string][]*regexp.Regexp{
 	),
 	"POST": compileAll(
 		`/messages`, `/uploads`,
-		`/sessions/[A-Za-z0-9-]+/(message|stop|name)`,
+		`/sessions/[A-Za-z0-9-]+/(message|stop|name|look)`,
 		`/reviews/[A-Za-z0-9._-]+/(view|compose|decision)`,
 	),
 }
@@ -321,15 +321,17 @@ func (s *Service) protectionsFor(sessions []Session) protections {
 // them but their existence and state.
 func (s *Service) forRole(id Identity, snap Snapshot) Snapshot {
 	p := s.protectionsFor(snap.Sessions)
+	looks := s.loadLooks()
 	out := make([]Session, 0, len(snap.Sessions))
 	for _, ss := range snap.Sessions {
+		ss.Look = looks[ss.SessionID]
 		if p.covers(ss.SessionID) {
 			ss.Protected = true
 			if id.Role != RoleAdmin {
 				const why = "session ของผู้ดูแล — ดูข้อความและสั่งงานได้เฉพาะ admin"
 				ss = Session{
 					SessionID: ss.SessionID, RuntimeType: ss.RuntimeType, ProviderID: ss.ProviderID,
-					DisplayName: RoleAdmin, Status: ss.Status, Live: ss.Live, LiveEvidence: ss.LiveEvidence,
+					DisplayName: RoleAdmin, Look: ss.Look, Status: ss.Status, Live: ss.Live, LiveEvidence: ss.LiveEvidence,
 					ActivityType: ActivityUnknown, StartedAt: ss.StartedAt, LastEventAt: ss.LastEventAt,
 					Kind: ss.Kind, Protected: true, MessageBlocked: why, StopBlocked: why,
 				}

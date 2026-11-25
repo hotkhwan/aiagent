@@ -1680,3 +1680,34 @@ button.rtChip:hover { background: #1D2440 }
 /* On a short desktop window the stage shrinks; a fixed floor pushed it under
    the composer. */
 @media (min-width: 901px) { .stage { min-height: 0 } }
+
+/* ---------- bigger scenes and text ---------- */
+@media (min-width: 901px) {
+  .stageHead { top: 12px; right: 190px; display: flex; flex-wrap: wrap; align-items: center; gap: 2px 14px }
+  .stageHead p { flex-basis: 100% }
+  .stageHead .phase, .stageHead .followChip { order: -1; margin: 0 }
+  .stageHead h1 { order: -2 }
+  .stage:has(.board.focus) .stageHead p { display: none }
+  .board.focus .focusHint { display: none }
+}
+.npcSay { margin-left: 0; padding: 11px 14px }
+.npcSay b { font-size: 16px; margin-bottom: 4px }
+.npcSay p { font-size: 13.5px; line-height: 1.45 }
+.board.focus .focusHint { box-sizing: border-box; padding: 4px 0; color: #fff; background: rgba(8,12,30,.72); border-radius: 12px; font-size: 20px; opacity: 1; z-index: 5; pointer-events: none; text-align: center }
+.screenWrap .wallScreen.live { padding: 10px 14px; gap: 8px }
+.wallScreen.live .scrHead { font-size: 18px }
+.wallScreen.live .scrBody { gap: 7px }
+.wallScreen.live .scrTop { font-size: 14.5px }
+.wallScreen.live .scrMsg p { font-size: 13.5px; line-height: 1.4 }
+.wallScreen.live .scrNote { font-size: 15px }
+.screenWrap .scrHead { font-size: 16px }
+.screenWrap.tvLive .zoomBadge { font-size: 12.5px; padding: 3px 10px }
+.actor.big .say { font-size: 24px }
+.actor.big .tag { font-size: 21px }
+.focusRoom .rlabel2 b { font-size: 36px } .focusRoom .rlabel2 span { font-size: 24px }
+.board.village .hcard { max-width: 520px; padding: 16px 20px }
+.board.village .hcard b { font-size: 28px }
+.board.village .hcard span { font-size: 20px }
+.board.village .pill { font-size: 18px; padding: 3px 10px }
+.board.village .hicon { width: 58px; height: 58px }
+.board.village .hicon svg { width: 32px; height: 32px }

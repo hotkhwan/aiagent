@@ -22,6 +22,13 @@ if [ -f "$room/CLAUDE.md" ] && { [ ! -e "$HOME/.claude/CLAUDE.md" ] || [ -L "$HO
 	ln -sfn "$room/CLAUDE.md" "$HOME/.claude/CLAUDE.md"
 fi
 
+# Commands the agent runs do not get the sign-in token in their environment,
+# and it is told not to read where secrets live. The account's own files and
+# the firewall are what really bound it; this stops an agent being talked into it.
+export CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1
+set --
+[ -f "$room/settings.json" ] && set -- --settings "$room/settings.json"
+
 # The admin's model; a user cannot choose one.
 model() {
 	local m
@@ -33,14 +40,14 @@ signed_in() { claude auth status >/dev/null 2>&1; }
 while :; do
 	if signed_in; then
 		if compgen -G "$HOME/.claude/projects/*/*.jsonl" >/dev/null; then
-			claude --model "$(model)" --continue || claude --model "$(model)" -n "$name"
+			claude "$@" --model "$(model)" --continue || claude "$@" --model "$(model)" -n "$name"
 		else
-			claude --model "$(model)" -n "$name"
+			claude "$@" --model "$(model)" -n "$name"
 		fi
 	else
 		(until signed_in; do sleep 3; done; sleep 1; pkill -TERM -x -P $$ claude) </dev/null >/dev/null 2>&1 &
 		watcher=$!
-		claude --model "$(model)" -n "$name"
+		claude "$@" --model "$(model)" -n "$name"
 		kill -- -"$watcher" 2>/dev/null || kill "$watcher" 2>/dev/null
 	fi
 	sleep 2

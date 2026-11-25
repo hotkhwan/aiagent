@@ -329,6 +329,7 @@ func (s *Service) StartOutbox(ctx context.Context) {
 			case <-t.C:
 				if s.Store.Enabled() {
 					s.FlushOutbox(ctx, time.Now())
+					s.Collector.reapRelays(ctx, time.Now())
 				}
 			}
 		}

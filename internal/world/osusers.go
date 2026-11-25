@@ -240,6 +240,9 @@ type mateCache struct {
 	m map[string]mateEntry
 }
 
+// roomReadRE is what may be read of a session in somebody's room.
+var roomReadRE = regexp.MustCompile(`^/sessions/([A-Za-z0-9-]+)(?:/messages)?$`)
+
 // teammates maps each session another user may read to its owner. A user's
 // own sessions and the admin's are never in it, whatever an instance claims:
 // instances are their users' own processes.
@@ -249,8 +252,15 @@ func (s *Service) teammates(ctx context.Context, name string) ([]Session, map[st
 		return nil, nil
 	}
 	taken := map[string]bool{}
-	for _, ss := range s.instanceSessions(ctx, name) {
-		taken[ss.SessionID] = true
+	if name != "" {
+		for _, ss := range s.instanceSessions(ctx, name) {
+			taken[ss.SessionID] = true
+		}
+	} else {
+		// a room cannot stand in for one of the admin's own sessions
+		for _, ss := range s.Collector.Snapshot(ctx).Sessions {
+			taken[ss.SessionID] = true
+		}
 	}
 	p := s.protections(ctx)
 	var list []Session
@@ -266,6 +276,9 @@ func (s *Service) teammates(ctx context.Context, name string) ([]Session, map[st
 			taken[ss.SessionID] = true
 			owner[ss.SessionID] = u.OSUser
 			why := "ห้องของ " + u.OSUser + " — อ่านบทสนทนาได้ ส่งข้อความไม่ได้"
+			if !lookRE.MatchString(ss.Look) {
+				ss.Look = ""
+			}
 			ss.Owner, ss.RepoID, ss.ReadOnly, ss.Protected = u.OSUser, u.OSUser, true, false
 			ss.MessageVia, ss.StopVia, ss.DispatchVia, ss.Workspace, ss.Cwd, ss.Pid = "", "", "", "", "", 0
 			ss.MessageBlocked, ss.StopBlocked = why, why

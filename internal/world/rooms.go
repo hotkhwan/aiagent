@@ -233,6 +233,11 @@ func userText(msg string) bool {
 	msg = strings.TrimLeftFunc(msg, func(r rune) bool {
 		return unicode.IsSpace(r) || unicode.IsControl(r) || unicode.Is(unicode.Cf, r)
 	})
+	// "!" opens the CLI's shell mode, which runs a command with no agent in
+	// between; "&" sends the work to a cloud session.
+	if strings.HasPrefix(msg, "!") || strings.HasPrefix(msg, "&") {
+		return false
+	}
 	if !strings.HasPrefix(msg, "/") {
 		return true
 	}

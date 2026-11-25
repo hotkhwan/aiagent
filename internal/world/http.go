@@ -208,6 +208,14 @@ func (s *Service) gate(c fiber.Ctx) error {
 		if target != "" && !localPath(strings.TrimPrefix(c.Path(), apiPrefix)) {
 			return s.forwardAudited(c, target)
 		}
+		// an admin reads a room's session from the list, as a teammate would
+		if target == "" && c.Method() == "GET" {
+			if m := roomReadRE.FindStringSubmatch(strings.TrimPrefix(c.Path(), apiPrefix)); m != nil {
+				if mate := s.teammateOf(c.Context(), "", m[1]); mate != "" {
+					return s.forward(c, strings.Clone(mate))
+				}
+			}
+		}
 	}
 	return c.Next()
 }
@@ -303,6 +311,7 @@ func (s *Service) Mount(app *fiber.App) {
 	s.mountPM(api)
 	api.Post("/sessions/:id/model", s.handleSessionModel)
 	api.Post("/sessions/:id/name", s.handleSessionName)
+	api.Post("/sessions/:id/look", s.handleSessionLook)
 	api.Post("/messages", s.handleMessage)
 	api.Post("/runs/:id/answer", s.handleAnswer)
 	api.Post("/runs/:id/approve", s.handleRunStatus("approve"))
@@ -381,7 +390,13 @@ func (s *Service) handleSnapshot(c fiber.Ctx) error {
 	snap.Sessions = s.applyNames(snap.Sessions)
 	snap.nonNil() // applyNames can hand back nil for an empty list
 	snap.Pending = s.PendingFor("")
-	return c.JSON(okEnv(s.forRole(identity(c), snap)))
+	snap = s.forRole(identity(c), snap)
+	if s.OSUsers != nil && identity(c).Role == RoleAdmin {
+		// the rooms too, so the admin sees what each user sees
+		rooms, _ := s.teammates(c.Context(), "")
+		snap.Sessions = append(snap.Sessions, rooms...)
+	}
+	return c.JSON(okEnv(snap))
 }
 
 func (s *Service) handleSession(c fiber.Ctx) error {
