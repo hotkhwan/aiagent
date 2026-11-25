@@ -82,6 +82,7 @@ var EN = {
   'สำหรับผู้ดูแล': 'For admins',
   'คู่มือ (PDF)': 'Manual (PDF)',
   'สไลด์ (PDF)': 'Slides (PDF)',
+  'จากห้อง ': 'From room ',
   ' quota ไม่ทราบ': ' quota unknown',
   'รายสัปดาห์': 'Weekly',
   ' วัน': 'd',

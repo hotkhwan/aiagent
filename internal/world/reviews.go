@@ -41,7 +41,9 @@ type Review struct {
 	SentVia  string     `json:"sentVia,omitempty"`
 	Delivery string     `json:"delivery,omitempty"`
 	Size     int64      `json:"size"`
-	home     string
+	// Owner is the room a review was filed in, when the admin lists rooms' reviews.
+	Owner string `json:"owner,omitempty"`
+	home  string
 }
 
 const (

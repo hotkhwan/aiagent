@@ -87,3 +87,40 @@ func TestGuidesAreSplitByRole(t *testing.T) {
 		}
 	}
 }
+
+func TestAdminSeesAndAnswersARoomsReview(t *testing.T) {
+	e, _, o := osUserEnv(t)
+	admin, err := e.store.Enable("t")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, user, _ := e.store.AddUser("vibe-a", "vibe-a")
+	_, _, _ = e.store.AddUser("vibe-b", "vibe-b")
+	const id = "r20260102-030405-0a1b2c3d"
+	var seen []string
+	instance(t, o, "vibe-a", func(w http.ResponseWriter, r *http.Request) {
+		seen = append(seen, r.Method+" "+r.URL.Path)
+		_, _ = w.Write([]byte(`{"code":"SUCCESS","details":{"sessions":[],"reviews":[{"id":"` + id + `","title":"ready to merge 1.2.0","status":"open","cwd":"/home/vibe-a/work","createdAt":"2026-01-02T03:04:05Z"}]}}`))
+	})
+	instance(t, o, "vibe-b", func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"code":"SUCCESS","details":{"sessions":[],"reviews":[]}}`))
+	})
+	code, _, body := e.do(t, "GET", apiPrefix+"/reviews", admin, "")
+	if code != 200 || !strings.Contains(body, `"owner":"vibe-a"`) || !strings.Contains(body, "ready to merge 1.2.0") || strings.Contains(body, "/home/vibe-a") {
+		t.Fatalf("admin reviews = %d %s", code, body)
+	}
+	seen = nil
+	if code, _, _ := e.do(t, "POST", apiPrefix+"/reviews/"+id+"/decision", admin, `{"decision":"approved"}`); code != 200 || len(seen) == 0 || seen[len(seen)-1] != "POST "+apiPrefix+"/reviews/"+id+"/decision" {
+		t.Fatalf("answering a room's review = %d %v", code, seen)
+	}
+	// a user still reaches only their own room
+	seen = nil
+	_, other, _ := e.store.AddUser("vibe-c", "vibe-c")
+	instance(t, o, "vibe-c", func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"code":"SUCCESS","details":{"sessions":[],"reviews":[]}}`))
+	})
+	if _, _, body := e.do(t, "GET", apiPrefix+"/reviews", other, ""); strings.Contains(body, "ready to merge") {
+		t.Fatalf("another room saw the page: %s", body)
+	}
+	_ = user
+}

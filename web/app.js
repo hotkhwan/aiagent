@@ -2453,7 +2453,7 @@ function reviewList (inPop) {
     const sess = sessOfReview(r)
     return h('button', { type: 'button', class: 'revItem ' + r.status, onclick: () => { if ($('screenPop').open) $('screenPop').close(); openReview(r.id) } },
       h('b', null, (r.status === 'open' ? '🧪 ' : r.status === 'approved' ? '✅ ' : '✏️ ') + r.title),
-      h('small', null, (sess ? sess.displayName : r.runtime === 'codexCli' ? 'Codex' : tr('ไม่ระบุ session')) + ' · ' + ago(r.createdAt)),
+      h('small', null, (r.owner ? tr('จากห้อง ') + r.owner + ' · ' : '') + (sess ? sess.displayName : r.runtime === 'codexCli' ? 'Codex' : tr('ไม่ระบุ session')) + ' · ' + ago(r.createdAt)),
       r.summary ? h('p', null, r.summary) : null)
   }
   return h('div', { class: 'revList' },
@@ -2709,7 +2709,7 @@ async function openReview (id) {
 
   $('reviewSide').replaceChildren(...[
     h('dl', { class: 'kv' },
-      h('dt', null, tr('จาก')), h('dd', null, sess ? sess.displayName : (r.runtime === 'codexCli' ? 'Codex' : tr('ไม่ระบุ session'))),
+      h('dt', null, tr('จาก')), h('dd', null, (r.owner ? tr('จากห้อง ') + r.owner + ' · ' : '') + (sess ? sess.displayName : (r.runtime === 'codexCli' ? 'Codex' : tr('ไม่ระบุ session')))),
       h('dt', null, tr('ส่งเมื่อ')), h('dd', null, fmtTime(r.createdAt) + ' · ' + ago(r.createdAt)),
       h('dt', null, tr('สถานะ')), h('dd', null, r.status === 'open' ? tr('รอตรวจ') : r.status === 'approved' ? tr('ตกลงแล้ว') : tr('ขอแก้แล้ว')),
       r.cwd ? h('dt', null, tr('โฟลเดอร์')) : null, r.cwd ? h('dd', { class: 'mono' }, r.cwd) : null,

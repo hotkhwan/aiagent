@@ -38,6 +38,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -86,6 +87,7 @@ type Service struct {
 	// OSUsers is set when each user token gets its own OS user (osusers.go).
 	OSUsers     *OSUsers
 	userTickets map[string]userTicket
+	roomRev     roomReviewCache
 	mates       mateCache
 
 	mu        sync.Mutex
@@ -214,6 +216,15 @@ func (s *Service) gate(c fiber.Ctx) error {
 			if m := sessionPathRE.FindStringSubmatch(strings.TrimPrefix(c.Path(), apiPrefix)); m != nil {
 				if mate := s.teammateOf(c.Context(), "", m[1]); mate != "" {
 					return s.forwardAudited(c, strings.Clone(mate))
+				}
+			}
+			// and answers a review page filed in a room the same way
+			if m := reviewPathRE.FindStringSubmatch(strings.TrimPrefix(c.Path(), apiPrefix)); m != nil {
+				if room := s.roomOfReview(c.Context(), m[1]); room != "" {
+					s.roomRev.Lock()
+					s.roomRev.at = time.Time{} // the answer changes the list
+					s.roomRev.Unlock()
+					return s.forwardAudited(c, strings.Clone(room))
 				}
 			}
 		}
@@ -731,7 +742,13 @@ func (s *Service) handleReviews(c fiber.Ctx) error {
 	if rs == nil {
 		rs = []Review{}
 	}
-	return c.JSON(okEnv(fiber.Map{"reviews": s.reviewsFor(c, rs)}))
+	rs = s.reviewsFor(c, rs)
+	if identity(c).Role == RoleAdmin {
+		more, _ := s.roomReviews(c.Context())
+		rs = append(rs, more...)
+		sort.SliceStable(rs, func(i, j int) bool { return rs[i].CreatedAt.After(rs[j].CreatedAt) })
+	}
+	return c.JSON(okEnv(fiber.Map{"reviews": rs}))
 }
 
 const reviewViewCSP = "sandbox allow-scripts allow-popups; default-src 'none'; img-src data: blob:; media-src data: blob:; font-src data:; style-src 'unsafe-inline'; script-src 'unsafe-inline'; frame-ancestors 'self'; base-uri 'none'; form-action 'none'"
