@@ -1752,3 +1752,25 @@ button.rtChip:hover { background: #1D2440 }
 
 .topToast { position: fixed; inset: 18px auto auto 50%; transform: translateX(-50%); margin: 0; max-width: min(720px, 92vw); padding: 12px 20px; border-radius: 12px; border: 2px solid var(--brand); background: #10203A; color: #E6FFF4; font-size: 15px; box-shadow: 0 14px 34px rgba(0,0,0,.55); overflow-wrap: anywhere }
 .topToast.bad { border-color: var(--rose); background: #3A1420; color: #FFE4EA }
+
+/* ---------- a narrow header ---------- */
+.top .conn { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+.asBar { min-width: 0 }
+.top .asBar { flex: 0 1 auto }
+.asBar b { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+.asBar span, .asBar button { white-space: nowrap; flex: none }
+@media (max-width: 1320px) { .asBar { padding: 2px 4px 2px 12px } }
+@media (max-width: 1100px) { .brand .brandName { display: none } .asBar span { display: none } }
+@media (max-width: 900px) {
+  .top { flex-wrap: wrap }
+  .top .asBar { order: 9; flex: 1 0 100%; box-sizing: border-box }
+  .asBar button { margin-left: auto }
+}
+/* A phone has no room for the tabs and the buttons side by side: the tabs take
+   a row of their own. The page is a fixed-height column, so it stays in view. */
+@media (max-width: 700px) {
+  .top .views { order: 10; flex: 1 0 100%; min-width: 0 }
+  .views button { flex: 1 1 auto; min-width: 0; padding: 6px 4px; white-space: nowrap }
+  .top .energy { margin-left: auto }
+  body.typing .typingClose { top: calc(112px + env(safe-area-inset-top)) }
+}
