@@ -179,7 +179,7 @@ func (o *Orchestrator) Dispatch(ctx context.Context, taskID string) (taskstore.A
 		return taskstore.Attempt{}, fmt.Errorf("no task %s", taskID)
 	}
 	if t.Status != taskstore.StatusReady {
-		return taskstore.Attempt{}, fmt.Errorf("task %s is %s; only a ready task is dispatched", t.ID, t.Status)
+		return taskstore.Attempt{}, fmt.Errorf("งาน %s เป็น %s ส่งให้ agent ได้เฉพาะงานที่อนุมัติแล้ว", t.ID, t.Status)
 	}
 	provider := t.Provider
 	if provider == "" {

@@ -157,10 +157,10 @@ async function api (path, opts) {
   // and the user stays signed in.
   const slow = res.status === 429 && body && body.code === 'AIAGENT_SLOW_DOWN'
   if (res.status === 401 || (res.status === 429 && !slow)) {
-    showLogin(body && body.message)
+    showLogin(body && serverText(body.message))
     throw new Error('auth')
   }
-  if (!res.ok) throw new Error((body && body.message) || ('HTTP ' + res.status))
+  if (!res.ok) throw new Error((body && serverText(body.message)) || ('HTTP ' + res.status))
   return body ? body.details : null
 }
 
@@ -2194,7 +2194,7 @@ async function uploadFile (blob, raw) {
   const res = await fetch('/aiagent/api/uploads', { method: 'POST', headers: { ...authHeaders(), 'Content-Type': body.type || 'application/octet-stream' }, body, cache: 'no-store' })
   let j = null
   try { j = await res.json() } catch (e) { j = null }
-  if (!res.ok) throw new Error((j && j.message) || ('HTTP ' + res.status))
+  if (!res.ok) throw new Error((j && serverText(j.message)) || ('HTTP ' + res.status))
   return j.details.path
 }
 

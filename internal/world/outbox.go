@@ -135,7 +135,7 @@ func (s *Service) Enqueue(sessionID, message string, now time.Time) (Pending, er
 		}
 	}
 	if n >= outboxMax {
-		return Pending{}, ErrConflict("too many messages already waiting for this agent")
+		return Pending{}, ErrConflict("มีข้อความรอส่งให้ agent นี้มากเกินไปแล้ว")
 	}
 	p := Pending{ID: pendingID(now), SessionID: sessionID, Message: message, QueuedAt: now}
 	list = append(list, p)
@@ -201,7 +201,7 @@ func (s *Service) FlushOutbox(ctx context.Context, now time.Time) int {
 		switch list[i].State {
 		case PendingSending:
 			list[i].State = PendingUnknown
-			list[i].LastError = "the service stopped while typing this message; it may already have arrived"
+			list[i].LastError = "บริการหยุดระหว่างพิมพ์ข้อความนี้ ข้อความอาจถึงแล้ว"
 			stranded = true
 		case PendingWaiting:
 			ids = append(ids, list[i].ID)

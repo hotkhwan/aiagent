@@ -79,11 +79,11 @@ const maxForwardBody = 32 << 20
 // do sends one request to a user's instance.
 func (o *OSUsers) do(ctx context.Context, name, method, uri, contentType string, body []byte) (int, http.Header, []byte, error) {
 	if !osUserRE.MatchString(name) {
-		return 0, nil, nil, ErrBadRequest("bad user name")
+		return 0, nil, nil, ErrBadRequest("ชื่อผู้ใช้ไม่ถูกต้อง")
 	}
 	tok, err := os.ReadFile(filepath.Join(o.TokenDir, name+".token"))
 	if err != nil {
-		return 0, nil, nil, &APIError{502, "AIAGENT_INSTANCE_DOWN", "this user's workspace is not set up"}
+		return 0, nil, nil, &APIError{502, "AIAGENT_INSTANCE_DOWN", "ห้องของผู้ใช้นี้ยังตั้งค่าไม่เสร็จ"}
 	}
 	req, err := http.NewRequestWithContext(ctx, method, "http://instance"+uri, bytes.NewReader(body))
 	if err != nil {
@@ -95,12 +95,12 @@ func (o *OSUsers) do(ctx context.Context, name, method, uri, contentType string,
 	}
 	resp, err := o.client(name).Do(req)
 	if err != nil {
-		return 0, nil, nil, &APIError{502, "AIAGENT_INSTANCE_DOWN", "this user's workspace is not answering"}
+		return 0, nil, nil, &APIError{502, "AIAGENT_INSTANCE_DOWN", "ห้องของผู้ใช้นี้ไม่ตอบ"}
 	}
 	defer resp.Body.Close()
 	b, err := io.ReadAll(io.LimitReader(resp.Body, maxForwardBody))
 	if err != nil {
-		return 0, nil, nil, &APIError{502, "AIAGENT_INSTANCE_DOWN", "this user's workspace is not answering"}
+		return 0, nil, nil, &APIError{502, "AIAGENT_INSTANCE_DOWN", "ห้องของผู้ใช้นี้ไม่ตอบ"}
 	}
 	return resp.StatusCode, resp.Header, b, nil
 }
@@ -119,7 +119,7 @@ func (s *Service) forward(c fiber.Ctx, name string) error {
 		if mate := s.teammateOf(c.Context(), name, m[1]); mate != "" {
 			tail := strings.TrimPrefix(strings.TrimPrefix(c.Path(), apiPrefix), m[0])
 			if c.Method() != "GET" || (tail != "" && tail != "/messages") {
-				return c.Status(fiber.StatusForbidden).JSON(failEnv("AIAGENT_READ_ONLY", "a teammate's session can only be read"))
+				return c.Status(fiber.StatusForbidden).JSON(failEnv("AIAGENT_READ_ONLY", "session ของเพื่อนร่วมทีมอ่านได้อย่างเดียว"))
 			}
 			name = mate
 		}
@@ -340,7 +340,7 @@ func (s *Service) forwardAudited(c fiber.Ctx, name string) error {
 	if c.Method() != "GET" {
 		rec := audit.Record{Event: "intent", RPC: "aiagent.forward", AdminSub: subject(c), ParamsHash: paramsHash(name, c.Path())}
 		if err := s.Auditor.Write(rec); err != nil {
-			return c.Status(fiber.StatusInternalServerError).JSON(failEnv("AIAGENT_AUDIT_FAILED", "audit log unavailable — action not performed"))
+			return c.Status(fiber.StatusInternalServerError).JSON(failEnv("AIAGENT_AUDIT_FAILED", "เขียนบันทึก audit ไม่ได้ จึงไม่ได้ทำคำสั่งนี้"))
 		}
 	}
 	return s.forward(c, name)

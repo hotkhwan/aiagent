@@ -170,7 +170,7 @@ func (s *Service) handlePMMessage(c fiber.Ctx) error {
 		Text string `json:"text"`
 	}
 	if err := c.Bind().Body(&body); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(failEnv("AIAGENT_BAD_REQUEST", "invalid JSON body"))
+		return c.Status(fiber.StatusBadRequest).JSON(failEnv("AIAGENT_BAD_REQUEST", "ข้อมูลที่ส่งมาไม่ใช่ JSON ที่ถูกต้อง"))
 	}
 	text, err := cleanProse(body.Text)
 	if err != nil {
@@ -183,7 +183,7 @@ func (s *Service) handlePMMessage(c fiber.Ctx) error {
 		history := s.PMThread.History(pmHistoryTurns)
 		id, err := s.PMThread.Ask(text)
 		if errors.Is(err, planner.ErrBusy) {
-			return nil, ErrConflict("the PM is still answering the last message")
+			return nil, ErrConflict("PM ยังตอบข้อความก่อนหน้าไม่เสร็จ")
 		}
 		if err != nil {
 			return nil, err
@@ -296,10 +296,10 @@ func taskFromProposal(p planner.Proposal, e proposalEdits) (taskstore.NewTask, e
 		return nt, err
 	}
 	if strings.ContainsAny(nt.Title, "\r\n") {
-		return nt, ErrBadRequest("title must be one line")
+		return nt, ErrBadRequest("ชื่องานต้องเป็นบรรทัดเดียว")
 	}
 	if !slices.Contains(planner.Kinds, nt.Kind) {
-		return nt, ErrBadRequest("kind must be one of " + strings.Join(planner.Kinds, ", "))
+		return nt, ErrBadRequest("ชนิดงานต้องเป็นหนึ่งใน " + strings.Join(planner.Kinds, ", "))
 	}
 	for i, ap := range nt.AllowedPaths {
 		nt.AllowedPaths[i] = strings.TrimSpace(ap)
@@ -318,13 +318,13 @@ func (s *Service) handlePMConfirm(c fiber.Ctx) error {
 	var edits proposalEdits
 	if len(c.Body()) > 0 {
 		if err := c.Bind().Body(&edits); err != nil {
-			return c.Status(fiber.StatusBadRequest).JSON(failEnv("AIAGENT_BAD_REQUEST", "invalid JSON body"))
+			return c.Status(fiber.StatusBadRequest).JSON(failEnv("AIAGENT_BAD_REQUEST", "ข้อมูลที่ส่งมาไม่ใช่ JSON ที่ถูกต้อง"))
 		}
 	}
 	return s.mutate(c, "aiagent.pmConfirm", []string{id}, func() (any, error) {
 		p, siblings, ok := s.PMThread.Proposal(id)
 		if !ok {
-			return nil, ErrNotFound("no such proposal")
+			return nil, ErrNotFound("ไม่พบข้อเสนอนี้")
 		}
 		if p.State == "confirmed" {
 			if t, ok := s.Tasks.Get(p.TaskID); ok {
@@ -332,7 +332,7 @@ func (s *Service) handlePMConfirm(c fiber.Ctx) error {
 			}
 		}
 		if p.State != "open" {
-			return nil, ErrConflict("this proposal was already " + p.State)
+			return nil, ErrConflict("ข้อเสนอนี้เป็น " + p.State)
 		}
 		nt, err := taskFromProposal(p.Proposal, edits)
 		if err != nil {
@@ -350,7 +350,7 @@ func (s *Service) handlePMConfirm(c fiber.Ctx) error {
 					nt.BlockedBy = append(nt.BlockedBy, dep.TaskID)
 				}
 			case "open":
-				return nil, ErrConflict(fmt.Sprintf("this step waits on step %d of the same plan (%s): confirm or dismiss that one first", d, dep.Title))
+				return nil, ErrConflict(fmt.Sprintf("ขั้นนี้รอขั้นที่ %d ของแผนเดียวกัน (%s) ให้ยืนยันหรือปัดขั้นนั้นก่อน", d, dep.Title))
 			}
 		}
 		key, _ := s.PMThread.ConfirmKey(id)
@@ -373,10 +373,10 @@ func (s *Service) handlePMDismiss(c fiber.Ctx) error {
 	return s.mutate(c, "aiagent.pmDismiss", []string{id}, func() (any, error) {
 		p, _, ok := s.PMThread.Proposal(id)
 		if !ok {
-			return nil, ErrNotFound("no such proposal")
+			return nil, ErrNotFound("ไม่พบข้อเสนอนี้")
 		}
 		if p.State == "confirmed" {
-			return nil, ErrConflict("this proposal is already task " + p.TaskID + "; cancel the task instead")
+			return nil, ErrConflict("ข้อเสนอนี้เป็นงานแล้ว: " + p.TaskID + " ให้ยกเลิกงานแทน")
 		}
 		if err := s.PMThread.Dismiss(id); err != nil {
 			return nil, err
@@ -392,7 +392,7 @@ func (s *Service) handlePMReset(c fiber.Ctx) error {
 	return s.mutate(c, "aiagent.pmReset", nil, func() (any, error) {
 		if err := s.PMThread.Reset(); err != nil {
 			if errors.Is(err, planner.ErrBusy) {
-				return nil, ErrConflict("the PM is still answering; reset when it is done")
+				return nil, ErrConflict("PM ยังตอบไม่เสร็จ ให้เริ่มใหม่หลังตอบเสร็จ")
 			}
 			return nil, err
 		}

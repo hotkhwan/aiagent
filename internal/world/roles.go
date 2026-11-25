@@ -103,7 +103,7 @@ func (s *Store) AddUser(name, osUser string) (UserToken, string, error) {
 	defer tokensMu.Unlock()
 	st, err := s.Load()
 	if err != nil || !st.Enabled {
-		return UserToken{}, "", ErrConflict("the service is not enabled")
+		return UserToken{}, "", ErrConflict("บริการยังไม่เปิดใช้งาน")
 	}
 	if len(st.Users) >= maxUserTokens {
 		return UserToken{}, "", ErrConflict("token ของผู้ใช้เต็มแล้ว เพิกถอนบางอันก่อน")
@@ -136,7 +136,7 @@ func (s *Store) ReissueUser(id string) (UserToken, string, error) {
 	defer tokensMu.Unlock()
 	st, err := s.Load()
 	if err != nil || !st.Enabled {
-		return UserToken{}, "", ErrConflict("the service is not enabled")
+		return UserToken{}, "", ErrConflict("บริการยังไม่เปิดใช้งาน")
 	}
 	users := append([]UserToken{}, st.Users...)
 	for i := range users {
@@ -144,7 +144,7 @@ func (s *Store) ReissueUser(id string) (UserToken, string, error) {
 			continue
 		}
 		if users[i].Hash == "" {
-			return UserToken{}, "", ErrConflict("this user is being removed")
+			return UserToken{}, "", ErrConflict("กำลังลบผู้ใช้นี้อยู่")
 		}
 		token, err := newToken()
 		if err != nil {
@@ -155,7 +155,7 @@ func (s *Store) ReissueUser(id string) (UserToken, string, error) {
 		st.Users = users
 		return users[i], token, s.write(st)
 	}
-	return UserToken{}, "", ErrNotFound("no such token")
+	return UserToken{}, "", ErrNotFound("ไม่พบ token นี้")
 }
 
 // RevokeUser removes a user token; it stops working at once.
@@ -173,7 +173,7 @@ func (s *Store) RevokeUser(id string) error {
 		}
 	}
 	if len(kept) == len(st.Users) {
-		return ErrNotFound("no such token")
+		return ErrNotFound("ไม่พบ token นี้")
 	}
 	st.Users = kept
 	return s.write(st)
@@ -196,7 +196,7 @@ func (s *Store) BlockUser(id string) (UserToken, error) {
 			return users[i], s.write(st)
 		}
 	}
-	return UserToken{}, ErrNotFound("no such token")
+	return UserToken{}, ErrNotFound("ไม่พบ token นี้")
 }
 
 func identity(c fiber.Ctx) Identity {
@@ -425,7 +425,7 @@ func (s *Service) handleTokenCreate(c fiber.Ctx) error {
 		Name string `json:"name"`
 	}
 	if err := c.Bind().Body(&body); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(failEnv("AIAGENT_BAD_REQUEST", "invalid JSON body"))
+		return c.Status(fiber.StatusBadRequest).JSON(failEnv("AIAGENT_BAD_REQUEST", "ข้อมูลที่ส่งมาไม่ใช่ JSON ที่ถูกต้อง"))
 	}
 	c.Set("Cache-Control", "no-store")
 	return s.mutate(c, "aiagent.tokenCreate", []string{body.Name}, func() (any, error) {

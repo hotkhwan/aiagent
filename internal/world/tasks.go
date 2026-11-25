@@ -40,7 +40,7 @@ func (s *Service) handleTaskGet(c fiber.Ctx) error {
 	}
 	t, ok := s.Tasks.Get(c.Params("id"))
 	if !ok {
-		return s.fail(c, ErrNotFound("no such task"))
+		return s.fail(c, ErrNotFound("ไม่พบงานนี้"))
 	}
 	events := s.Tasks.Events(t.ID)
 	if events == nil {
@@ -58,7 +58,7 @@ func (s *Service) handleTaskCreate(c fiber.Ctx) error {
 		IdempotencyKey string `json:"idempotencyKey"`
 	}
 	if err := c.Bind().Body(&body); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(failEnv("AIAGENT_BAD_REQUEST", "invalid JSON body"))
+		return c.Status(fiber.StatusBadRequest).JSON(failEnv("AIAGENT_BAD_REQUEST", "ข้อมูลที่ส่งมาไม่ใช่ JSON ที่ถูกต้อง"))
 	}
 	if err := checkTaskText(body.NewTask); err != nil {
 		return s.fail(c, err)
@@ -83,14 +83,14 @@ func (s *Service) handleTaskTransition(c fiber.Ctx) error {
 		IdempotencyKey string           `json:"idempotencyKey"`
 	}
 	if err := c.Bind().Body(&body); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(failEnv("AIAGENT_BAD_REQUEST", "invalid JSON body"))
+		return c.Status(fiber.StatusBadRequest).JSON(failEnv("AIAGENT_BAD_REQUEST", "ข้อมูลที่ส่งมาไม่ใช่ JSON ที่ถูกต้อง"))
 	}
 	if len(body.Reason) > maxTaskText {
-		return s.fail(c, ErrBadRequest("reason is too long"))
+		return s.fail(c, ErrBadRequest("เหตุผลยาวเกินไป"))
 	}
 	return s.mutate(c, "aiagent.taskTransition", []string{id, string(body.To), body.IdempotencyKey}, func() (any, error) {
 		if _, ok := s.Tasks.Get(id); !ok {
-			return nil, ErrNotFound("no such task")
+			return nil, ErrNotFound("ไม่พบงานนี้")
 		}
 		if body.To == taskstore.StatusCompleted && s.Orch != nil {
 			moved, err := s.Orch.CheckBase(c.Context(), id)
@@ -98,7 +98,7 @@ func (s *Service) handleTaskTransition(c fiber.Ctx) error {
 				return nil, ErrConflict(err.Error())
 			}
 			if moved {
-				return nil, ErrConflict("the base moved since this work was reviewed; it is verified again before it can complete")
+				return nil, ErrConflict("branch หลักเปลี่ยนไปหลังการตรวจ จะตรวจซ้ำก่อนปิดงาน")
 			}
 		}
 		t, err := s.Tasks.Transition(id, body.To, taskstore.ActorUser, taskstore.Change{Reason: body.Reason}, body.IdempotencyKey)
@@ -116,7 +116,7 @@ func (s *Service) handleTaskDelete(c fiber.Ctx) error {
 	id := c.Params("id")
 	return s.mutate(c, "aiagent.taskDelete", []string{id}, func() (any, error) {
 		if _, ok := s.Tasks.Get(id); !ok {
-			return nil, ErrNotFound("no such task")
+			return nil, ErrNotFound("ไม่พบงานนี้")
 		}
 		if err := s.Tasks.Delete(id, taskstore.ActorUser); err != nil {
 			return nil, ErrConflict(err.Error())
@@ -134,22 +134,22 @@ const (
 // served back to every open tab, so it is kept to a sane size.
 func checkTaskText(nt taskstore.NewTask) error {
 	if len(nt.Title) > 300 || len(nt.ProjectID) > 100 {
-		return ErrBadRequest("title or projectId is too long")
+		return ErrBadRequest("ชื่องานหรือโปรเจกต์ยาวเกินไป")
 	}
 	for _, list := range [][]string{nt.AcceptanceCriteria, nt.AllowedPaths, nt.BlockedBy, nt.RiskLabels} {
 		if len(list) > maxTaskItems {
-			return ErrBadRequest("too many items in a list")
+			return ErrBadRequest("รายการมีจำนวนข้อมากเกินไป")
 		}
 		for _, x := range list {
 			if len(x) > maxTaskText {
-				return ErrBadRequest("an item is too long")
+				return ErrBadRequest("มีข้อที่ยาวเกินไป")
 			}
 		}
 	}
 	switch strings.TrimSpace(nt.Provider) {
 	case "", "claude", "codex", "gemini":
 	default:
-		return ErrBadRequest("provider must be claude, codex, gemini or empty")
+		return ErrBadRequest("provider ต้องเป็น claude, codex, gemini หรือเว้นว่าง")
 	}
 	return nil
 }

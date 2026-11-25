@@ -123,7 +123,7 @@ func (s *Service) VaultValue(name string) (string, error) {
 		_ = writeSecret(filepath.Join(s.vaultDir(), vaultFile), list)
 		return secrets[list[i].ID].Value, nil
 	}
-	return "", ErrNotFound("no vault entry with that name")
+	return "", ErrNotFound("ไม่พบรายการชื่อนี้ใน vault")
 }
 
 // AddVault saves a token under a name and returns the entry.
@@ -144,7 +144,7 @@ func (s *Service) AddVault(name, provider, purpose, value string) (VaultEntry, e
 		return VaultEntry{}, err
 	}
 	if len(list) >= maxVault {
-		return VaultEntry{}, ErrConflict("the vault is full; remove an entry first")
+		return VaultEntry{}, ErrConflict("vault เต็มแล้ว ให้ลบรายการก่อน")
 	}
 	for _, e := range list {
 		if strings.EqualFold(e.Name, name) {
@@ -174,7 +174,7 @@ func vaultFields(name, provider, purpose string) error {
 	case !vaultNameRE.MatchString(name):
 		return ErrBadRequest("ชื่อ: ตัวอักษร ตัวเลข เว้นวรรค . _ / - ยาว 1-60 ตัว")
 	case !vaultProv[provider]:
-		return ErrBadRequest("provider must be gitlab, github or other")
+		return ErrBadRequest("provider ต้องเป็น gitlab, github หรือ other")
 	case n < 3 || n > 300 || strings.ContainsAny(purpose, "\r\n"):
 		return ErrBadRequest("บอกว่าใช้กับอะไร ยาว 3-300 ตัวอักษร")
 	}
@@ -214,7 +214,7 @@ func (s *Service) EditVault(id, name, provider, purpose, value string) (VaultEnt
 		}
 	}
 	if at < 0 {
-		return VaultEntry{}, ErrNotFound("no such vault entry")
+		return VaultEntry{}, ErrNotFound("ไม่พบรายการนี้ใน vault")
 	}
 	if value != "" {
 		secrets := map[string]vaultSecret{}
@@ -248,7 +248,7 @@ func (s *Service) RemoveVault(id string) error {
 		kept = append(kept, e)
 	}
 	if !found {
-		return ErrNotFound("no such vault entry")
+		return ErrNotFound("ไม่พบรายการนี้ใน vault")
 	}
 	var secrets map[string]vaultSecret
 	if err := readJSON(filepath.Join(s.vaultDir(), vaultSecrets), &secrets); err != nil {
@@ -279,7 +279,7 @@ func (s *Service) handleVaultAdd(c fiber.Ctx) error {
 		Value    string `json:"value"`
 	}
 	if err := c.Bind().Body(&body); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(failEnv("AIAGENT_BAD_REQUEST", "invalid JSON body"))
+		return c.Status(fiber.StatusBadRequest).JSON(failEnv("AIAGENT_BAD_REQUEST", "ข้อมูลที่ส่งมาไม่ใช่ JSON ที่ถูกต้อง"))
 	}
 	c.Set("Cache-Control", "no-store")
 	// the value is not an audit parameter: only the name and the provider are
@@ -304,7 +304,7 @@ func (s *Service) handleVaultEdit(c fiber.Ctx) error {
 		Value    string `json:"value"`
 	}
 	if err := c.Bind().Body(&body); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(failEnv("AIAGENT_BAD_REQUEST", "invalid JSON body"))
+		return c.Status(fiber.StatusBadRequest).JSON(failEnv("AIAGENT_BAD_REQUEST", "ข้อมูลที่ส่งมาไม่ใช่ JSON ที่ถูกต้อง"))
 	}
 	id := strings.Clone(c.Params("id"))
 	c.Set("Cache-Control", "no-store")

@@ -22,7 +22,7 @@ func admitProvider(qs []Quota, provider string) error {
 			return nil
 		}
 	}
-	return ErrConflict("every provider for " + provider + " is out of budget; no new work is started")
+	return ErrConflict("provider ทุกเจ้าสำหรับ " + provider + " ใช้งบหมดแล้ว จึงไม่เริ่มงานใหม่")
 }
 
 func spent(qs []Quota, providerID string) bool {

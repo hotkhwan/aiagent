@@ -144,7 +144,7 @@ func TestReviewSendWithNoReachableSessionStaysOpen(t *testing.T) {
 	tok, _ := e.store.Enable("test")
 	r := reviewFor(t, e, "eeee5555-0000-0000-0000-000000000000", "codexCli")
 	code, m, _ := e.do(t, "POST", "/aiagent/api/reviews/"+r.ID+"/decision", tok, oneItem)
-	if code == 200 || !strings.Contains(m["message"].(string), "copy") {
+	if code == 200 || !strings.Contains(m["message"].(string), "คัดลอก") {
 		t.Fatalf("send with nothing to reach: %d %v", code, m)
 	}
 	if got := e.col.Reviews()[0]; got.Status != "open" || got.SentAt != nil {

@@ -197,7 +197,7 @@ func (s *Service) handleTaskDispatch(c fiber.Ctx) error {
 	id := c.Params("id")
 	return s.mutate(c, "aiagent.taskDispatch", []string{id}, func() (any, error) {
 		if _, ok := s.Tasks.Get(id); !ok {
-			return nil, ErrNotFound("no such task")
+			return nil, ErrNotFound("ไม่พบงานนี้")
 		}
 		a, err := s.Orch.Dispatch(c.Context(), id)
 		if err != nil {
@@ -226,7 +226,7 @@ func (s *Service) handleAttemptConfirm(c fiber.Ctx) error {
 	return s.mutate(c, "aiagent.attemptConfirm", []string{id, aid}, func() (any, error) {
 		t, ok := s.Tasks.Get(id)
 		if !ok || !strings.HasPrefix(aid, t.ID+"-A") {
-			return nil, ErrNotFound("no such attempt on that task")
+			return nil, ErrNotFound("ไม่พบรอบการทำงานนี้ในงานดังกล่าว")
 		}
 		a, err := s.Orch.ConfirmDelivery(aid, body.SessionID)
 		if err != nil {

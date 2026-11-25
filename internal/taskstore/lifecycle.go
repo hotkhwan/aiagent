@@ -117,7 +117,7 @@ func (s *Store) Delete(taskID string, actor Actor) error {
 			return nil, fmt.Errorf("no task %s", taskID)
 		}
 		if t.Status != StatusCancelled {
-			return nil, fmt.Errorf("task %s is %s: only a cancelled task can be deleted", taskID, t.Status)
+			return nil, fmt.Errorf("งาน %s เป็น %s: ลบได้เฉพาะงานที่ยกเลิกแล้ว", taskID, t.Status)
 		}
 		return []Event{{Actor: actor, Type: evTaskDeleted, TaskID: taskID}}, nil
 	})
@@ -127,17 +127,17 @@ func (s *Store) Delete(taskID string, actor Actor) error {
 // checkTransition is the state machine's judgement on one move.
 func checkTransition(t *Task, d transitionData, actor Actor) error {
 	if d.From != t.Status {
-		return fmt.Errorf("task %s is %s, not %s", t.ID, t.Status, d.From)
+		return fmt.Errorf("งาน %s เป็น %s ไม่ใช่ %s", t.ID, t.Status, d.From)
 	}
 	r, ok := findRule(d.From, d.To)
 	if !ok {
-		return fmt.Errorf("task %s cannot go from %s to %s", t.ID, d.From, d.To)
+		return fmt.Errorf("งาน %s เปลี่ยนจาก %s เป็น %s ไม่ได้", t.ID, d.From, d.To)
 	}
 	if !slices.Contains(r.actors, actor) {
 		return fmt.Errorf("%s may not move a task from %s to %s", actor, d.From, d.To)
 	}
 	if r.reason && d.Reason == "" {
-		return fmt.Errorf("moving a task from %s to %s needs a reason", d.From, d.To)
+		return fmt.Errorf("เปลี่ยนงานจาก %s เป็น %s ต้องใส่เหตุผล", d.From, d.To)
 	}
 	for _, k := range r.evidence {
 		if strings.TrimSpace(d.Evidence[k]) == "" {
@@ -146,7 +146,7 @@ func checkTransition(t *Task, d transitionData, actor Actor) error {
 	}
 	if d.From == StatusRunning && d.To != StatusCancelled {
 		if a := t.liveAttempt(); a != nil {
-			return fmt.Errorf("attempt %s still holds task %s: end it before moving the task on", a.ID, t.ID)
+			return fmt.Errorf("รอบ %s ยังถืองาน %s อยู่ ต้องจบรอบก่อนจึงเปลี่ยนสถานะงานได้", a.ID, t.ID)
 		}
 	}
 	return nil

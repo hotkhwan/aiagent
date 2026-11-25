@@ -103,17 +103,17 @@ func (c *Collector) AnswerPrompt(ctx context.Context, id string, n int) error {
 		}
 	}
 	if target == nil || !target.Live || target.DispatchVia == "" {
-		return ErrConflict("this session has no window the web can reach")
+		return ErrConflict("session นี้ไม่มีหน้าต่างที่เว็บเข้าถึงได้")
 	}
 	w, ok := c.lookupWorkspace(target.DispatchVia)
 	if !ok {
-		return ErrConflict("this session has no window the web can reach")
+		return ErrConflict("session นี้ไม่มีหน้าต่างที่เว็บเข้าถึงได้")
 	}
 	defer c.lockSend("ws:" + w.session)()
 	// read it again under the lock: the answer is for what is on screen now
 	p := parsePrompt(c.paneScreen(ctx, w.session))
 	if p == nil {
-		return ErrConflict("the agent is not showing a question any more")
+		return ErrConflict("agent ไม่ได้แสดงคำถามแล้ว")
 	}
 	cur := 1
 	var pick *PromptOption
@@ -126,10 +126,10 @@ func (c *Collector) AnswerPrompt(ctx context.Context, id string, n int) error {
 		}
 	}
 	if pick == nil {
-		return ErrBadRequest("no such choice")
+		return ErrBadRequest("ไม่มีตัวเลือกนี้")
 	}
 	if pick.NeedsText {
-		return ErrConflict("this choice needs typed text; answer it in the terminal")
+		return ErrConflict("ตัวเลือกนี้ต้องพิมพ์ข้อความ ให้ตอบในเทอร์มินัล")
 	}
 	session, window, ok := strings.Cut(w.session, ":")
 	if !ok {
@@ -143,11 +143,11 @@ func (c *Collector) AnswerPrompt(ctx context.Context, id string, n int) error {
 	}
 	for i := 0; i < steps; i++ {
 		if _, err := c.tmux(ctx, "send-keys", "-t", pane, key); err != nil {
-			return &APIError{502, "AIAGENT_SEND_FAILED", "could not move to the choice"}
+			return &APIError{502, "AIAGENT_SEND_FAILED", "เลื่อนไปที่ตัวเลือกไม่สำเร็จ"}
 		}
 	}
 	if _, err := c.tmux(ctx, "send-keys", "-t", pane, "Enter"); err != nil {
-		return &APIError{502, "AIAGENT_SEND_FAILED", "could not confirm the choice"}
+		return &APIError{502, "AIAGENT_SEND_FAILED", "ยืนยันตัวเลือกไม่สำเร็จ"}
 	}
 	c.invalidate()
 	return nil

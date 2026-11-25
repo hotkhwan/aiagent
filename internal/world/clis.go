@@ -153,7 +153,7 @@ func (c *Collector) StartCLIUpdate() (<-chan struct{}, error) {
 	c.cli.mu.Lock()
 	defer c.cli.mu.Unlock()
 	if c.cli.running {
-		return nil, ErrConflict("a CLI update is already running")
+		return nil, ErrConflict("กำลังอัปเดต CLI อยู่แล้ว")
 	}
 	c.cli.running = true
 	c.cli.results = nil
