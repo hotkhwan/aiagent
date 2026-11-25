@@ -57,6 +57,7 @@ and `claude` in `/usr/local/bin`, `packaging/osuser.sh` and `packaging/agent-loo
 `/usr/local/lib/aiagent`), every user token an admin makes gets its own OS user
 and its own instance; revoking it archives the home to
 `/var/backups/aiagent-users` and removes the account.
+Rooms you use yourself can share your own sign-in: `packaging/claude-token.sh`.
 
 This installs two binaries into `~/.local/bin`: **`aiagent`**, the service and
 its switch, and **`agcmd`**, the small tool that actually talks to the agents

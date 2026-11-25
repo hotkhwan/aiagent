@@ -9,6 +9,8 @@ Wants=aiagent-user-tmux@%i.service
 User=%i
 Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/bin
 Environment=TMUX_TMPDIR=/run/aiagent-tmux/%i
+; optional: one Claude token for every room (packaging/claude-token.sh)
+EnvironmentFile=-/etc/aiagent/claude.env
 ExecStart=/usr/local/bin/aiagent serve --listen systemd
 Restart=on-failure
 RestartSec=5

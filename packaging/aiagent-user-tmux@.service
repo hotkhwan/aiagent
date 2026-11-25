@@ -13,6 +13,8 @@ RuntimeDirectoryMode=0700
 RuntimeDirectoryPreserve=yes
 Environment=PATH=/home/%i/.local/bin:/usr/local/bin:/usr/bin:/bin LANG=C.UTF-8 TERM=xterm-256color SHELL=/bin/bash
 Environment=TMUX_TMPDIR=/run/aiagent-tmux/%i
+; optional: one Claude token for every room (packaging/claude-token.sh)
+EnvironmentFile=-/etc/aiagent/claude.env
 ExecStart=/usr/bin/tmux new-session -d -s core -n %i -x 180 -y 50 "/usr/local/lib/aiagent/agent-loop.sh %i"
 Restart=always
 RestartSec=5
