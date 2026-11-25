@@ -23,7 +23,8 @@ type fakeBox struct {
 	dropEnters  int // Enters lost, as by a CLI that is still starting
 	sent        []string
 	suggestion  string
-	dialogAfter int // a dialog covers the box after this many Enters
+	dialogAfter int  // a dialog covers the box after this many Enters
+	dialogAtTyp bool // a dialog opens as the text is typed
 	vanish      bool
 	clearAt     time.Duration // text somebody else typed leaves the box
 }
@@ -35,7 +36,7 @@ func (f *fakeBox) draw() string {
 	if f.clearAt > 0 && f.now >= f.clearAt {
 		f.box, f.clearAt = "", 0
 	}
-	if f.dialogAfter > 0 && f.enters >= f.dialogAfter {
+	if f.dialogAtTyp && len(f.typed) > 0 || f.dialogAfter > 0 && f.enters >= f.dialogAfter {
 		return "Do you want to proceed?\n ❯ 1. Yes\n   2. No\n Esc to cancel"
 	}
 	if f.vanish && len(f.typed) > 0 {
@@ -137,6 +138,14 @@ func TestSubmitNeverAnswersADialog(t *testing.T) {
 	}
 }
 
+func TestSubmitDoesNotConfirmADialogThatOpensMeanwhile(t *testing.T) {
+	f := &fakeBox{dialogAtTyp: true}
+	var ns *ErrNotSubmitted
+	if err := f.typer().Submit("hi"); !errors.As(err, &ns) || f.enters != 0 {
+		t.Fatalf("err = %v, Enter pressed %d times into the dialog", err, f.enters)
+	}
+}
+
 func TestSubmitTrailingBackslashIsNotANewline(t *testing.T) {
 	f := &fakeBox{}
 	if err := f.typer().Submit(`see C:\`); err != nil || len(f.sent) != 1 || f.enters != 1 {
@@ -158,6 +167,7 @@ func TestInputBox(t *testing.T) {
 		screen, want string
 		ok           bool
 	}{
+		"cursor on it":   {rule + "\n❯ \x1b[7mT\x1b[0m\x1b[2mry this\x1b[0m\n" + rule, "", true},
 		"dim suggestion": {rule + "\n\x1b[38;5;246m❯\u00a0\x1b[2m\x1b[39mPress up to edit\x1b[0m\n" + rule, "", true},
 		"paste block":    {rule + "\n❯\u00a0[Pasted text #1 +29 lines]\n" + rule + "\n paste again to expand", "[Pastedtext#1+29lines]", true},
 		"two lines":      {rule + " name ─\n❯ ก ข\n  ค\n" + rule, "กขค", true},
