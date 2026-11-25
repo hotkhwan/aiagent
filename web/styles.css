@@ -797,9 +797,12 @@ a.accLink, a.accLink:visited { background: var(--brand); color: #04221A !importa
 a.accLink:hover { filter: brightness(1.08) }
 
 /* ---------- v16: window sky by time of day, runtime glow, provider pills ---------- */
-.skyLayer { position: absolute; pointer-events: none; -webkit-mask-size: 100% 100%; mask-size: 100% 100%; opacity: 0; transition: opacity 1.5s ease, background 1.5s ease }
-body[data-phase="morning"] .skyLayer { opacity: .5; background: linear-gradient(#FFC9A3, #FFE6C4 70%) }
-body[data-phase="evening"] .skyLayer { opacity: .88; background: linear-gradient(#6A4E9C 0%, #E9798A 45%, #F7B26A 100%) }
+/* A tint of the sky seen through the panes: the mask holds the sky pixels of
+   the art and fades out, and soft-light keeps the painted window visible. Drawn
+   flat over a plain window shape it read as a coloured sheet hung on the wall. */
+.skyLayer { position: absolute; pointer-events: none; -webkit-mask-size: 100% 100%; mask-size: 100% 100%; mix-blend-mode: soft-light; opacity: 0; transition: opacity 1.5s ease, background 1.5s ease }
+body[data-phase="morning"] .skyLayer { opacity: .55; background: linear-gradient(#FFC9A3, #FFE6C4 70%) }
+body[data-phase="evening"] .skyLayer { opacity: .8; background: linear-gradient(#B06AA8 0%, #E9798A 25%, #F7B26A 60%) }
 /* At night this filled the window with a flat navy panel and a dot grid, which
    on the iPad reads as a hole cut in the wall rather than as a sky — the owner
    circled it on 2026-11-13 and asked for it gone. The painted window in the
@@ -876,7 +879,7 @@ body[data-weather="storm"] .board.village .drift { filter: grayscale(1) brightne
 body[data-weather="storm"] .board.village .sunmoon { opacity: .25 }
 @keyframes rain { to { background-position: -40px 120px, 0 0 } }
 @keyframes flash { 0%, 100% { filter: none } 50% { filter: brightness(2.4) } 50.6% { filter: none } }
-body[data-weather="storm"] .skyLayer { opacity: .9 !important; background: repeating-linear-gradient(105deg, transparent 0 9px, rgba(220,230,255,.6) 9px 10px) 0 0 / 60px 60px, linear-gradient(#4A5276, #6B7396) !important; animation: rain .5s linear infinite }
+body[data-weather="storm"] .skyLayer { opacity: .6 !important; background: repeating-linear-gradient(105deg, transparent 0 9px, rgba(220,230,255,.6) 9px 10px) 0 0 / 60px 60px, linear-gradient(#4A5276, #6B7396) !important; animation: rain .5s linear infinite }
 body[data-weather="cloudy"]:not([data-phase="night"]):not([data-phase="evening"]) .skyLayer { opacity: .55; background: linear-gradient(#B9C1D6, #DCE1EC) }
 
 .ambient .petal { position: absolute; top: -20px; width: 10px; height: 8px; border-radius: 80% 0 80% 0; background: linear-gradient(135deg, #FFD3E2, #F59BBB); opacity: .85; animation: petal 12s linear infinite }
