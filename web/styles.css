@@ -1711,3 +1711,18 @@ button.rtChip:hover { background: #1D2440 }
 .board.village .pill { font-size: 18px; padding: 3px 10px }
 .board.village .hicon { width: 58px; height: 58px }
 .board.village .hicon svg { width: 32px; height: 32px }
+
+/* ---------- one quota badge ---------- */
+.energy { position: relative; flex-wrap: nowrap }
+.qBadge { border: 0; font: inherit; font-size: 13px; cursor: pointer; white-space: nowrap }
+.qBadge:hover, .energy.open .qBadge { outline: 1px solid var(--line) }
+.qPop { position: fixed; z-index: 60; min-width: 300px; padding: 12px 14px; border-radius: 14px; background: #141C33; border: 1px solid var(--line); box-shadow: 0 14px 34px rgba(0,0,0,.5) }
+.qPop[hidden] { display: none }
+.qRow { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 5px 0 }
+.qRow b { flex-basis: 100%; font-size: 13px; color: var(--ink) }
+.qRow .pill small { color: var(--muted) }
+.qPop .note { margin: 6px 0 0; font-size: 11.5px }
+@media (max-width: 700px) { .qPop { max-width: 92vw; min-width: 0 } }
+/* the one badge is short enough to stay on a narrow header too */
+@media (max-width: 1320px) { .energy { display: flex } }
+@media (max-width: 700px) { .energy { width: auto; order: 0 } }

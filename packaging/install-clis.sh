@@ -11,16 +11,43 @@ PATH="$bindir:$PATH"
 export PATH
 failed=0
 
+# Node.js for Codex, from nodejs.org into this user's ~/.local and checked
+# against its published checksums. A distribution's npm package drags in
+# several hundred others.
 ensure_npm() {
 	command -v npm >/dev/null 2>&1 && return 0
-	if [ "$(id -u)" = 0 ]; then s=""; else s="sudo"; fi
-	if command -v apt-get >/dev/null 2>&1; then
-		$s apt-get update && $s apt-get install -y nodejs npm
-	elif command -v dnf >/dev/null 2>&1; then
-		$s dnf install -y nodejs npm
-	elif command -v brew >/dev/null 2>&1; then
-		brew install node
+	if [ "$(uname -s)" != Linux ]; then
+		command -v brew >/dev/null 2>&1 && brew install node
+		command -v npm >/dev/null 2>&1
+		return
 	fi
+	command -v python3 >/dev/null 2>&1 || return 1
+	mkdir -p "$bindir" "$HOME/.local/lib" || return 1
+	python3 - "$HOME/.local" <<'EOF_NODE' || return 1
+import hashlib, io, os, platform, re, sys, tarfile, urllib.request
+arch = {"x86_64": "x64", "amd64": "x64", "aarch64": "arm64", "arm64": "arm64"}[platform.machine()]
+base = "https://nodejs.org/dist/latest-v22.x/"
+sums = urllib.request.urlopen(base + "SHASUMS256.txt", timeout=30).read().decode()
+m = re.search(r"^([0-9a-f]{64})  (node-v[0-9.]+-linux-" + arch + r"\.tar\.xz)$", sums, re.M)
+if not m:
+    sys.exit("node: no build for this machine")
+b = urllib.request.urlopen(base + m[2], timeout=600).read()
+if hashlib.sha256(b).hexdigest() != m[1]:
+    sys.exit("node: checksum does not match")
+root = sys.argv[1] + "/lib/nodejs"
+os.makedirs(root, exist_ok=True)
+with tarfile.open(fileobj=io.BytesIO(b), mode="r:xz") as t:
+    try:
+        t.extractall(root, filter="tar")
+    except TypeError:
+        t.extractall(root)
+d = root + "/" + m[2][:-len(".tar.xz")]
+for n in ("node", "npm", "npx"):
+    link = sys.argv[1] + "/bin/" + n
+    if os.path.lexists(link):
+        os.remove(link)
+    os.symlink(d + "/bin/" + n, link)
+EOF_NODE
 	command -v npm >/dev/null 2>&1
 }
 

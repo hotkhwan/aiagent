@@ -68,8 +68,44 @@ if [ "$os_users" = yes ]; then
 	prefix=/usr/local # rooms run as other users, so nothing may live in a home
 fi
 
+# What the build and the agents need. Only what is missing is installed, with
+# the system's own package manager.
+need=""
+for t in go tmux git python3 curl; do
+	command -v "$t" >/dev/null 2>&1 || need="$need $t"
+done
+if [ "$(uname -s)" = Linux ]; then
+	command -v bwrap >/dev/null 2>&1 || need="$need bwrap" # Codex's sandbox
+	command -v xz >/dev/null 2>&1 || need="$need xz"
+fi
+if [ -n "$need" ]; then
+	echo "installing:$need"
+	s=sudo
+	[ "$(id -u)" = 0 ] && s=""
+	pk=""
+	if command -v apt-get >/dev/null 2>&1; then
+		for n in $need; do
+			case "$n" in go) pk="$pk golang-go" ;; bwrap) pk="$pk bubblewrap" ;; xz) pk="$pk xz-utils" ;; *) pk="$pk $n" ;; esac
+		done
+		$s apt-get update -qq
+		# shellcheck disable=SC2086
+		DEBIAN_FRONTEND=noninteractive $s apt-get install -y -qq --no-install-recommends ca-certificates $pk
+	elif command -v dnf >/dev/null 2>&1; then
+		for n in $need; do
+			case "$n" in go) pk="$pk golang" ;; bwrap) pk="$pk bubblewrap" ;; *) pk="$pk $n" ;; esac
+		done
+		# shellcheck disable=SC2086
+		$s dnf install -y $pk
+	elif command -v brew >/dev/null 2>&1; then
+		for n in $need; do
+			case "$n" in go | tmux | git) pk="$pk $n" ;; esac
+		done
+		# shellcheck disable=SC2086
+		[ -z "$pk" ] || brew install $pk
+	fi
+fi
 command -v go >/dev/null 2>&1 || {
-	echo "go is required to build aiagent" >&2
+	echo "Go is needed to build aiagent and could not be installed; install Go 1.26+ and run this again" >&2
 	exit 1
 }
 command -v tmux >/dev/null 2>&1 || echo "note: tmux is not installed — agcmd needs it to reach an agent" >&2

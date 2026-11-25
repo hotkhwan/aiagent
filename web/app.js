@@ -277,23 +277,37 @@ function render () {
   followTick()
 }
 
+// One badge for every plan, so the header stays short: the worst state and the
+// highest share used. The rows are behind a click.
 function renderEnergy () {
   const box = $('energy')
-  box.replaceChildren()
   const order = ['normal', 'eco', 'critical', 'reserve']
   const byProv = {}
   for (const q of st.snap.quotas) (byProv[q.providerId] = byProv[q.providerId] || []).push(q)
-  for (const pid of ['anthropic', 'openai'].filter(x => byProv[x]).concat(Object.keys(byProv).filter(x => x !== 'anthropic' && x !== 'openai'))) {
-    const qs = byProv[pid]
-    const label = providerName[pid] || pid
-    const parts = qs.map(q => q.confidence === 'actual'
-      ? (q.windowMinutes ? windowName(q.windowMinutes) + ' ' : '') + Math.round(q.usedPercent) + '%'
-      : q.confidence === 'stale' ? (q.windowMinutes ? windowName(q.windowMinutes) + ' ' : '') + tr('รีเซ็ตแล้ว') : null).filter(Boolean)
-    const worst = qs.reduce((a, q) => order.indexOf(q.mode) > order.indexOf(a) ? q.mode : a, qs.some(q => q.confidence === 'actual') ? 'normal' : 'guarded')
-    const text = parts.length ? label + tr(' ใช้ไป ') + parts.join(' · ') : label + tr(' quota ไม่ทราบ')
-    box.append(h('span', { class: 'pill ' + worst + ' prov-' + pid, title: qs.map(q => q.source + (q.resetsAt ? tr(' · รีเซ็ต ') + new Date(q.resetsAt).toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' }) : '')).join('\n') }, h('i'), text))
-  }
+  const actual = st.snap.quotas.filter(q => q.confidence === 'actual')
+  const worst = actual.reduce((a, q) => order.indexOf(q.mode) > order.indexOf(a) ? q.mode : a, actual.length ? 'normal' : 'guarded')
+  const top = actual.length ? Math.round(Math.max(...actual.map(q => q.usedPercent))) : null
+  const rows = ['anthropic', 'openai'].filter(x => byProv[x]).concat(Object.keys(byProv).filter(x => x !== 'anthropic' && x !== 'openai')).map(pid =>
+    h('div', { class: 'qRow' }, h('b', null, providerName[pid] || pid),
+      ...byProv[pid].map(q => h('span', { class: 'pill ' + (q.confidence === 'actual' ? q.mode : 'guarded'), title: q.source }, h('i'),
+        (q.windowMinutes ? windowName(q.windowMinutes) + ' ' : '') + (q.confidence === 'actual' ? Math.round(q.usedPercent) + '%' : q.confidence === 'stale' ? tr('รีเซ็ตแล้ว') : tr('ไม่ทราบ')),
+        q.confidence === 'actual' && q.resetsAt ? h('small', null, tr(' · รีเซ็ต ') + new Date(q.resetsAt).toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' })) : null))))
+  const open = box.classList.contains('open')
+  const pop = h('div', { class: 'qPop' }, ...rows, h('p', { class: 'note' }, tr('ตัวเลขคือส่วนที่ใช้ไป ป้ายแสดงค่าที่สูงสุด')))
+  pop.hidden = !open
+  // fixed, placed under the badge: the header clips what overflows it
+  const at = box.getBoundingClientRect()
+  pop.style.top = Math.round(at.bottom + 8) + 'px'
+  pop.style.right = Math.max(8, Math.round(window.innerWidth - at.right)) + 'px'
+  box.replaceChildren(
+    h('button', { type: 'button', class: 'pill qBadge ' + worst, 'aria-expanded': String(open), title: tr('ดู quota ของแต่ละเจ้า'), onclick: e => { e.stopPropagation(); box.classList.toggle('open'); renderEnergy() } },
+      h('i'), 'Quota ' + (top == null ? tr('ไม่ทราบ') : top + '%')),
+    pop)
 }
+document.addEventListener('click', e => {
+  const b = $('energy')
+  if (b.classList.contains('open') && !b.contains(e.target)) { b.classList.remove('open'); if (st.snap) renderEnergy() }
+})
 function windowName (m) {
   if (m >= 10080) return tr('รายสัปดาห์')
   if (m >= 1440) return Math.round(m / 1440) + tr(' วัน')

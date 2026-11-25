@@ -75,6 +75,8 @@ var EN = {
   ' รับข้อความจากเว็บได้ (● เขียว) · ': ' can take messages from the web (● green) · ',
   ' รอคุณตอบ · คลิกบ้านเพื่อเข้าไปดู': ' waiting for you · click a house to look inside',
   'รีเซ็ตแล้ว': 'reset',
+  'ดู quota ของแต่ละเจ้า': 'Show each plan\'s quota',
+  'ตัวเลขคือส่วนที่ใช้ไป ป้ายแสดงค่าที่สูงสุด': 'Figures are the share used; the badge shows the highest',
   ' quota ไม่ทราบ': ' quota unknown',
   'รายสัปดาห์': 'Weekly',
   ' วัน': 'd',

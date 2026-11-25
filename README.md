@@ -38,58 +38,94 @@ for work that is not happening.
 
 ## Install
 
-Needs Go 1.26+ to build, and `tmux` only if you want to send messages.
+### The whole thing, on a Linux server
+
+One command, as root, on a fresh machine (Ubuntu or Fedora family, with
+systemd). It installs what is missing, builds aiagent, sets up rooms, starts
+the services and prints the admin token **once**:
 
 ```sh
 git clone https://github.com/hotkhwan/aiagent.git
 cd aiagent
-./packaging/install.sh            # add --with-service for a systemd unit or LaunchAgent
+sudo ./packaging/setup.sh                 # run it in your own terminal
 ```
 
-It also installs Claude Code, Codex and Antigravity (`agy`) when they are missing. One
-already on the machine is left alone, sign-in included; `--update-clis` updates
-it, `--no-clis` skips this step. `--skills DIR` copies a folder of skills into
-`~/.claude/skills`; memory and settings are never copied. Claude, Codex
-and Antigravity are signed in from the web (Accounts). Google's Antigravity terms
-restrict third-party tools; read them before letting other agents send it work.
+| Option | What it does |
+| --- | --- |
+| `--site NAME` | name of the tmux session that holds the agents (default: the host name) |
+| `--code DIR` | a folder of checkouts the Codex and Antigravity windows may read |
+| `--listen ADDR:PORT` | where the web listens (default `127.0.0.1:8890`) |
+| `--agy-sandbox` | Ubuntu: add the AppArmor profile Antigravity needs for its command sandbox |
 
-The installer also sets up the site: one tmux session (`--site NAME`, the host
-name by default) with a window per agent, each working in its own folder under
-`ai-work` (`--code DIR` lets them read your checkouts). With `--os-users`, the admin's skills and the rules in
-`/etc/aiagent/room-base.md` reach every room, and Codex and Antigravity as
-`AGENTS.md`, within a minute (`/etc/aiagent/share.conf`; a memory file is shared
-only when its frontmatter says `share: rooms`). After a restart
-`aiagent-agents@` opens the windows again, each on its last conversation, and
-restarts the Claude background sessions that were running.
+What you have afterwards:
 
-This installs two binaries into `~/.local/bin`: **`aiagent`**, the service and
-its switch, and **`agcmd`**, the small tool that actually talks to the agents
-through tmux. A clone is usable immediately — there is nothing else to fetch.
+| Thing | Where |
+| --- | --- |
+| The web | `http://127.0.0.1:8890/aiagent` (put a TLS reverse proxy or a private network in front) |
+| Agent CLIs | Claude Code, Codex and Antigravity (`agy`), in root's `~/.local/bin` |
+| One tmux session | named after the site: a menu window, a `codex` window, an `agy` window |
+| Work folders | `ai-work/codex` and `ai-work/agy`, each agent in its own |
+| Services | `aiagent@root`, `aiagent-tmux@root`, `aiagent-agents@root`, and timers for quota, session list and shared rules |
+
+Then:
+
+1. In the same terminal: `claude setup-token`, then `aiagent-claude-token set`
+   (one Claude sign-in for every room; see below).
+2. Open the web, paste the admin token.
+3. **Accounts**: sign in to Claude, Codex and Google Antigravity; create a room
+   for each line of work.
+
+Codex and Antigravity run as unprivileged ids that see the system, the `--code`
+folder read-only, their own work folder and their own sign-in, and nothing else
+of root's. Google's Antigravity terms restrict third-party tools; read them
+before letting other agents send it work.
+
+After a restart of the machine everything comes back by itself: the tmux
+session and its windows (each agent on its last conversation), the Claude
+background sessions that were running, and the rooms.
+
+### Just the viewer, for one user
+
+No root, no rooms: a view of the agents you already run, on macOS or Linux.
 
 ```sh
-aiagent enable        # prints a token ONCE; only its SHA-256 is stored
-aiagent serve         # http://127.0.0.1:8890/aiagent
+./packaging/install.sh            # add --with-service for a systemd unit or LaunchAgent
+aiagent enable                    # prints a token ONCE; only its SHA-256 is stored
+aiagent serve                     # http://127.0.0.1:8890/aiagent
 ```
 
-Open the URL, paste the token. Until you run `enable`, **every route answers
-404** — the service is indistinguishable from one that is not installed.
+`install.sh` installs Go, tmux and the agent CLIs when they are missing; one
+already on the machine is left alone, sign-in included. `--update-clis` updates
+them, `--no-clis` skips them, `--skills DIR` copies a folder of skills into
+`~/.claude/skills`. It installs two binaries: **`aiagent`**, the service and its
+switch, and **`agcmd`**, the small tool that talks to the agents through tmux.
+Until you run `enable`, **every route answers 404**.
 
-### First run with rooms (Linux)
+### Remove it
+
+```sh
+sudo ./packaging/uninstall.sh            # services, programs, rooms (homes are archived first)
+sudo ./packaging/uninstall.sh --purge    # also sign-ins, conversations, archives, work folders, the CLIs
+```
+
+Without `--purge`, installing again continues where you were. Packages your
+package manager installed (Go, tmux, git) are left alone.
+
+### Rooms
 
 A *room* is an OS user with its own aiagent instance, tmux server and Claude
 session. Rooms keep one person's lines of work apart, each with its own rights.
+`setup.sh` turns them on; make one on the web: **Accounts → user tokens →
+Create token**. A session named after it is open at once, in auto mode, so
+nobody has to answer permission prompts at a terminal. Revoking the token stops
+the room, archives its home to `/var/backups/aiagent-users` and removes the OS
+user.
+
+One Claude sign-in serves every room. Set it once, as root, **in your own
+terminal** (not through an agent or a chat, where the token would stay in the
+transcript):
 
 ```sh
-sudo ./packaging/install.sh --os-users
-```
-
-Then once, as root, **in your own terminal** (not through an agent or a chat,
-where the token would stay in the transcript):
-
-```sh
-systemctl daemon-reload
-systemctl enable --now aiagent-tmux@root aiagent@root
-aiagent enable                # admin token, shown once
 claude setup-token            # sign in with your own Claude account
 aiagent-claude-token set      # paste that token (hidden)
 ```
@@ -101,33 +137,34 @@ aiagent-claude-token set      # paste that token (hidden)
 | `aiagent-claude-token remove` | rooms go back to their own sign-in |
 
 The token is kept in `/etc/aiagent/claude.env` (root only). A room's agent can
-read the token it runs with. When it expires, run the two token commands again.
-
-Make a room on the web: **Accounts → user tokens → Create token**. A session
-named after it is open at once. Revoking the token stops the room, archives its
-home to `/var/backups/aiagent-users` and removes the OS user.
+read the token it runs with. When it expires, run the two commands again.
 
 | | Admin token | User token (a room) |
 | --- | --- | --- |
 | Own session | read, send | read, send, rename |
-| Other rooms | enter and manage | read only |
+| Other rooms | read, send, stop, remove | read only |
 | Admin sessions | read, send | state only |
 | PM, tasks, accounts, tokens, CLI updates | yes | no |
 | Choose the model | yes | no, the admin's rule |
 
 Rooms run the latest Opus. **Accounts → Model of user rooms** sets the weekly
-usage above which they move to Haiku 5.5. The reading comes from Claude Code's
-status line, so set it for the whole machine in
-`/etc/claude-code/managed-settings.json`:
+usage above which they move to Haiku 5.5. Plan usage of Claude and Antigravity
+is read every five minutes with the CLI's own `/usage`.
 
-```json
-{ "statusLine": { "type": "command", "command": "aiagent statusline" } }
-```
+**What every agent knows.** A room is a fresh home: it has none of your skills,
+memory or `CLAUDE.md`. A timer shares them within a minute, to the rooms and,
+as `AGENTS.md`, to Codex and Antigravity:
 
-A room is a fresh home: it has none of your skills, memory or `CLAUDE.md`. Put
-what every room should know in `/usr/local/share/aiagent/room/` (root-owned):
-`CLAUDE.md` and `skills/<name>/`. Rooms link to it, so an update reaches them
-all. Nothing is copied from your own home; keep secrets out of it.
+| Shared | Source (`/etc/aiagent/share.conf`) |
+| --- | --- |
+| Rules for agents | `BASE=/etc/aiagent/room-base.md` (starts with "never reveal secrets, never copy code out") |
+| A project's rules | `RULES=/path/to/CLAUDE.md` |
+| Skills | `SKILLS=~/.claude/skills`, all of them |
+| Memory | `MEMORY=/path/to/memory`, only files whose frontmatter says `share: rooms` |
+
+A file that looks like it holds a secret is skipped. `room/settings.json` keeps
+a room's agent from reading secret files and from `git push`, `curl`, `scp` and
+`ssh`.
 
 Rooms get uids from 700000 up, away from the ids containers use. Outbound
 network limits are the host's job.
