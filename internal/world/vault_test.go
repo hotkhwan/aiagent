@@ -37,7 +37,7 @@ func TestVaultKeepsValuesOutOfTheListAndOutOfReach(t *testing.T) {
 	if err != nil || fi.Mode().Perm() != 0o600 {
 		t.Fatalf("secrets file mode = %v %v", fi.Mode(), err)
 	}
-	if code, _, _ := e.do(t, "POST", apiPrefix+"/vault", admin, `{"name":"bad name","provider":"gitlab","purpose":"x y z","value":"`+tok+`"}`); code == 200 {
+	if code, _, _ := e.do(t, "POST", apiPrefix+"/vault", admin, `{"name":"bad\\nname","provider":"gitlab","purpose":"x y z","value":"`+tok+`"}`); code == 200 {
 		t.Fatal("a bad name was accepted")
 	}
 	if code, _, _ := e.do(t, "POST", apiPrefix+"/vault", admin, `{"name":"two","provider":"gitlab","purpose":"two words","value":"has a space in it ok"}`); code == 200 {
@@ -72,5 +72,34 @@ func TestVaultNeverReachesARoom(t *testing.T) {
 	}
 	if v, err := e.svc.VaultValue("gl"); resp.StatusCode != 200 || err != nil || v == "" {
 		t.Fatalf("not saved here: %d %v", resp.StatusCode, err)
+	}
+}
+
+func TestVaultEditKeepsOrReplacesTheValue(t *testing.T) {
+	e := newEnv(t)
+	a, err := e.svc.AddVault("GitLab Netra โปรเจกต์", "gitlab", "push code", "EXAMPLE_0123456789abcdef")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.svc.AddVault("gitlab netra โปรเจกต์", "gitlab", "push code", "EXAMPLE_0123456789abcdef"); err == nil {
+		t.Fatal("the same name in another case was accepted")
+	}
+	if _, err := e.svc.EditVault(a.ID, "renamed", "github", "open MRs", ""); err != nil {
+		t.Fatal(err)
+	}
+	if v, _ := e.svc.VaultValue("renamed"); v != "EXAMPLE_0123456789abcdef" {
+		t.Fatalf("an empty value changed the token: %q", v)
+	}
+	if _, err := e.svc.EditVault(a.ID, "renamed", "github", "open MRs", "EXAMPLE_second_0123456789"); err != nil {
+		t.Fatal(err)
+	}
+	if v, _ := e.svc.VaultValue("renamed"); v != "EXAMPLE_second_0123456789" {
+		t.Fatalf("not replaced: %q", v)
+	}
+	if err := e.svc.RemoveVault(a.ID); err != nil {
+		t.Fatal(err)
+	}
+	if b, _ := os.ReadFile(filepath.Join(e.store.dir, vaultSecrets)); strings.Contains(string(b), "EXAMPLE") {
+		t.Fatal("the value outlived its entry")
 	}
 }

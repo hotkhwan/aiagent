@@ -309,6 +309,7 @@ func (s *Service) Mount(app *fiber.App) {
 	api.Get("/vault", s.handleVault)
 	api.Post("/vault", s.handleVaultAdd)
 	api.Post("/vault/:id/remove", s.handleVaultRemove)
+	api.Post("/vault/:id/edit", s.handleVaultEdit)
 	api.Get("/tokens", s.handleTokens)
 	api.Post("/tokens", s.handleTokenCreate)
 	api.Post("/tokens/:id/revoke", s.handleTokenRevoke)

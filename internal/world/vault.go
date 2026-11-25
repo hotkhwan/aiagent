@@ -29,8 +29,9 @@ const (
 )
 
 var (
-	vaultMu     sync.Mutex
-	vaultNameRE = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{0,39}$`)
+	vaultMu sync.Mutex
+	// a name is for people; it is never a path or an argument
+	vaultNameRE = regexp.MustCompile(`^[\p{L}\p{M}\p{N}][\p{L}\p{M}\p{N} ._/-]{0,59}$`)
 	vaultProv   = map[string]bool{"gitlab": true, "github": true, "other": true}
 )
 
@@ -66,6 +67,9 @@ func readJSON(path string, v any) error {
 func writeSecret(path string, v any) error {
 	b, err := json.MarshalIndent(v, "", "  ")
 	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return err
 	}
 	tmp := path + ".tmp"
@@ -127,15 +131,11 @@ func (s *Service) AddVault(name, provider, purpose, value string) (VaultEntry, e
 	name = strings.TrimSpace(name)
 	purpose = strings.TrimSpace(purpose)
 	value = strings.TrimSpace(value)
-	switch {
-	case !vaultNameRE.MatchString(name):
-		return VaultEntry{}, ErrBadRequest("name: lower-case letters, digits, dots, dashes (1-40)")
-	case !vaultProv[provider]:
-		return VaultEntry{}, ErrBadRequest("provider must be gitlab, github or other")
-	case len([]rune(purpose)) < 3 || len([]rune(purpose)) > 300:
-		return VaultEntry{}, ErrBadRequest("say what it is for (3-300 characters)")
-	case len(value) < 16 || len(value) > 400 || strings.ContainsAny(value, " \t\r\n\"'"):
-		return VaultEntry{}, ErrBadRequest("the token must be 16-400 characters with no spaces or quotes")
+	if err := vaultFields(name, provider, purpose); err != nil {
+		return VaultEntry{}, err
+	}
+	if err := vaultToken(value); err != nil {
+		return VaultEntry{}, err
 	}
 	vaultMu.Lock()
 	defer vaultMu.Unlock()
@@ -147,8 +147,8 @@ func (s *Service) AddVault(name, provider, purpose, value string) (VaultEntry, e
 		return VaultEntry{}, ErrConflict("the vault is full; remove an entry first")
 	}
 	for _, e := range list {
-		if e.Name == name {
-			return VaultEntry{}, ErrConflict("that name is already used; remove the old one first")
+		if strings.EqualFold(e.Name, name) {
+			return VaultEntry{}, ErrConflict("ชื่อนี้มีแล้ว ใช้ปุ่มแก้ไขที่รายการเดิม")
 		}
 	}
 	var sb [6]byte
@@ -167,6 +167,67 @@ func (s *Service) AddVault(name, provider, purpose, value string) (VaultEntry, e
 	}
 	list = append(list, e)
 	return e, writeSecret(filepath.Join(s.vaultDir(), vaultFile), list)
+}
+
+func vaultFields(name, provider, purpose string) error {
+	switch n := len([]rune(purpose)); {
+	case !vaultNameRE.MatchString(name):
+		return ErrBadRequest("ชื่อ: ตัวอักษร ตัวเลข เว้นวรรค . _ / - ยาว 1-60 ตัว")
+	case !vaultProv[provider]:
+		return ErrBadRequest("provider must be gitlab, github or other")
+	case n < 3 || n > 300 || strings.ContainsAny(purpose, "\r\n"):
+		return ErrBadRequest("บอกว่าใช้กับอะไร ยาว 3-300 ตัวอักษร")
+	}
+	return nil
+}
+
+func vaultToken(v string) error {
+	if len(v) < 16 || len(v) > 400 || strings.ContainsAny(v, " \t\r\n\"'") {
+		return ErrBadRequest("ค่า token ต้องยาว 16-400 ตัว ไม่มีเว้นวรรคหรือเครื่องหมายคำพูด")
+	}
+	return nil
+}
+
+// EditVault changes an entry. An empty value keeps the stored token.
+func (s *Service) EditVault(id, name, provider, purpose, value string) (VaultEntry, error) {
+	name, purpose, value = strings.TrimSpace(name), strings.TrimSpace(purpose), strings.TrimSpace(value)
+	if err := vaultFields(name, provider, purpose); err != nil {
+		return VaultEntry{}, err
+	}
+	if value != "" {
+		if err := vaultToken(value); err != nil {
+			return VaultEntry{}, err
+		}
+	}
+	vaultMu.Lock()
+	defer vaultMu.Unlock()
+	var list []VaultEntry
+	if err := readJSON(filepath.Join(s.vaultDir(), vaultFile), &list); err != nil {
+		return VaultEntry{}, err
+	}
+	at := -1
+	for i, e := range list {
+		if e.ID == id {
+			at = i
+		} else if strings.EqualFold(e.Name, name) {
+			return VaultEntry{}, ErrConflict("ชื่อนี้มีแล้ว ใช้ปุ่มแก้ไขที่รายการเดิม")
+		}
+	}
+	if at < 0 {
+		return VaultEntry{}, ErrNotFound("no such vault entry")
+	}
+	if value != "" {
+		secrets := map[string]vaultSecret{}
+		if err := readJSON(filepath.Join(s.vaultDir(), vaultSecrets), &secrets); err != nil {
+			return VaultEntry{}, err
+		}
+		secrets[id] = vaultSecret{Value: value}
+		if err := writeSecret(filepath.Join(s.vaultDir(), vaultSecrets), secrets); err != nil {
+			return VaultEntry{}, err
+		}
+	}
+	list[at].Name, list[at].Provider, list[at].Purpose = name, provider, purpose
+	return list[at], writeSecret(filepath.Join(s.vaultDir(), vaultFile), list)
 }
 
 // RemoveVault deletes an entry and its value.
@@ -232,5 +293,23 @@ func (s *Service) handleVaultRemove(c fiber.Ctx) error {
 	id := strings.Clone(c.Params("id"))
 	return s.mutate(c, "aiagent.vaultRemove", []string{id}, func() (any, error) {
 		return fiber.Map{"id": id}, s.RemoveVault(id)
+	})
+}
+
+func (s *Service) handleVaultEdit(c fiber.Ctx) error {
+	var body struct {
+		Name     string `json:"name"`
+		Provider string `json:"provider"`
+		Purpose  string `json:"purpose"`
+		Value    string `json:"value"`
+	}
+	if err := c.Bind().Body(&body); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(failEnv("AIAGENT_BAD_REQUEST", "invalid JSON body"))
+	}
+	id := strings.Clone(c.Params("id"))
+	c.Set("Cache-Control", "no-store")
+	return s.mutate(c, "aiagent.vaultEdit", []string{id, body.Name, body.Provider}, func() (any, error) {
+		e, err := s.EditVault(id, body.Name, body.Provider, body.Purpose, body.Value)
+		return fiber.Map{"entry": e}, err
 	})
 }
