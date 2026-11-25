@@ -86,6 +86,8 @@ type Session struct {
 	Usage        Usage      `json:"usage"`
 	// Look is the character chosen for this session, the same for everyone.
 	Look string `json:"look,omitempty"`
+	// Prompt is a question on the agent's screen that the web can answer.
+	Prompt *Prompt `json:"prompt,omitempty"`
 	// Protected marks an admin's session: users see that it exists, no more.
 	Protected bool `json:"protected,omitempty"`
 	// ReadOnly marks a teammate's session: its chat can be read, nothing else.

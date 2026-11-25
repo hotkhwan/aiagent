@@ -1825,7 +1825,7 @@ function renderInspector () {
     const sess = st.snap.sessions.find(x => x.sessionId === sel.id)
     if (sess) {
       const tab = st.tab || 'chat'
-      const key = [sess.sessionId, charFor(sess.sessionId), tab, sess.status, sess.activityType, sess.messageVia, sess.stopVia, sess.live].join('|')
+      const key = [sess.sessionId, charFor(sess.sessionId), tab, sess.prompt ? sess.prompt.question + sess.prompt.options.length : '', sess.status, sess.activityType, sess.messageVia, sess.stopVia, sess.live].join('|')
       if (tab === 'chat' && st.inspKey === key && box.querySelector('.chatLog')) {
         updateChat()
         return
@@ -1909,8 +1909,24 @@ function sessionHeader (sess) {
       modelRow(sess)),
     st.subsOpen ? subCards(sess) : null,
     ...openReviewsOf(sess.sessionId).map(r => h('button', { type: 'button', class: 'revAlert', onclick: () => openReview(r.id) }, h('b', null, tr('🧪 รอคุณตรวจงาน')), h('span', null, r.title), h('em', null, tr('เปิดตรวจ →')))),
+    promptBox(sess),
     sess.doing && sess.live && sess.status === 'running' ? h('div', { class: 'doing' }, h('i'), h('span', null, sess.doing.detail), h('small', null, ago(sess.doing.at))) : null
   ]
+}
+
+// A question on the agent's screen, with its choices as buttons.
+function promptBox (sess) {
+  const p = sess.prompt
+  if (!p || sess.readOnly || (sess.protected && isUser())) return null
+  const pick = async o => {
+    if (!await confirmBox(tr('ตอบ agent'), p.question || '', o.n + '. ' + o.label + (o.detail ? '\n' + o.detail : ''), tr('เลือกข้อนี้'))) return
+    await act('/sessions/' + encodeURIComponent(sess.sessionId) + '/answer', { option: o.n }, () => tr('ตอบแล้ว: ') + o.n + '. ' + o.label)
+  }
+  return h('div', { class: 'promptBox' },
+    h('b', null, tr('agent ถามและรอคำตอบ')),
+    p.question ? h('p', null, p.question) : null,
+    ...p.options.map(o => h('button', { type: 'button', class: 'ghost', disabled: !!o.needsText, title: o.needsText ? tr('ข้อนี้ต้องพิมพ์ข้อความ ตอบใน terminal') : '', onclick: () => pick(o) },
+      h('b', null, o.n + '. ' + o.label), o.detail ? h('small', null, o.detail) : null)))
 }
 
 function sessionTabs () {

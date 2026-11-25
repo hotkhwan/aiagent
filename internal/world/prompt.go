@@ -1,0 +1,167 @@
+// internal/world/prompt.go
+//
+// A question an agent CLI draws over its input box (a permission prompt, a
+// choice it asks the user to make) never reaches the transcript, so the web
+// could only say "waiting" and refuse to type. This reads the question and its
+// numbered choices off the screen and lets the web pick one: the cursor is
+// moved to the choice and Enter is pressed, the same keys a person uses. A
+// choice that wants typed text is listed but cannot be picked from here.
+package world
+
+import (
+	"context"
+	"regexp"
+	"strconv"
+	"strings"
+
+	"github.com/gofiber/fiber/v3"
+)
+
+// Prompt is a question on an agent's screen.
+type Prompt struct {
+	Question string         `json:"question"`
+	Options  []PromptOption `json:"options"`
+}
+
+// PromptOption is one numbered choice.
+type PromptOption struct {
+	N       int    `json:"n"`
+	Label   string `json:"label"`
+	Detail  string `json:"detail,omitempty"`
+	Current bool   `json:"current,omitempty"`
+	// NeedsText marks a choice that opens a text box.
+	NeedsText bool `json:"needsText,omitempty"`
+}
+
+var (
+	promptOptRE  = regexp.MustCompile(`^\s*([❯›>])?\s*([1-9])\.\s+(\S.*?)\s*$`)
+	promptRuleRE = regexp.MustCompile(`^[\s─━—-]{8,}`)
+	promptTextRE = regexp.MustCompile(`(?i)^(type something|chat about this|other)\b`)
+)
+
+// parsePrompt reads the last numbered list on the screen. It returns nil when
+// the screen shows no question (onDialog) or no list that starts at 1.
+func parsePrompt(screen string) *Prompt {
+	if !onDialog(screen) {
+		return nil
+	}
+	lines := strings.Split(screen, "\n")
+	start := -1
+	for i := len(lines) - 1; i >= 0; i-- {
+		if m := promptOptRE.FindStringSubmatch(lines[i]); m != nil && m[2] == "1" {
+			start = i
+			break
+		}
+	}
+	if start < 0 {
+		return nil
+	}
+	p := &Prompt{}
+	for i := start; i < len(lines); i++ {
+		l := lines[i]
+		if m := promptOptRE.FindStringSubmatch(l); m != nil {
+			n, _ := strconv.Atoi(m[2])
+			if n != len(p.Options)+1 {
+				break
+			}
+			p.Options = append(p.Options, PromptOption{N: n, Label: truncateRunes(Redact(m[3]), 200), Current: m[1] != "", NeedsText: promptTextRE.MatchString(m[3])})
+			continue
+		}
+		t := strings.TrimSpace(l)
+		if t == "" || promptRuleRE.MatchString(l) {
+			continue
+		}
+		if len(p.Options) > 0 && strings.HasPrefix(l, "   ") && p.Options[len(p.Options)-1].Detail == "" {
+			p.Options[len(p.Options)-1].Detail = truncateRunes(Redact(t), 300)
+		}
+	}
+	if len(p.Options) < 2 {
+		return nil
+	}
+	var q []string
+	for i := start - 1; i >= 0 && len(q) < 8; i-- {
+		t := strings.TrimSpace(strings.TrimLeft(strings.TrimSpace(lines[i]), "│|☐☒✔ "))
+		if promptRuleRE.MatchString(lines[i]) || strings.HasPrefix(strings.TrimSpace(lines[i]), "❯") {
+			break
+		}
+		if t != "" {
+			q = append([]string{t}, q...)
+		}
+	}
+	p.Question = truncateRunes(Redact(strings.Join(q, " ")), 900)
+	return p
+}
+
+// AnswerPrompt picks choice n of the question the session's pane shows.
+func (c *Collector) AnswerPrompt(ctx context.Context, id string, n int) error {
+	c.invalidate()
+	var target *Session
+	snap := c.Snapshot(ctx)
+	for i := range snap.Sessions {
+		if snap.Sessions[i].SessionID == id {
+			target = &snap.Sessions[i]
+		}
+	}
+	if target == nil || !target.Live || target.DispatchVia == "" {
+		return ErrConflict("this session has no window the web can reach")
+	}
+	w, ok := c.lookupWorkspace(target.DispatchVia)
+	if !ok {
+		return ErrConflict("this session has no window the web can reach")
+	}
+	defer c.lockSend("ws:" + w.session)()
+	// read it again under the lock: the answer is for what is on screen now
+	p := parsePrompt(c.paneScreen(ctx, w.session))
+	if p == nil {
+		return ErrConflict("the agent is not showing a question any more")
+	}
+	cur := 1
+	var pick *PromptOption
+	for i := range p.Options {
+		if p.Options[i].Current {
+			cur = p.Options[i].N
+		}
+		if p.Options[i].N == n {
+			pick = &p.Options[i]
+		}
+	}
+	if pick == nil {
+		return ErrBadRequest("no such choice")
+	}
+	if pick.NeedsText {
+		return ErrConflict("this choice needs typed text; answer it in the terminal")
+	}
+	session, window, ok := strings.Cut(w.session, ":")
+	if !ok {
+		window = "agent"
+	}
+	pane := "=" + session + ":=" + window
+	key := "Down"
+	steps := n - cur
+	if steps < 0 {
+		key, steps = "Up", -steps
+	}
+	for i := 0; i < steps; i++ {
+		if _, err := c.tmux(ctx, "send-keys", "-t", pane, key); err != nil {
+			return &APIError{502, "AIAGENT_SEND_FAILED", "could not move to the choice"}
+		}
+	}
+	if _, err := c.tmux(ctx, "send-keys", "-t", pane, "Enter"); err != nil {
+		return &APIError{502, "AIAGENT_SEND_FAILED", "could not confirm the choice"}
+	}
+	c.invalidate()
+	return nil
+}
+
+func (s *Service) handleSessionAnswer(c fiber.Ctx) error {
+	var body struct {
+		Option int `json:"option"`
+	}
+	if err := c.Bind().Body(&body); err != nil || body.Option < 1 || body.Option > 9 {
+		return s.fail(c, ErrBadRequest(`expected {"option": 1-9}`))
+	}
+	id := strings.Clone(c.Params("id"))
+	return s.mutate(c, "aiagent.sessionAnswer", []string{id, strconv.Itoa(body.Option)}, func() (any, error) {
+		return fiber.Map{"sessionId": id, "option": body.Option}, s.Collector.AnswerPrompt(c.Context(), id, body.Option)
+	})
+}

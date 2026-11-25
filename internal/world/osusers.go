@@ -282,7 +282,7 @@ func (s *Service) teammates(ctx context.Context, name string) ([]Session, map[st
 			// (the request is sent on to that room); a user only reads.
 			if name != "" {
 				ss.ReadOnly = true
-				ss.MessageVia, ss.StopVia, ss.DispatchVia = "", "", ""
+				ss.MessageVia, ss.StopVia, ss.DispatchVia, ss.Prompt = "", "", "", nil
 				ss.MessageBlocked, ss.StopBlocked = why, why
 			}
 			list = append(list, ss)

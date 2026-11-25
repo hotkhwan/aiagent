@@ -37,6 +37,7 @@ func (c *Collector) agySessions(ctx context.Context, tm tmuxState) []Session {
 		case strings.Contains(screen, "not signed in"):
 			s.Title = "ยังไม่ได้ login"
 		case onDialog(screen):
+			s.Prompt = parsePrompt(screen)
 			s.Status, s.Title = StatusNeedsInput, "รอคำตอบในหน้าต่าง tmux"
 		case agyBusy(screen):
 			s.Status = StatusRunning

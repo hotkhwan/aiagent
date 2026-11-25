@@ -1735,3 +1735,10 @@ button.rtChip:hover { background: #1D2440 }
 .conn.ok.live { display: none }
 
 .handOver { border: 1px solid var(--brand); border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; align-items: flex-start }
+
+.promptBox { border: 1px solid var(--amber); border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; margin: 8px 0 }
+.promptBox > b { color: var(--amber) }
+.promptBox p { margin: 0; font-size: 14px; line-height: 1.5 }
+.promptBox button { text-align: left; display: flex; flex-direction: column; gap: 2px; white-space: normal }
+.promptBox button small { color: var(--muted); font-weight: 400 }
+.promptBox button[disabled] { opacity: .5; cursor: not-allowed }

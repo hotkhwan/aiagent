@@ -225,7 +225,7 @@ var userRoutes = map[string][]*regexp.Regexp{
 	),
 	"POST": compileAll(
 		`/messages`, `/uploads`,
-		`/sessions/[A-Za-z0-9-]+/(message|stop|name|look)`,
+		`/sessions/[A-Za-z0-9-]+/(message|stop|name|look|answer)`,
 		`/reviews/[A-Za-z0-9._-]+/(view|compose|decision)`,
 	),
 }

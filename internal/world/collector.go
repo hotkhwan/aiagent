@@ -301,7 +301,8 @@ func (c *Collector) collectLocked(ctx context.Context) Snapshot {
 				// A question on its screen (a permission prompt, a menu) is
 				// invisible in the transcript; without this the web shows an
 				// idle agent that takes no messages.
-				if onDialog(c.paneScreen(ctx, w.TmuxSession)) {
+				if screen := c.paneScreen(ctx, w.TmuxSession); onDialog(screen) {
+					ss.Prompt = parsePrompt(screen)
 					ss.Status, ss.Title = StatusNeedsInput, "รอคำตอบที่หน้าจอ agent (ถามสิทธิ์หรือเมนู) — admin เปิด tmux ตอบ หรือกด หยุด แล้วส่งใหม่"
 				}
 				break
