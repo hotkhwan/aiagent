@@ -4,6 +4,7 @@
 // nothing is ever injected as HTML.
 
 const tokenKey = 'aiagentToken'
+const roleKey = 'aiagentRole'
 const pollMs = 4000
 const staleMs = 12000
 const ns = 'http://www.w3.org/2000/svg'
@@ -117,6 +118,14 @@ function agentColor (sess) { return sess.runtimeType === 'codexCli' ? 'var(--cod
 function agentHex (sess) { return sess.runtimeType === 'codexCli' ? '#5CC8F0' : '#E48D62' }
 
 // ---------- api ----------
+// The menu starts without the admin's entries and opens when the role is known,
+// so a user never sees them flash. An admin's last role is remembered beside
+// the token, so a refresh does not make the admin wait either. It only paints
+// the menu: the server decides every request by the token.
+function safeLocal (k) { try { return !!localStorage.getItem(k) } catch (e) { return false } }
+function showMenu (role) {
+  for (const id of ['viewPM', 'viewTasks', 'accountsBtn']) $(id).hidden = role !== 'admin'
+}
 // a vibe user: own agents only, no PM, no task board (the server refuses both)
 function isUser () { return !!st.me && st.me.role === 'user' }
 // st.as: the user whose workspace an admin is looking at
@@ -157,11 +166,10 @@ async function poll () {
   try {
     if (st.meFor !== st.token) {
       st.as = ''; $('asBar').hidden = true
-      $('accountsBtn').hidden = true
       st.me = await api('/me')
       st.meFor = st.token
-      $('accountsBtn').hidden = st.me.role !== 'admin'
-      $('viewPM').hidden = $('viewTasks').hidden = isUser()
+      showMenu(st.me.role)
+      safeSet(roleKey, st.me.role, safeLocal(tokenKey))
       if (isUser() && (st.view === 'pm' || st.view === 'tasks')) setView('list')
     }
     st.snap = await api('/snapshot')
@@ -580,7 +588,14 @@ function applyZoom () {
   const b = st.board
   if (!b || !b.el.isConnected) return
   const inRoom = st.house && st.roomFocus
-  const fit = (inRoom ? v.clientWidth / b.w : Math.min(v.clientWidth / b.w, v.clientHeight / b.h)) || 1
+  // On a desktop nothing scrolls under the composer, so a room must fit both
+  // ways or its floor is cut off; a phone pans, so there it fills the width.
+  // The heading's height varies (chips, wrapping), so the scene starts below it.
+  if (window.matchMedia('(min-width: 901px)').matches) {
+    const head = document.querySelector('.stageHead')
+    v.style.top = Math.max(92, head.offsetTop + head.offsetHeight + 8) + 'px'
+  } else v.style.top = ''
+  const fit = (inRoom && isPhone() ? v.clientWidth / b.w : Math.min(v.clientWidth / b.w, v.clientHeight / b.h)) || 1
   const zl = zoomLevel()
   const z = fit * zl
   b.el.style.transform = 'translate(' + Math.max(0, (v.clientWidth - b.w * z) / 2) + 'px,' + Math.max(0, (v.clientHeight - b.h * z) / 2) + 'px) scale(' + z + ')'
@@ -3204,6 +3219,8 @@ $('loginForm').addEventListener('submit', e => {
   const t = $('loginToken').value.trim()
   if (!t) return
   st.token = t
+  safeSet(roleKey, '')
+  showMenu('')
   safeSet(tokenKey, t, $('loginRemember') && $('loginRemember').checked)
   $('loginToken').value = ''
   $('login').close()
@@ -3260,7 +3277,10 @@ $('stageBack').addEventListener('click', () => goBack())
 // switch still sticks, so someone who picks the map keeps landing on it.
 try {
   const saved = localStorage.getItem('aiagentView')
-  setView(views.some(row => row[1] === saved) ? saved : 'list')
+  const role = st.token ? safeGet(roleKey) : ''
+  showMenu(role)
+  const adminOnly = saved === 'pm' || saved === 'tasks'
+  setView(views.some(row => row[1] === saved) && (role === 'admin' || !adminOnly) ? saved : 'list')
 } catch (e) { setView('list') }
 for (const [id, v] of views) $(id).addEventListener('click', () => goView(v))
 // ----- follow the selected agent from room to room -----
@@ -3318,7 +3338,7 @@ $('fullBtn').addEventListener('click', () => {
   } catch (e) { /* fullscreen not allowed */ }
 })
 window.addEventListener('resize', () => applyZoom())
-try { new ResizeObserver(() => applyZoom()).observe($('village')) } catch (e) { /* older browser: window resize only */ }
+try { const ro = new ResizeObserver(() => applyZoom()); ro.observe($('village')); ro.observe(document.querySelector('.stageHead')) } catch (e) { /* older browser: window resize only */ }
 // The panel element itself lives in the sheet while it is open, so it has to
 // be put back when the sheet closes — including on Esc and on the backdrop.
 $('panelPop').addEventListener('close', closePanelSheet)
