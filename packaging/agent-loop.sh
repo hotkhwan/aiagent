@@ -42,8 +42,37 @@ model() {
 	printf %s "$m"
 }
 signed_in() { claude auth status >/dev/null 2>&1; }
+
+# settle: once the CLI is up, put it where a room must be. The CLI does not
+# always honour --permission-mode when it continues a conversation, and a
+# conversation it moved to a background job comes back under a derived name.
+# Both are fixed the way a person would: Shift+Tab until it says auto mode,
+# and /rename. Only at start, only at the idle prompt.
+settle() {
+	[ -n "${TMUX_PANE:-}" ] || return 0
+	local i screen pid
+	for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do
+		sleep 3
+		screen=$(tmux capture-pane -p -t "$TMUX_PANE" 2>/dev/null) || return 0
+		case "$screen" in
+		*"auto mode on"*) break ;;
+		*"Esc to cancel"* | *"Enter to confirm"* | *"esc to interrupt"*) ;; # a question or a turn: leave it
+		*"manual mode on"* | *"accept edits on"* | *"plan mode on"*) tmux send-keys -t "$TMUX_PANE" BTab ;;
+		esac
+	done
+	pid=$(pgrep -P "$1" -x claude | head -1)
+	[ -n "$pid" ] && [ -f "$HOME/.claude/sessions/$pid.json" ] || return 0
+	grep -q "\"name\": *\"$name\"" "$HOME/.claude/sessions/$pid.json" && return 0
+	case "$(tmux capture-pane -p -t "$TMUX_PANE" 2>/dev/null)" in
+	*"esc to interrupt"* | *"Esc to cancel"*) return 0 ;;
+	esac
+	tmux send-keys -t "$TMUX_PANE" -l -- "/rename $name"
+	sleep 0.5
+	tmux send-keys -t "$TMUX_PANE" Enter
+}
 while :; do
 	if signed_in; then
+		settle $$ </dev/null >/dev/null 2>&1 &
 		if compgen -G "$HOME/.claude/projects/*/*.jsonl" >/dev/null; then
 			claude "$@" --model "$(model)" --continue || claude "$@" --model "$(model)" -n "$name"
 		else
