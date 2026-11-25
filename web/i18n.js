@@ -288,6 +288,7 @@ var EN = {
   'วางโค้ดที่ได้หลัง login': 'Paste the code you get after signing in',
   'Codex จะ logout ทันทีที่เริ่ม (เป็นพฤติกรรมของ codex เอง) — agent Codex ทุกตัวบนเครื่องจะใช้ไม่ได้จนกว่า login ใหม่เสร็จ':
     'Codex logs out the moment this starts, which is codex behaviour and not ours — every Codex agent on this machine is unusable until the new login finishes',
+  'login ด้วยบัญชี Google ของคุณเอง ข้อกำหนดของ Antigravity ห้ามใช้เครื่องมือภายนอกเข้าถึงบริการ ตรวจก่อนให้ agent อื่นสั่งงาน': 'Sign in with your own Google account. Antigravity terms forbid third-party tools accessing the service; check them before other agents send it work',
   'บัญชีเดิมยังใช้ได้จนกว่าจะวางโค้ดสำเร็จ — หลังสลับ session ที่เปิดอยู่จะใช้บัญชีใหม่เมื่อรีเฟรช token':
     'The current account keeps working until the code is accepted — after the switch, open sessions move to the new account when their token refreshes',
   'สลับบัญชี ': 'Switch account ',

@@ -7,11 +7,13 @@
 #                                          (systemd on Linux, LaunchAgent on macOS)
 #   sudo ./packaging/install.sh --os-users also set up one OS user per room
 #                                          (Linux, systemd, as root)
+#   --site NAME                            name of the tmux session (default: host name)
+#   --code DIR                             code the agents may read (default: none)
 #   ./packaging/install.sh --no-clis       leave the agent CLIs alone
 #   ./packaging/install.sh --update-clis   also update the CLIs already there
 #   ./packaging/install.sh --skills DIR    copy the skills in DIR to ~/.claude/skills
 #
-# Claude Code, Codex and Gemini CLI are installed when missing; one that is
+# Claude Code, Codex and Antigravity (agy) are installed when missing; one that is
 # already there, and its sign-in, is left as it is.
 #
 # It does NOT enable AI Agent World and does NOT create a token: turning it on
@@ -23,12 +25,24 @@ prefix="${PREFIX:-}"
 with_service=no
 clis=install
 os_users=no
+site=""
+code=""
 skills=""
 
 while [ $# -gt 0 ]; do
 	arg="$1"
 	shift
 	case "$arg" in
+	--site)
+		[ $# -gt 0 ] || { echo "--site needs a name" >&2; exit 2; }
+		site="$1"
+		shift
+		;;
+	--code)
+		[ $# -gt 0 ] && [ -d "$1" ] || { echo "--code needs a directory" >&2; exit 2; }
+		code=$(CDPATH= cd -- "$1" && pwd)
+		shift
+		;;
 	--os-users) os_users=yes; with_service=yes ;;
 	--no-clis) clis=skip ;;
 	--update-clis) clis=update ;;
@@ -39,7 +53,7 @@ while [ $# -gt 0 ]; do
 		;;
 	--with-service | --with-systemd) with_service=yes ;;
 	-h | --help)
-		sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'
+		sed -n '2,22p' "$0" | sed 's/^# \{0,1\}//'
 		exit 0
 		;;
 	*)
@@ -114,16 +128,32 @@ if [ -n "$skills" ]; then
 	sh "$root/packaging/install-skills.sh" "$skills"
 fi
 
+# The site: one tmux session, and a work folder per agent. An existing one is kept.
+site=$(printf %s "${site:-$(uname -n)}" | sed 's/\..*//' | tr 'A-Z' 'a-z' | tr -c 'a-z0-9_-' '-')
+if [ "$(id -u)" = 0 ]; then agentsConf=/etc/aiagent/agents.conf; else agentsConf="$HOME/.config/aiagent/agents.conf"; fi
+if [ -e "$agentsConf" ]; then
+	site=$(sed -n 's/^SESSION=//p' "$agentsConf")
+	work=$(sed -n 's/^WORK=//p' "$agentsConf")
+else
+	work="${code:-$HOME}/ai-work"
+	mkdir -p "$(dirname "$agentsConf")"
+	printf 'SESSION=%s\nCODE=%s\nWORK=%s\nHIDE=\n' "$site" "$code" "$work" > "$agentsConf"
+fi
+mkdir -p "$work/codex" "$work/agy"
+
 stateDir="${XDG_STATE_HOME:-$HOME/.local/state}/aiagent"
 mkdir -p "$stateDir"
 if [ ! -e "$stateDir/workspaces.json" ]; then
-	cat > "$stateDir/workspaces.json" <<'EOF_WS'
+	cat > "$stateDir/workspaces.json" <<EOF_WS
 {
-  "workspaces": []
+  "workspaces": [
+    { "name": "codex", "tmuxSession": "$site", "tmuxWindow": "codex", "dir": "$work/codex", "provider": "codex" },
+    { "name": "agy", "tmuxSession": "$site", "tmuxWindow": "agy", "dir": "$work/agy", "provider": "gemini" }
+  ]
 }
 EOF_WS
 	chmod 600 "$stateDir/workspaces.json"
-	echo "wrote an empty $stateDir/workspaces.json (view-only until you fill it in)"
+	echo "wrote $stateDir/workspaces.json"
 fi
 
 if [ "$with_service" = yes ]; then
@@ -133,8 +163,8 @@ if [ "$with_service" = yes ]; then
 		# the unit must run the binary this script just installed
 		sed "s|/usr/local/bin/aiagent|$bindir/aiagent|" "$root/packaging/aiagent@.service" > "$tmp/aiagent@.service"
 		cp "$root/packaging/aiagent-tmux@.service" "$tmp/aiagent-tmux@.service"
-		cp "$root"/packaging/aiagent-user@.socket "$root"/packaging/aiagent-user@.service "$root"/packaging/aiagent-user-tmux@.service "$root"/packaging/aiagent-osuser-*.service "$tmp/"
-		for u in aiagent@.service aiagent-tmux@.service aiagent-user@.socket aiagent-user@.service aiagent-user-tmux@.service aiagent-osuser-add@.service aiagent-osuser-del@.service; do
+		cp "$root"/packaging/aiagent-user@.socket "$root"/packaging/aiagent-user@.service "$root"/packaging/aiagent-user-tmux@.service "$root"/packaging/aiagent-osuser-*.service "$root"/packaging/aiagent-agents@.service "$root"/packaging/aiagent-keep@.service "$root"/packaging/aiagent-keep@.timer "$root"/packaging/aiagent-quota@.service "$root"/packaging/aiagent-quota@.timer "$tmp/"
+		for u in aiagent@.service aiagent-tmux@.service aiagent-user@.socket aiagent-user@.service aiagent-user-tmux@.service aiagent-osuser-add@.service aiagent-osuser-del@.service aiagent-agents@.service aiagent-keep@.service aiagent-keep@.timer aiagent-quota@.service aiagent-quota@.timer; do
 			echo "installing $unitdir/$u"
 			if [ -w "$unitdir" ]; then
 				install -m 0644 "$tmp/$u" "$unitdir/$u"
@@ -142,8 +172,15 @@ if [ "$with_service" = yes ]; then
 				sudo install -m 0644 "$tmp/$u" "$unitdir/$u"
 			fi
 		done
-		if [ -w /usr/local/lib ]; then
-			install -D -m 0755 "$root/packaging/host-menu.py" /usr/local/lib/aiagent/host-menu.py
+		s=sudo
+		[ "$(id -u)" = 0 ] && s=""
+		for f in host-menu.py agent-box.sh agents-up.sh claude-keep.py ai-quota.py; do
+			$s install -D -m 0755 "$root/packaging/$f" "/usr/local/lib/aiagent/$f"
+		done
+		dropin="$unitdir/aiagent-tmux@$(id -un).service.d"
+		if [ ! -e "$dropin" ]; then
+			printf '[Service]\nEnvironment=AIAGENT_TMUX=%s\n' "$site" > "$tmp/site.conf"
+			$s install -D -m 0644 "$tmp/site.conf" "$dropin/site.conf"
 		fi
 		if [ "$os_users" = yes ]; then
 			install -D -m 0755 "$root/packaging/osuser.sh" /usr/local/lib/aiagent/osuser.sh
@@ -160,17 +197,18 @@ if [ "$with_service" = yes ]; then
 First run (as root), in this order:
 
   systemctl daemon-reload
-  systemctl enable --now aiagent-tmux@root aiagent@root
+  systemctl enable --now aiagent-tmux@root aiagent@root aiagent-agents@root aiagent-keep@root.timer aiagent-quota@root.timer
   aiagent enable              keep the admin token it prints (shown once)
   claude setup-token          sign in with YOUR Claude account, copy the token
   aiagent-claude-token set    paste it (hidden); every room uses it from now on
+  then on the web, Accounts:  sign in to Claude, Codex and Google Antigravity
 
 Run the last two in your own terminal, never through an agent or a chat: the
 token would stay in the transcript. This is for rooms you use yourself; anyone
 else needs their own Claude account (see "One person, several rooms" in README).
 EOF_FIRST
 		else
-			echo "  systemctl daemon-reload && systemctl enable --now aiagent@\$USER"
+			echo "  systemctl daemon-reload && systemctl enable --now aiagent-tmux@\$USER aiagent@\$USER aiagent-agents@\$USER aiagent-keep@\$USER.timer aiagent-quota@\$USER.timer"
 		fi
 		;;
 	Darwin)

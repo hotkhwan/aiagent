@@ -428,6 +428,13 @@ func cmdDispatch(args []string) error {
 	if err != nil {
 		return err
 	}
+	screen, err := tmux("capture-pane", "-p", "-t", target)
+	if err != nil {
+		return fmt.Errorf("cannot read the agent's screen: %s", screen)
+	}
+	if world.OnDialog(screen) {
+		return fmt.Errorf("the agent in %s is showing a question, and typing there would answer it; open it with `tmux attach` and answer first", w.Name)
+	}
 	return send(target, msg)
 }
 

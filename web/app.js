@@ -85,8 +85,8 @@ const runLabel = {
   ABORTED: tr('ยกเลิกแล้ว')
 }
 const modeLabel = { normal: tr('ปกติ'), eco: tr('ประหยัด'), critical: tr('วิกฤต'), reserve: tr('สำรองไว้'), guarded: tr('ไม่ทราบ') }
-const providerName = { openai: 'Codex', anthropic: 'Claude' }
-const runtimeName = { claudeCode: 'Claude Code', codexCli: 'Codex CLI' }
+const providerName = { openai: 'Codex', anthropic: 'Claude', google: 'Antigravity' }
+const runtimeName = { claudeCode: 'Claude Code', codexCli: 'Codex CLI', agyCli: 'Antigravity' }
 const evidenceLabel = {
   'pid+procStart': tr('ยืนยันจาก process (pid + เวลาเริ่ม)'),
   openFileHandle: tr('ยืนยันจาก process ที่เปิดไฟล์ session'),
@@ -1143,7 +1143,7 @@ function fillActor (act, a) {
   act.spr = h('div', { class: 'spr play' })
   act.anim2 = ''
   d.append(act.spr)
-  d.append(h('span', { class: 'rtBadge', title: a.runtime === 'codexCli' ? 'Codex' : 'Claude Code', 'aria-hidden': 'true' }, a.runtime === 'codexCli' ? '>_' : '✻'))
+  d.append(h('span', { class: 'rtBadge', title: runtimeName[a.runtime] || '', 'aria-hidden': 'true' }, a.runtime === 'codexCli' ? '>_' : a.runtime === 'agyCli' ? '▲' : '✻'))
   const nm = a.name.length > 12 ? a.name.slice(0, 11) + '…' : a.name
   d.append(h('div', { class: 'tag' + (a.canTake ? ' reach' : '') + (a.runtime === 'codexCli' ? ' codex' : '') }, a.canTake ? h('i') : null, nm))
   act.mood = moodAnim(a)
@@ -2721,7 +2721,7 @@ async function openReview (id) {
 }
 
 // ----- accounts: switch the Claude / Codex sign-in on this box -----
-const accountName = { claude: 'Claude Code', codex: 'Codex' }
+const accountName = { claude: 'Claude Code', codex: 'Codex', agy: 'Google Antigravity' }
 async function openAccounts () {
   $('accountsDlg').showModal()
   await drawAccounts()
@@ -2843,6 +2843,7 @@ function accountCard (a) {
   const start = async () => {
     const warn = p === 'codex'
       ? tr('Codex จะ logout ทันทีที่เริ่ม (เป็นพฤติกรรมของ codex เอง) — agent Codex ทุกตัวบนเครื่องจะใช้ไม่ได้จนกว่า login ใหม่เสร็จ')
+      : p === 'agy' ? tr('login ด้วยบัญชี Google ของคุณเอง ข้อกำหนดของ Antigravity ห้ามใช้เครื่องมือภายนอกเข้าถึงบริการ ตรวจก่อนให้ agent อื่นสั่งงาน')
       : tr('บัญชีเดิมยังใช้ได้จนกว่าจะวางโค้ดสำเร็จ — หลังสลับ session ที่เปิดอยู่จะใช้บัญชีใหม่เมื่อรีเฟรช token')
     if (!await confirmBox(tr('สลับบัญชี ') + accountName[p], warn, a.email ? tr('ปัจจุบัน: ') + a.email : (a.detail || ''), tr('เริ่ม login'))) return
     call('login', { email: email.value.trim() })
@@ -2859,12 +2860,12 @@ function accountCard (a) {
         h('p', null, tr('1) เปิดลิงก์นี้แล้ว sign in ด้วยบัญชีที่ต้องการ')),
         f.url ? h('a', { href: f.url, target: '_blank', rel: 'noopener noreferrer', class: 'pri accLink' }, tr('เปิดหน้า login ↗')) : h('p', { class: 'note' }, tr('กำลังรอลิงก์…')),
         f.code ? h('p', null, tr('2) กรอกรหัสนี้ในหน้านั้น: '), h('code', { class: 'devCode' }, f.code), ' ', h('button', { type: 'button', class: 'ghost', onclick: e => copyText(f.code, e.currentTarget) }, tr('คัดลอก'))) : null,
-        p === 'claude' ? h('div', { class: 'accRow' }, h('span', null, tr('2) วางโค้ดที่หน้าเว็บแสดง:')), code, h('button', { type: 'button', class: 'pri', onclick: () => call('code', { code: code.value }, tr('ส่งโค้ดแล้ว กำลังตรวจ…')) }, tr('ยืนยันโค้ด'))) : h('p', { class: 'note' }, tr('Codex จะเสร็จเองเมื่อกรอกรหัสบนเว็บแล้ว')),
+        p !== 'codex' ? h('div', { class: 'accRow' }, h('span', null, tr('2) วางโค้ดที่หน้าเว็บแสดง:')), code, h('button', { type: 'button', class: 'pri', onclick: () => call('code', { code: code.value }, tr('ส่งโค้ดแล้ว กำลังตรวจ…')) }, tr('ยืนยันโค้ด'))) : h('p', { class: 'note' }, tr('Codex จะเสร็จเองเมื่อกรอกรหัสบนเว็บแล้ว')),
         out,
         h('button', { type: 'button', class: 'ghost', onclick: () => call('cancel', null, tr('ยกเลิกแล้ว')) }, tr('ยกเลิก login')))
       : h('div', { class: 'accRow' },
         p === 'claude' ? email : null,
-        h('button', { type: 'button', class: 'pri', onclick: start }, a.loggedIn ? tr('สลับบัญชี') : 'Login'),
+        p === 'agy' && a.loggedIn ? null : h('button', { type: 'button', class: 'pri', onclick: start }, a.loggedIn ? tr('สลับบัญชี') : 'Login'),
         a.loggedIn ? h('button', { type: 'button', class: 'warn', onclick: logout }, 'Logout') : null),
     f && !f.running ? out : null)
 }

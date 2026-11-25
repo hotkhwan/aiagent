@@ -134,6 +134,10 @@ func codexProcesses(procRoot string) []codexProc {
 		if filepath.Base(argv0) != "codex" {
 			continue
 		}
+		// Codex's own background server and its updater are not agents
+		if strings.Contains(argv0, "/app-server-daemon/") {
+			continue
+		}
 		cwd, _ := os.Readlink(filepath.Join(procRoot, e.Name(), "cwd"))
 		vs := strings.Contains(argv0, "/.vscode") || strings.Contains(argv0, "extensions/openai.")
 		if !vs {

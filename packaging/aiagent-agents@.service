@@ -1,0 +1,19 @@
+; packaging/aiagent-agents@.service - the agent windows and sessions, back after a restart.
+[Unit]
+Description=agents of AI Agent World (%i)
+After=network-online.target aiagent-tmux@%i.service
+Wants=network-online.target aiagent-tmux@%i.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+User=%i
+WorkingDirectory=%h
+Environment=PATH=%h/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+Environment=LANG=C.UTF-8
+ExecStart=/usr/local/lib/aiagent/agents-up.sh
+; what it started must outlive it
+KillMode=process
+
+[Install]
+WantedBy=multi-user.target

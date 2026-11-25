@@ -318,7 +318,7 @@ func (s *Service) Mount(app *fiber.App) {
 	api.Post("/runs/:id/abort", s.handleRunStatus("abort"))
 	api.Get("/accounts", s.handleAccounts)
 	api.Post("/accounts/:provider/login", s.handleLogin)
-	api.Post("/accounts/claude/code", s.handleLoginCode)
+	api.Post("/accounts/:provider/code", s.handleLoginCode)
 	api.Post("/accounts/:provider/cancel", s.handleLoginCancel)
 	api.Post("/accounts/:provider/logout", s.handleLogout)
 	api.Post("/sessions/:id/pending/cancel", s.handleCancelPending)
@@ -704,8 +704,9 @@ func (s *Service) handleLoginCode(c fiber.Ctx) error {
 	if err := c.Bind().Body(&body); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(failEnv("AIAGENT_BAD_REQUEST", "invalid JSON body"))
 	}
-	return s.mutate(c, "aiagent.accountCode", []string{"claude", body.Code}, func() (any, error) {
-		return fiber.Map{"provider": "claude"}, s.Collector.SubmitLoginCode(c.Context(), body.Code)
+	p := c.Params("provider")
+	return s.mutate(c, "aiagent.accountCode", []string{p, body.Code}, func() (any, error) {
+		return fiber.Map{"provider": p}, s.Collector.SubmitLoginCode(c.Context(), p, body.Code)
 	})
 }
 

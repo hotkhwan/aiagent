@@ -262,6 +262,7 @@ func (c *Collector) collectLocked(ctx context.Context) Snapshot {
 
 	tm := c.readTmux(ctx)
 	snap.Workspaces = c.workspaces(tm)
+	snap.Sessions = append(snap.Sessions, c.agySessions(ctx, tm)...)
 	snap.Runs = c.readRuns(tm)
 	if _, err := os.Stat(c.AgcmdPath); err != nil {
 		snap.Warnings = append(snap.Warnings, "agcmd not found at "+c.AgcmdPath+" — sending work is unavailable")
@@ -293,6 +294,12 @@ func (c *Collector) collectLocked(ctx context.Context) Snapshot {
 			if pane := tm.agentPid[w.TmuxSession]; w.AgentReady && pane > 0 && pt.descendsFrom(ss.Pid, pane) {
 				ss.DispatchVia = w.Name
 				ss.inPane = w.Name
+				// A question on its screen (a permission prompt, a menu) is
+				// invisible in the transcript; without this the web shows an
+				// idle agent that takes no messages.
+				if onDialog(c.paneScreen(ctx, w.TmuxSession)) {
+					ss.Status, ss.Title = StatusNeedsInput, "รอคำตอบที่หน้าจอ agent (ถามสิทธิ์หรือเมนู) — admin เปิด tmux ตอบ หรือกด หยุด แล้วส่งใหม่"
+				}
 				break
 			}
 		}
@@ -357,7 +364,7 @@ func (c *Collector) collectLocked(ctx context.Context) Snapshot {
 		}
 	}
 
-	snap.Quotas = append(codexQuotas(reading, now), c.claudeQuotas(now)...)
+	snap.Quotas = append(append(codexQuotas(reading, now), c.claudeQuotas(now)...), c.googleQuotas(now)...)
 	return snap
 }
 

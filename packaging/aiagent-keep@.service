@@ -1,0 +1,7 @@
+[Unit]
+Description=remember the running Claude sessions (%i)
+
+[Service]
+Type=oneshot
+User=%i
+ExecStart=/usr/local/lib/aiagent/claude-keep.py save

@@ -1251,7 +1251,7 @@ func TestAccountsFlow(t *testing.T) {
 	if argv != "new-session -d -s aiagent-login-claude -x 220 -y 50 claude auth login --claudeai --email me@example.com" {
 		t.Fatalf("login argv = %q", argv)
 	}
-	if err := e.col.SubmitLoginCode(context.Background(), "abc; rm -rf /"); err == nil {
+	if err := e.col.SubmitLoginCode(context.Background(), "claude", "abc; rm -rf /"); err == nil {
 		t.Fatal("bad code accepted")
 	}
 }
@@ -1269,7 +1269,7 @@ func TestUsageAfterAccountSwitch(t *testing.T) {
 	if qs := e.col.claudeQuotas(now); len(qs) != 1 || qs[0].Confidence != "unknown" {
 		t.Fatalf("old account reading shown: %+v", qs)
 	}
-	if err := e.col.SubmitLoginCode(context.Background(), "abc_DEF-123#state_x"); err == nil || strings.Contains(err.Error(), "does not look like") {
+	if err := e.col.SubmitLoginCode(context.Background(), "claude", "abc_DEF-123#state_x"); err == nil || strings.Contains(err.Error(), "does not look like") {
 		t.Fatalf("underscore code rejected: %v", err)
 	}
 }

@@ -29,6 +29,11 @@ export CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1
 set --
 [ -f "$room/settings.json" ] && set -- --settings "$room/settings.json"
 
+# Nobody sits at a room's terminal to answer a permission prompt, so the CLI
+# decides itself (auto mode); what the room may touch is bounded by its OS
+# user, the settings above and the firewall.
+set -- "$@" --permission-mode auto
+
 # The admin's model; a user cannot choose one.
 model() {
 	local m

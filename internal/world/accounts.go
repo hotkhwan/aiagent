@@ -25,7 +25,7 @@ import (
 
 // Account is one CLI's sign-in state.
 type Account struct {
-	Provider string     `json:"provider"` // claude | codex
+	Provider string     `json:"provider"` // claude | codex | agy
 	LoggedIn bool       `json:"loggedIn"`
 	Method   string     `json:"method,omitempty"`
 	Email    string     `json:"email,omitempty"`
@@ -48,7 +48,9 @@ var (
 	loginURLRE    = regexp.MustCompile(`https://[^\s"'<>]+`)
 	deviceCodeRE  = regexp.MustCompile(`\b[A-Z0-9]{4}-[A-Z0-9]{4,5}\b`)
 	pastedCodeRE  = regexp.MustCompile(`^[A-Za-z0-9_.~#=+/-]{8,1000}$`) // OAuth code#state (base64url)
-	loginSessions = map[string]string{"claude": "aiagent-login-claude", "codex": "aiagent-login-codex"}
+	loginSessions = map[string]string{"claude": "aiagent-login-claude", "codex": "aiagent-login-codex", "agy": "aiagent-login-agy"}
+	// agentBox opens an agent CLI the way its own window does (packaging/agent-box.sh).
+	agentBox = "/usr/local/lib/aiagent/agent-box.sh"
 )
 
 func (c *Collector) loginArgv(provider, email string) (string, []string, error) {
@@ -64,13 +66,18 @@ func (c *Collector) loginArgv(provider, email string) (string, []string, error) 
 		return c.ClaudeBin(), args, nil
 	case "codex":
 		return c.codexBin(), []string{"login", "--device-auth"}, nil
+	case "agy":
+		if c.agySignedIn() {
+			return "", nil, ErrConflict("Antigravity is signed in; log out first to use another account")
+		}
+		return agentBox, []string{"agy", "login"}, nil
 	}
-	return "", nil, &APIError{400, "AIAGENT_BAD_PROVIDER", "provider must be claude or codex"}
+	return "", nil, &APIError{400, "AIAGENT_BAD_PROVIDER", "provider must be claude, codex or agy"}
 }
 
 // Accounts returns the sign-in state of both CLIs plus any login in progress.
 func (c *Collector) Accounts(ctx context.Context) []Account {
-	out := []Account{c.claudeAccount(ctx), c.codexAccount(ctx)}
+	out := []Account{c.claudeAccount(ctx), c.codexAccount(ctx), c.agyAccount()}
 	for i := range out {
 		out[i].Login = c.loginFlow(ctx, out[i].Provider)
 	}
@@ -124,6 +131,48 @@ func (c *Collector) codexAccount(ctx context.Context) Account {
 	return a
 }
 
+// agyTokenPath is where Antigravity keeps its sign-in on a machine with no
+// keyring. Only its existence is read.
+func (c *Collector) agyTokenPath() string {
+	return filepath.Join(c.serviceHome(), ".gemini", "antigravity-cli", "antigravity-oauth-token")
+}
+
+func (c *Collector) agySignedIn() bool {
+	fi, err := os.Stat(c.agyTokenPath())
+	return err == nil && fi.Size() > 0
+}
+
+func (c *Collector) agyAccount() Account {
+	a := Account{Provider: "agy", LoggedIn: c.agySignedIn()}
+	if a.LoggedIn {
+		a.Method = "Google"
+	}
+	return a
+}
+
+// agyPane drives Antigravity's sign-in screen: it picks Google sign-in, and
+// closes the pane once the sign-in is saved. done means it was closed.
+func (c *Collector) agyPane(ctx context.Context, name, screen string) (done bool) {
+	if c.agySignedIn() {
+		_, _ = c.tmux(ctx, "kill-session", "-t", "="+name)
+		c.restartAgy(ctx)
+		return true
+	}
+	if strings.Contains(screen, "> 1. Google OAuth") {
+		_, _ = c.tmux(ctx, "send-keys", "-t", "="+name+":", "Enter")
+	}
+	return false
+}
+
+// restartAgy reopens Antigravity windows so they read a changed sign-in.
+func (c *Collector) restartAgy(ctx context.Context) {
+	for _, w := range c.Workspaces {
+		if session, window, ok := strings.Cut(w.session, ":"); ok && w.provider == "gemini" {
+			_, _ = c.tmux(ctx, "respawn-window", "-k", "-t", "="+session+":="+window)
+		}
+	}
+}
+
 func (c *Collector) loginFlow(ctx context.Context, provider string) *LoginFlow {
 	name := loginSessions[provider]
 	if _, err := c.tmux(ctx, "has-session", "-t", "="+name); err != nil {
@@ -148,13 +197,16 @@ func (c *Collector) loginFlow(ctx context.Context, provider string) *LoginFlow {
 		}
 	}
 	screen = strings.Join(keep, "\n")
+	if provider == "agy" && f.Running && c.agyPane(ctx, name, screen) {
+		return nil
+	}
 	if u := loginURLRE.FindAllString(screen, -1); len(u) > 0 {
 		f.URL = strings.TrimRight(u[len(u)-1], ".,)")
 	}
 	if provider == "codex" {
 		f.Code = deviceCodeRE.FindString(screen)
 	} else {
-		f.NeedsCode = f.Running && strings.Contains(screen, "Paste code")
+		f.NeedsCode = f.Running && (strings.Contains(screen, "Paste code") || provider == "agy" && strings.Contains(screen, "authorization code"))
 	}
 	lines := strings.Split(strings.TrimSpace(screen), "\n")
 	if len(lines) > 6 {
@@ -177,7 +229,11 @@ func (c *Collector) StartLogin(ctx context.Context, provider, email string) (*Lo
 	}
 	name := loginSessions[provider]
 	_, _ = c.tmux(ctx, "kill-session", "-t", "="+name)
-	argv := append([]string{"new-session", "-d", "-s", name, "-x", "220", "-y", "50", bin}, args...)
+	width := "220"
+	if provider == "agy" {
+		width = "2000" // it breaks its link at the edge with real line ends
+	}
+	argv := append([]string{"new-session", "-d", "-s", name, "-x", width, "-y", "50", bin}, args...)
 	if out, err := c.tmux(ctx, argv...); err != nil {
 		// tmux's own words say why (often: no server, and the service's sandbox
 		// may not create one; see packaging/aiagent-tmux@.service)
@@ -194,17 +250,20 @@ func (c *Collector) StartLogin(ctx context.Context, provider, email string) (*Lo
 	return c.loginFlow(ctx, provider), nil
 }
 
-// SubmitLoginCode types the code Claude's sign-in page showed.
-func (c *Collector) SubmitLoginCode(ctx context.Context, code string) error {
+// SubmitLoginCode types the code a sign-in page showed.
+func (c *Collector) SubmitLoginCode(ctx context.Context, provider, code string) error {
+	if provider != "claude" && provider != "agy" {
+		return &APIError{400, "AIAGENT_BAD_PROVIDER", "provider must be claude or agy"}
+	}
 	code = strings.TrimSpace(code)
 	if !pastedCodeRE.MatchString(code) {
 		return &APIError{400, "AIAGENT_BAD_CODE", "that does not look like a sign-in code"}
 	}
-	f := c.loginFlow(ctx, "claude")
-	if f == nil || !f.Running {
-		return ErrConflict("no Claude sign-in is waiting for a code; start one first")
+	f := c.loginFlow(ctx, provider)
+	if f == nil || !f.Running || (provider == "agy" && !f.NeedsCode) {
+		return ErrConflict("no sign-in is waiting for a code; start one first")
 	}
-	name := loginSessions["claude"]
+	name := loginSessions[provider]
 	if _, err := c.tmux(ctx, "send-keys", "-t", "="+name+":", "-l", "--", code); err != nil {
 		return &APIError{502, "AIAGENT_LOGIN_FAILED", "send failed"}
 	}
@@ -217,7 +276,7 @@ func (c *Collector) SubmitLoginCode(ctx context.Context, code string) error {
 func (c *Collector) CancelLogin(ctx context.Context, provider string) error {
 	name, ok := loginSessions[provider]
 	if !ok {
-		return &APIError{400, "AIAGENT_BAD_PROVIDER", "provider must be claude or codex"}
+		return &APIError{400, "AIAGENT_BAD_PROVIDER", "provider must be claude, codex or agy"}
 	}
 	_, _ = c.tmux(ctx, "kill-session", "-t", "="+name)
 	return nil
@@ -231,8 +290,15 @@ func (c *Collector) Logout(ctx context.Context, provider string) error {
 		_, err = c.run(ctx, c.ClaudeBin(), "auth", "logout")
 	case "codex":
 		_, err = c.run(ctx, c.codexBin(), "logout")
+	case "agy":
+		// It has no logout command outside its own screen. The service sees the
+		// home read-only, so tmux, which runs outside that, removes the file.
+		_, err = c.tmux(ctx, "run-shell", "rm -f '"+strings.ReplaceAll(c.agyTokenPath(), "'", "")+"'")
+		if err == nil {
+			c.restartAgy(ctx)
+		}
 	default:
-		return &APIError{400, "AIAGENT_BAD_PROVIDER", "provider must be claude or codex"}
+		return &APIError{400, "AIAGENT_BAD_PROVIDER", "provider must be claude, codex or agy"}
 	}
 	if err != nil {
 		return &APIError{502, "AIAGENT_LOGOUT_FAILED", "logout failed: " + err.Error()}

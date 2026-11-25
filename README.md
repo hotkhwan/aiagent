@@ -46,11 +46,18 @@ cd aiagent
 ./packaging/install.sh            # add --with-service for a systemd unit or LaunchAgent
 ```
 
-It also installs Claude Code, Codex and Gemini CLI when they are missing. One
+It also installs Claude Code, Codex and Antigravity (`agy`) when they are missing. One
 already on the machine is left alone, sign-in included; `--update-clis` updates
 it, `--no-clis` skips this step. `--skills DIR` copies a folder of skills into
-`~/.claude/skills`; memory and settings are never copied. Sign Claude and Codex
-in from the web (Accounts); Gemini is signed in from a terminal for now.
+`~/.claude/skills`; memory and settings are never copied. Claude, Codex
+and Antigravity are signed in from the web (Accounts). Google's Antigravity terms
+restrict third-party tools; read them before letting other agents send it work.
+
+The installer also sets up the site: one tmux session (`--site NAME`, the host
+name by default) with a window per agent, each working in its own folder under
+`ai-work` (`--code DIR` lets them read your checkouts). After a restart
+`aiagent-agents@` opens the windows again, each on its last conversation, and
+restarts the Claude background sessions that were running.
 
 This installs two binaries into `~/.local/bin`: **`aiagent`**, the service and
 its switch, and **`agcmd`**, the small tool that actually talks to the agents

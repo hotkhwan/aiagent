@@ -336,7 +336,7 @@ const agentViewBox = "describe a task for a new session"
 // it draws over the input box ("Teach auto mode…", the rewind menu, a picker).
 // The idle prompt never ends with one. Seen 2026-11-23: two sessions sat on
 // such dialogs, every send was typed into them and reported ok.
-var dialogFooters = []string{"Esc to cancel", "Enter to confirm", "Enter to continue", "Enter to select"}
+var dialogFooters = []string{"Esc to cancel", "Enter to confirm", "Enter to continue", "Enter to select", "enter continue", "enter Select", "↑/↓ Navigate", "esc to cancel"}
 
 // onDialog reports a dialog on screen, judged by the last few lines only, so a
 // footer quoted in the conversation above the prompt does not count.
@@ -357,6 +357,10 @@ func onDialog(screen string) bool {
 	}
 	return false
 }
+
+// OnDialog is onDialog for agcmd: text typed into a question answers it, and
+// on an agent CLI that can mean approving a command.
+func OnDialog(screen string) bool { return onDialog(screen) }
 
 // dialogReasonPrefix starts every dialogReason, so the sender can tell it
 // from a refused attach.

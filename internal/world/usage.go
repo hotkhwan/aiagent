@@ -150,6 +150,40 @@ func firstNonEmpty(v ...string) string {
 // claudeQuotas turns the freshest saved reading into quota rows. Never
 // estimated: a missing reading is "unknown", a window whose reset passed is
 // "stale" with no percentage.
+// googleQuotas is Antigravity's reading (packaging/ai-quota.py): the Gemini
+// windows of the plan. Nothing is listed before there is a sign-in.
+func (c *Collector) googleQuotas(now time.Time) []Quota {
+	var u ClaudeUsage
+	b, err := os.ReadFile(filepath.Join(c.serviceHome(), ".gemini", usageFile))
+	if err != nil || json.Unmarshal(b, &u) != nil || !c.agySignedIn() {
+		if c.agySignedIn() {
+			return []Quota{{ProviderID: "google", Mode: "guarded", Confidence: "unknown", Source: "no Antigravity reading yet"}}
+		}
+		return nil
+	}
+	var out []Quota
+	for _, w := range []struct {
+		w       *UsageWindow
+		minutes int
+	}{{u.FiveHour, 300}, {u.SevenDay, 10080}} {
+		if w.w == nil {
+			continue
+		}
+		at := u.ObservedAt
+		q := Quota{ProviderID: "google", WindowMinutes: w.minutes, ObservedAt: &at, ResetsAt: w.w.ResetsAt, Source: "Antigravity /usage"}
+		if w.w.ResetsAt != nil && now.After(*w.w.ResetsAt) {
+			q.Confidence, q.Mode = "stale", "guarded"
+		} else {
+			used := w.w.UsedPercent
+			rem := 100 - used
+			q.UsedPercent, q.RemainingPercent = &used, &rem
+			q.Confidence, q.Mode = "actual", quotaMode(rem)
+		}
+		out = append(out, q)
+	}
+	return out
+}
+
 func (c *Collector) claudeQuotas(now time.Time) []Quota {
 	var best *ClaudeUsage
 	var switched bool
