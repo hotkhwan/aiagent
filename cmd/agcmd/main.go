@@ -144,6 +144,16 @@ func resolve(name string) (world.WorkspaceInfo, error) {
 
 // ---------- tmux ----------
 
+// tmuxTarget is the exact window a workspace names: "session" means its
+// "agent" window, "session:window" that window (world.tmuxKey).
+func tmuxTarget(key string) string {
+	session, window, ok := strings.Cut(key, ":")
+	if !ok {
+		window = "agent"
+	}
+	return "=" + session + ":=" + window
+}
+
 func tmux(args ...string) (string, error) {
 	cmd := exec.Command(tmuxBin(), args...)
 	cmd.Env = append(os.Environ(), "TERM=dumb")
@@ -159,9 +169,9 @@ func tmux(args ...string) (string, error) {
 // pane id rather than the window, so the pane that was checked is the pane
 // that is typed into even if another pane becomes active in between.
 func agentPane(w world.WorkspaceInfo) (target, running string, err error) {
-	out, err := tmux("list-panes", "-t", "="+w.TmuxSession+":agent", "-F", "#{pane_active}\t#{pane_id}\t#{pane_pid}\t#{pane_current_command}")
+	out, err := tmux("list-panes", "-t", tmuxTarget(w.TmuxSession), "-F", "#{pane_active}\t#{pane_id}\t#{pane_pid}\t#{pane_current_command}")
 	if err != nil {
-		return "", "", fmt.Errorf("workspace %q: no tmux session %q with an \"agent\" window (%s)", w.Name, w.TmuxSession, out)
+		return "", "", fmt.Errorf("workspace %q: no such tmux window: %s (%s)", w.Name, tmuxTarget(w.TmuxSession), out)
 	}
 	for _, line := range strings.Split(out, "\n") {
 		f := strings.SplitN(strings.TrimSpace(line), "\t", 4)
@@ -175,7 +185,7 @@ func agentPane(w world.WorkspaceInfo) (target, running string, err error) {
 		}
 		return f[1], running, nil
 	}
-	return "", "", fmt.Errorf("workspace %q: no active pane in %s:agent", w.Name, w.TmuxSession)
+	return "", "", fmt.Errorf("workspace %q: no active pane in %s", w.Name, tmuxTarget(w.TmuxSession))
 }
 
 // send pastes text into a pane and submits it.
@@ -500,7 +510,7 @@ func engCreate(task, workspace string) error {
 		_ = appendLog(id, "could not send: "+err.Error())
 		return err
 	}
-	_ = appendLog(id, "sent to "+w.TmuxSession+":agent (pane "+target+")")
+	_ = appendLog(id, "sent to "+tmuxTarget(w.TmuxSession)+" (pane "+target+")")
 	// This line is the contract with AI Agent World: it reads the run id back
 	// out of stdout with the pattern `(ENG-\d{8}-\d{3,})\s+RUNNING`.
 	fmt.Printf("%s  %s  %s\n", id, statusRunning, w.Name)

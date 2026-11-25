@@ -50,6 +50,7 @@ type workspaceConfig struct {
 	Workspaces []struct {
 		Name        string   `json:"name"`
 		TmuxSession string   `json:"tmuxSession"`
+		TmuxWindow  string   `json:"tmuxWindow"` // default "agent"
 		Dir         string   `json:"dir"`
 		Provider    string   `json:"provider"`
 		TestCommand []string `json:"testCommand"`
@@ -114,6 +115,8 @@ func LoadWorkspaces(path string) ([]workspaceEntry, error) {
 			return nil, fmt.Errorf("%s: workspace %d has no name", path, i)
 		case w.TmuxSession == "":
 			return nil, fmt.Errorf("%s: workspace %q has no tmuxSession", path, w.Name)
+		case strings.ContainsAny(w.TmuxSession+w.TmuxWindow, ":.\t\n"):
+			return nil, fmt.Errorf("%s: workspace %q: tmux names must not contain ':' or '.'", path, w.Name)
 		case w.Dir == "":
 			return nil, fmt.Errorf("%s: workspace %q has no dir", path, w.Name)
 		case !filepath.IsAbs(w.Dir):
@@ -128,7 +131,7 @@ func LoadWorkspaces(path string) ([]workspaceEntry, error) {
 		seen[w.Name] = true
 		out = append(out, workspaceEntry{
 			name:        w.Name,
-			session:     w.TmuxSession,
+			session:     tmuxKey(w.TmuxSession, w.TmuxWindow),
 			dir:         filepath.Clean(w.Dir),
 			provider:    w.Provider,
 			testCommand: w.TestCommand,

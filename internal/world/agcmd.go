@@ -156,13 +156,17 @@ func (c *Collector) readTmux(ctx context.Context) tmuxState {
 	}
 	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
 		p := strings.Split(line, "\t")
-		if len(p) < 4 || p[1] != "agent" || p[2] != "1" {
+		if len(p) < 4 || p[2] != "1" {
 			continue
 		}
-		st.agentCmd[p[0]] = p[3]
+		key := tmuxKey(p[0], p[1])
+		if key != p[0] {
+			st.sessions[key] = st.sessions[p[0]]
+		}
+		st.agentCmd[key] = p[3]
 		if len(p) > 4 {
 			if pid, err := strconv.Atoi(p[4]); err == nil {
-				st.agentPid[p[0]] = pid
+				st.agentPid[key] = pid
 			}
 		}
 	}
@@ -182,6 +186,15 @@ func (c *Collector) readTmux(ctx context.Context) tmuxState {
 		}
 	}
 	return st
+}
+
+// tmuxKey names an agent's place: the bare session for its "agent" window,
+// "session:window" for any other, so one session can hold several agents.
+func tmuxKey(session, window string) string {
+	if window == "" || window == "agent" {
+		return session
+	}
+	return session + ":" + window
 }
 
 func agentReady(cmd string) bool { return IsAgentCommand(cmd) }

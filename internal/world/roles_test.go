@@ -147,3 +147,21 @@ func TestProtectedWorkspaceTakesNoWork(t *testing.T) {
 		t.Error("protection was forgotten")
 	}
 }
+
+func TestWorkspacesShareOneTmuxSession(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "w.json")
+	write := func(s string) {
+		if err := os.WriteFile(p, []byte(s), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write(`{"workspaces":[{"name":"a","tmuxSession":"core","tmuxWindow":"a","dir":"/a"},{"name":"b","tmuxSession":"core","tmuxWindow":"b","dir":"/b"},{"name":"c","tmuxSession":"c","dir":"/c"}]}`)
+	ws, err := LoadWorkspaces(p)
+	if err != nil || ws[0].session != "core:a" || ws[1].session != "core:b" || ws[2].session != "c" {
+		t.Fatalf("%v %+v", err, ws)
+	}
+	write(`{"workspaces":[{"name":"a","tmuxSession":"core:x","dir":"/a"}]}`)
+	if _, err := LoadWorkspaces(p); err == nil {
+		t.Fatal("a ':' in a tmux name was accepted")
+	}
+}
