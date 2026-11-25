@@ -21,6 +21,7 @@ func TestIsAgentCommandIsAnAllowlistOfAgentCLIs(t *testing.T) {
 		{"2.1.318", true},
 		{"codex", true},
 		{"gemini", true},
+		{"agy", true},
 		// node alone is not enough: a node REPL is node too. A node pane is
 		// accepted only once its argv shows codex or gemini (PaneAgent).
 		{"node", false},
@@ -62,6 +63,7 @@ func TestNodePaneIsAnAgentOnlyWhenItRunsCodexOrGemini(t *testing.T) {
 		{"node", 100, "codex"},
 		{"node", 200, ""},
 		{"node", 300, "gemini"},
+		{"agy", 1, "gemini"},
 		{"node", 400, ""},
 		{"2.1.318", 0, "claude"},
 		{"claude", 0, "claude"},

@@ -23,6 +23,7 @@ var agentCLIs = []cliSpec{
 	{name: "claude", npm: "@anthropic-ai/claude-code"},
 	{name: "codex", npm: "@openai/codex"},
 	{name: "gemini", npm: "@google/gemini-cli"},
+	{name: "agy"},
 	{name: "amp", npm: "@sourcegraph/amp"},
 }
 

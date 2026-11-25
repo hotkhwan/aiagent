@@ -62,7 +62,7 @@ type tmuxState struct {
 // allowlist, not a list of shells to avoid: an editor, a REPL or a pager in an
 // agent window would run the text as something the operator did not ask for.
 // node is deliberately absent — see paneAgent.
-var agentCommands = map[string]bool{"claude": true, "codex": true, "gemini": true}
+var agentCommands = map[string]bool{"claude": true, "codex": true, "gemini": true, "agy": true}
 
 // claudeVersionBinary matches the name tmux reports for Claude Code on macOS,
 // where ~/.local/bin/claude links to a binary named after its version
@@ -86,6 +86,8 @@ func paneAgent(pt procTable, cmd string, panePid int) string {
 	switch {
 	case cmd == "codex" || cmd == "gemini":
 		return cmd
+	case cmd == "agy": // Google's Antigravity CLI, the gemini provider's CLI for personal plans
+		return "gemini"
 	case cmd == "claude" || claudeVersionBinary.MatchString(cmd):
 		return "claude"
 	case cmd != "node" || panePid <= 0:
