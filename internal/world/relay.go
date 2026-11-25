@@ -525,12 +525,14 @@ func (c *Collector) relaySend(ctx context.Context, ss *Session, message string) 
 		return &APIError{502, "AIAGENT_RELAY_FAILED", "the agent CLI refused to attach: " + reason}
 	}
 	// "=name:" again, not "=name": send-keys takes a pane target too.
-	if _, err := c.tmux(ctx, "send-keys", "-t", "="+name+":", "-l", "--", message); err != nil {
-		return &APIError{502, "AIAGENT_RELAY_FAILED", "send failed"}
-	}
-	c.sleep(400 * time.Millisecond)
-	if _, err := c.tmux(ctx, "send-keys", "-t", "="+name+":", "Enter"); err != nil {
-		return &APIError{502, "AIAGENT_RELAY_FAILED", "send failed"}
+	switch c.submit(ctx, "="+name+":", message).(type) {
+	case nil:
+	case *ErrOnDialog:
+		return &APIError{409, "AIAGENT_RELAY_DIALOG", dialogReason(name)}
+	case *ErrNotSubmitted:
+		return errNotSubmitted()
+	default:
+		return &APIError{502, "AIAGENT_RELAY_FAILED", "พิมพ์ข้อความเข้า agent ไม่สำเร็จ"}
 	}
 	return nil
 }

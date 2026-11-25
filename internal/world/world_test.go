@@ -166,6 +166,14 @@ func (f *fakeRunner) Run(_ context.Context, name string, args ...string) ([]byte
 					// it can record that.
 					panic("simulated crash after typing")
 				}
+				// A drawn input box holds what is typed until Enter.
+				if i := strings.LastIndex(f.dialogScreen, "\n❯"); i >= 0 && strings.Contains(f.dialogScreen[i+1:], "\n───") {
+					box, rest := "", f.dialogScreen[i+1:]
+					if slices.Contains(args, "-l") {
+						box = " " + args[len(args)-1]
+					}
+					f.dialogScreen = f.dialogScreen[:i] + "\n❯" + box + rest[strings.Index(rest, "\n"):]
+				}
 				return nil, nil
 			}
 			if f.deadScreen != "" && f.attachRefused() {

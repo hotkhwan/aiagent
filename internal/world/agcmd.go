@@ -367,6 +367,16 @@ func (c *Collector) requireAgentReady(ctx context.Context, session string) error
 	return nil
 }
 
+// Exit codes by which agcmd tells the service why a message was not sent.
+const (
+	ExitNotSubmitted = 3
+	ExitDialog       = 4
+)
+
+func errNotSubmitted() error {
+	return &APIError{502, "AIAGENT_NOT_SUBMITTED", "พิมพ์ข้อความแล้วแต่ agent ยังไม่รับ — ข้อความอาจค้างในช่องพิมพ์ของ agent ลองกดส่งข้อความเดิมอีกครั้ง"}
+}
+
 func (c *Collector) agcmd(ctx context.Context, args ...string) (string, error) {
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
@@ -374,6 +384,14 @@ func (c *Collector) agcmd(ctx context.Context, args ...string) (string, error) {
 	text := strings.TrimSpace(string(out))
 	if err != nil {
 		var ee *exec.ExitError
+		if errors.As(err, &ee) {
+			switch ee.ExitCode() {
+			case ExitNotSubmitted:
+				return text, errNotSubmitted()
+			case ExitDialog:
+				return text, &APIError{409, "AIAGENT_DIALOG", "agent กำลังแสดงคำถามอยู่ ถ้าพิมพ์จะกลายเป็นคำตอบ — ตอบคำถามนั้นก่อนแล้วส่งใหม่"}
+			}
+		}
 		if errors.As(err, &ee) || text != "" {
 			return text, &APIError{502, "AGCMD_BIN_FAILED", "agcmd failed: " + truncateRunes(text, 300)}
 		}
