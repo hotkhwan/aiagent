@@ -99,6 +99,8 @@ type Service struct {
 	lastWrite time.Time
 	uploads   uploadLimiter
 	tickets   map[string]viewTicket
+	// sends remembers recent sends so one is never typed twice (sendonce.go)
+	sends sendOnce
 
 	policyOnce sync.Once
 
@@ -203,6 +205,13 @@ func (s *Service) gate(c fiber.Ctx) error {
 	if who.Role != RoleAdmin && !s.userMay(c) {
 		return c.Status(fiber.StatusForbidden).JSON(failEnv("AIAGENT_ADMIN_ONLY", "ต้องใช้ token ของ admin"))
 	}
+	// before a send is handed to a room: the room's instance checks again
+	return s.once(c, func() error { return s.route(c, who) })
+}
+
+// route sends a request on to the room it belongs to, or to this service's
+// own handlers.
+func (s *Service) route(c fiber.Ctx, who Identity) error {
 	if s.OSUsers != nil {
 		target := who.OSUser
 		if who.Role == RoleAdmin {
