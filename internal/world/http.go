@@ -511,7 +511,15 @@ func (s *Service) handleMessage(c fiber.Ctx) error {
 		return c.Status(fiber.StatusForbidden).JSON(failEnv("AIAGENT_ADMIN_ONLY", "this needs an admin token"))
 	}
 	return s.mutate(c, "aiagent.message", []string{body.Workspace, body.Message}, func() (any, error) {
-		return fiber.Map{"workspace": body.Workspace}, s.Collector.Message(c.Context(), body.Workspace, body.Message)
+		sentAt := s.Collector.now()
+		if err := s.Collector.Message(c.Context(), body.Workspace, body.Message); err != nil {
+			return fiber.Map{"workspace": body.Workspace}, err
+		}
+		delivery := DeliveryUnknown
+		if id := s.Collector.workspaceSession(c.Context(), body.Workspace); id != "" {
+			delivery = s.Collector.AwaitDelivery(c.Context(), id, body.Message, sentAt)
+		}
+		return fiber.Map{"workspace": body.Workspace, "delivery": delivery}, nil
 	})
 }
 

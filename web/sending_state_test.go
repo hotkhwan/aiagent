@@ -38,3 +38,33 @@ func TestChatShowsAMessageWhileItIsSending(t *testing.T) {
 		t.Errorf("styles.css must style .msg.sending so it reads as not yet sent")
 	}
 }
+
+// A message nobody saw arrive must not look like a delivered one.
+func TestAnUnconfirmedMessageStaysMarked(t *testing.T) {
+	app := readWebFile(t, "app.js")
+	if !strings.Contains(jsFunc(t, app, "act"), "=== 'unknown'") {
+		t.Errorf("act must show an unconfirmed send as a warning, whatever page sent it")
+	}
+	if !strings.Contains(jsFunc(t, app, "drawSending"), "s.delivery === 'unknown'") {
+		t.Errorf("drawSending must mark an unconfirmed message")
+	}
+	if !strings.Contains(jsFunc(t, app, "sendChat"), "mine.delivery !== 'unknown'") {
+		t.Errorf("sendChat must not clear an unconfirmed message from the chat")
+	}
+	if !strings.Contains(jsFunc(t, app, "updateChat"), "settleSending(") {
+		t.Errorf("updateChat must clear the mark once the transcript shows the message")
+	}
+}
+
+// A long paste is a token in the box; a draft kept without its text was sent
+// after a reload as "[Pasted text #1 +40 lines]" and nothing else.
+func TestDraftKeepsWhatAPasteTokenStandsFor(t *testing.T) {
+	app := readWebFile(t, "app.js")
+	if !strings.Contains(jsFunc(t, app, "saveDraft"), "pastes") || !strings.Contains(jsFunc(t, app, "restoreDraft"), "st.pastes = d.pastes") {
+		t.Errorf("the draft must keep the pasted text behind each token")
+	}
+	i := strings.Index(app, "ta.setRangeText(tok")
+	if i < 0 || !strings.Contains(app[i:i+120], "saveDraft()") {
+		t.Errorf("setRangeText fires no input event: the paste handler must save the draft")
+	}
+}

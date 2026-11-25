@@ -221,6 +221,7 @@ dialog::backdrop { background: rgba(5,8,18,.7) }
 /* drawn by the page while the send is in flight; the transcript's copy replaces it */
 .msg.sending { opacity: .6; border-style: dashed }
 .msg.sending.sent { opacity: .85 }
+.msg.sending.lost { opacity: 1; border-color: var(--rose) }
 /* 13px was unreadable on an iPad at arm's length (owner, 2026-11-13). */
 .msg .body { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 15px; line-height: 1.6 }
 body.typing .msg .body { font-size: 16px }

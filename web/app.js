@@ -2009,10 +2009,21 @@ function drawSending () {
   if (old) old.remove()
   const s = st.sending
   if (!s || !st.sel || st.sel.id !== s.sid) return
-  log.append(h('div', { class: 'msg user sending' + (s.sent ? ' sent' : '') },
-    h('div', { class: 'who2' }, tr('ผู้ใช้') + ' · ' + (s.sent ? tr('ส่งแล้ว') : tr('กำลังส่ง…'))),
+  const lost = s.sent && s.delivery === 'unknown'
+  log.append(h('div', { class: 'msg user sending' + (s.sent ? ' sent' : '') + (lost ? ' lost' : '') },
+    h('div', { class: 'who2' }, tr('ผู้ใช้') + ' · ' + (lost ? '⚠ ' + tr('ยังไม่ยืนยันว่าถึง agent') : s.sent ? tr('ส่งแล้ว') : tr('กำลังส่ง…'))),
     mdBody(s.text, 'body')))
   log.scrollTop = log.scrollHeight
+}
+
+// settleSending drops an unconfirmed message once the transcript shows it.
+function settleSending (id, msgs) {
+  const s = st.sending
+  if (!s || !s.sent || s.sid !== id) return
+  const key = t => t.replace(/\s+/g, ' ').trim().slice(0, 60)
+  if (!msgs.some(m => m.role === 'user' && Date.parse(m.at) >= s.at - 5000 && key(m.text) === key(s.text))) return
+  st.sending = null
+  drawSending()
 }
 
 async function updateChat (force) {
@@ -2023,6 +2034,7 @@ async function updateChat (force) {
     const res = await api('/sessions/' + encodeURIComponent(id) + '/messages?limit=60')
     if (!st.sel || st.sel.id !== id) return
     const msgs = res.messages || []
+    settleSending(id, msgs)
     const sig = msgs.length + ':' + (msgs.length ? msgs[msgs.length - 1].at + msgs[msgs.length - 1].text.length : '')
     const log = $('insp').querySelector('.chatLog')
     if (!log || (!force && st.chatSig === sig)) return
@@ -2188,13 +2200,15 @@ async function sendChat (sess, ta, thumbs) {
     text = (text || tr('ดูไฟล์ที่แนบ')) + '\n\n' + attachLines(files)
   }
   const withPics = files.length ? tr(' พร้อมรูป ') + files.length + tr(' รูป') : ''
-  const mine = st.sending = { sid: sess.sessionId, text, sent: false }
+  const mine = st.sending = { sid: sess.sessionId, text, sent: false, at: Date.now() }
   drawSending()
   const ok = await act('/sessions/' + encodeURIComponent(sess.sessionId) + '/message', { message: text }, r => r.queued
     ? sess.displayName + tr(' กำลังทำงานอยู่ — เก็บข้อความไว้ให้แล้ว จะส่งเองเมื่อว่าง') + withPics
-    : r.delivery === 'unknown'
-      ? tr('พิมพ์ส่งให้ ') + sess.displayName + tr(' แล้ว แต่ยังไม่เห็นใน transcript — ยังไม่ยืนยันว่าถึง') + withPics
-      : tr('ส่งถึง ') + sess.displayName + tr(' แล้ว (') + (r.via || '') + ')' + (r.delivery === 'acked' ? tr(' · ยืนยันจาก transcript') : '') + withPics)
+    : (mine.delivery = r.delivery) === 'unknown'
+      ? tr('พิมพ์ส่งให้ ') + sess.displayName + tr(' แล้ว') + withPics
+      : r.delivery === 'held'
+        ? sess.displayName + tr(' กำลังทำงานอยู่ — ข้อความอยู่ในคิวของ agent แล้ว จะอ่านเมื่อถึงคิว') + withPics
+        : tr('ส่งถึง ') + sess.displayName + tr(' แล้ว (') + (r.via || '') + ')' + (r.delivery === 'acked' ? tr(' · ยืนยันจาก transcript') : '') + withPics)
   ta.disabled = false
   if (!ok && st.sending === mine) { st.sending = null; drawSending() }
   if (ok) {
@@ -2208,7 +2222,8 @@ async function sendChat (sess, ta, thumbs) {
     if (thumbs) drawThumbs(thumbs)
     growText()
     setTimeout(() => {
-      if (st.sending === mine) st.sending = null
+      // a message nobody saw arrive stays on screen, marked, until it shows up
+      if (st.sending === mine && mine.delivery !== 'unknown') st.sending = null
       updateChat(true)
     }, 1500)
   }
@@ -2524,8 +2539,8 @@ async function openReview (id) {
   }
   const sentText = res => res.queued
     ? tr('⏳ ') + (sess ? sess.displayName : tr('agent')) + tr(' กำลังทำงานอยู่ — เก็บข้อความไว้แล้ว จะพิมพ์ให้อัตโนมัติเมื่อว่าง')
-    : tr('✅ ส่งให้ ') + (sess ? sess.displayName : r.sessionId.slice(0, 8)) + tr(' แล้ว (') + res.via + ')' +
-      (res.delivery === 'acked' ? tr(' · agent ได้รับแล้ว') : tr(' · ยังไม่เห็นใน transcript — เปิด session ดูอีกที'))
+    : (res.delivery === 'unknown' ? tr('⚠ พิมพ์ให้ ') : tr('✅ ส่งให้ ')) + (sess ? sess.displayName : r.sessionId.slice(0, 8)) + tr(' แล้ว (') + res.via + ')' +
+      (res.delivery === 'acked' ? tr(' · agent ได้รับแล้ว') : res.delivery === 'held' ? tr(' · อยู่ในคิวของ agent แล้ว') : tr(' · ยังไม่ยืนยันว่าถึง agent — เปิด session ดูก่อนส่งซ้ำ'))
   const failText = e => tr('❌ ส่งไม่สำเร็จ: ') + e.message + tr(' — งานยังไม่ถูกปิด กดส่งใหม่ หรือคัดลอกแล้ววางเองได้')
   const sendingText = tr('กำลังส่งให้ agent… (ถ้าต้องเปิด session ต่ออาจใช้ครึ่งนาที)')
   let busy = false
@@ -2750,7 +2765,7 @@ async function openReview (id) {
       r.cwd ? h('dt', null, tr('โฟลเดอร์')) : null, r.cwd ? h('dd', { class: 'mono' }, r.cwd) : null,
       r.sessionId ? h('dt', null, tr('session')) : null, r.sessionId ? h('dd', { class: 'mono' }, r.sessionId.slice(0, 8)) : null,
       r.sentAt ? h('dt', null, tr('ส่งให้ agent')) : null,
-      r.sentAt ? h('dd', null, fmtTime(r.sentAt) + ' · ' + (r.sentVia === 'queued' ? tr('รอส่งเมื่อ agent ว่าง') : r.sentVia + (r.delivery === 'acked' ? tr(' · ได้รับแล้ว') : ''))) : null),
+      r.sentAt ? h('dd', null, fmtTime(r.sentAt) + ' · ' + (r.sentVia === 'queued' ? tr('รอส่งเมื่อ agent ว่าง') : r.sentVia + (r.delivery === 'acked' ? tr(' · ได้รับแล้ว') : r.delivery === 'held' ? tr(' · อยู่ในคิวของ agent แล้ว') : r.delivery === 'unknown' ? tr(' · ยังไม่ยืนยันว่าถึง agent') : ''))) : null),
     r.summary ? h('p', null, r.summary) : null,
     status,
     note,
@@ -3102,7 +3117,8 @@ function toast (msg, bad) {
 async function act (path, body, okMsg) {
   try {
     const res = await api(path, { method: 'POST', body })
-    toast(okMsg(res || {}))
+    const lost = !!res && res.delivery === 'unknown'
+    toast(okMsg(res || {}) + (lost ? tr(' — ยังไม่ยืนยันว่าถึง agent (ไม่พบในบทสนทนา) ตรวจก่อนส่งซ้ำ') : ''), lost)
     poll()
     return true
   } catch (e) {
@@ -3209,9 +3225,13 @@ const draftKey = 'aiagentDraft'
 function saveDraft () {
   const text = $('askText') ? $('askText').value : ''
   const paths = (st.attach || []).map(a => a.path).filter(Boolean)
+  // a folded paste is only a token in the box; without its text a reload
+  // turned the draft into a message that says "[Pasted text #1 +40 lines]"
+  const pastes = {}
+  for (const tok in st.pastes || {}) if (text.includes(tok)) pastes[tok] = st.pastes[tok]
   try {
     if (!text && !paths.length) localStorage.removeItem(draftKey)
-    else localStorage.setItem(draftKey, JSON.stringify({ text, paths }))
+    else localStorage.setItem(draftKey, JSON.stringify({ text, paths, pastes, pasteSeq: st.pasteSeq || 0 }))
   } catch (e) { /* storage unavailable: the draft is simply not kept */ }
 }
 function clearDraft () { try { localStorage.removeItem(draftKey) } catch (e) { /* see above */ } }
@@ -3219,7 +3239,13 @@ function restoreDraft () {
   let d = null
   try { d = JSON.parse(localStorage.getItem(draftKey) || 'null') } catch (e) { d = null }
   if (!d) return
-  if (d.text && $('askText') && !$('askText').value) { $('askText').value = d.text; growText() }
+  if (d.text && $('askText') && !$('askText').value) {
+    st.pastes = d.pastes || {}
+    st.pasteSeq = d.pasteSeq || 0
+    // a draft kept before pastes were: a token whose text is gone says nothing
+    $('askText').value = d.text.replace(/\[Pasted text #\d+ \+\d+ lines\]/g, t => t in st.pastes ? t : '')
+    growText()
+  }
   for (const p of (d.paths || []).slice(0, 10)) {
     const a = { blob: null, url: '', path: p, busy: false }
     ;(st.attach = st.attach || []).push(a)
@@ -3298,6 +3324,7 @@ $('askText').addEventListener('paste', e => {
   const ta = $('askText')
   ta.setRangeText(tok, ta.selectionStart, ta.selectionEnd, 'end')
   growText()
+  saveDraft()
 })
 
 // expandPastes swaps collapsed paste tokens back to their text
