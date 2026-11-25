@@ -66,9 +66,21 @@ settle() {
 	case "$(tmux capture-pane -p -t "$TMUX_PANE" 2>/dev/null)" in
 	*"esc to interrupt"* | *"Esc to cancel"*) return 0 ;;
 	esac
+	# A message may be in the box, pasted but not submitted yet: typing after it
+	# would send the two as one.
+	[ -z "$(boxtext)" ] || return 0
 	tmux send-keys -t "$TMUX_PANE" -l -- "/rename $name"
 	sleep 0.5
-	tmux send-keys -t "$TMUX_PANE" Enter
+	[ "$(boxtext)" = "/rename$name" ] && tmux send-keys -t "$TMUX_PANE" Enter
+}
+
+# boxtext: what the input box holds, without spaces and without the dim
+# suggestion an empty box shows.
+boxtext() {
+	local esc=$'\033'
+	tmux capture-pane -e -p -t "$TMUX_PANE" 2>/dev/null |
+		sed -e "s/$esc\[2m\($esc\[[0-9;]*m\)*[^$esc]*//g" -e "s/$esc\[[0-9;]*m//g" |
+		sed -n 's/^❯//p' | tail -n 1 | sed 's/\xc2\xa0//g; s/[[:space:]]//g'
 }
 while :; do
 	if signed_in; then
