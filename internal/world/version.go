@@ -1,4 +1,4 @@
 package world
 
 // Version is the aiagent release, shown next to the machine name on the web.
-const Version = "0.7.0"
+const Version = "0.7.1"

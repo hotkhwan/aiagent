@@ -109,7 +109,9 @@ func (s *Service) pmProjects(tasks []taskstore.Task) []string {
 		}
 	}
 	for _, w := range s.Collector.Workspaces {
-		add(w.name)
+		if !w.protected {
+			add(w.name)
+		}
 	}
 	for _, t := range tasks {
 		add(t.ProjectID)

@@ -1666,3 +1666,8 @@ button.rtChip:hover { background: #1D2440 }
   .tsRoom, .tsRow .tmeta { display: none }
   .pmMsg > .pmAvatar { display: none }
 }
+
+/* Three stacked bodies: the dialog's content scrolls as one, so no card is cut. */
+#accountsDlg[open] { overflow-y: auto }
+#accountsDlg[open] > .spBody { flex: none; overflow: visible; max-height: none }
+#accountsDlg[open] > .spHead { position: sticky; top: 0; z-index: 1 }
