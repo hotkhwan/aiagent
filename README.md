@@ -169,6 +169,76 @@ a room's agent from reading secret files and from `git push`, `curl`, `scp` and
 Rooms get uids from 700000 up, away from the ids containers use. Outbound
 network limits are the host's job.
 
+### A page for each room (optional)
+
+`https://<preview host>/dev/<room>/` shows what that room's agent is building,
+with hot reload, to that room's user and the admin, nobody else. The
+**Preview** button in the web opens it. It is off until
+`/etc/aiagent/preview.conf` names a host:
+
+| Key | Meaning |
+| --- | --- |
+| `HOST` | the preview host: a different name from the one the web answers on |
+| `LISTEN` | loopback address of the preview listener (default `127.0.0.1:8891`) |
+| `RESERVED` | other paths under `/dev/` on that host; no room may take such a name |
+| `CHROMIUM` | a `chrome-headless-shell` for screenshots, under `/opt` or `/usr`; optional |
+| `GATEWAY`, `GATEWAY_NAMESPACE`, `SECTION`, `NAMESPACE`, `SERVICE`, `PORT` | Kubernetes routes (below); optional |
+
+Restart `aiagent@root` after changing it. `ci cd api kapi events gateway dev
+admin assets static ws login health` are always reserved.
+
+**What a room shows** is decided by the room, in `~/work/preview.json`:
+
+| File | Shows |
+| --- | --- |
+| `{"folder": "my-app/dist"}` | a folder inside `~/work`; reloads when a file changes |
+| `{"port": 5173}` | a dev server the room started on this machine, ports 3000-5999, WebSocket included |
+| no file | the newest `work/*/site`, `dist` or `public` that has an `index.html` |
+
+A folder is read by the room's own instance as the room's user; dotfiles and
+links that leave the work folder are never served. A port is proxied only while
+its listening socket belongs to that room's uid.
+
+**A page is not trusted.** It runs in a frame sandboxed without
+`allow-same-origin` and every response says so again, so it has no cookies, no
+storage and no authority on the preview host, whatever else that host serves.
+For a page this means: no `localStorage` and no cookies, hash routes instead of
+history routes, and relative addresses in CSS (`url(img.png)`, not
+`url(/img.png)`). Root-absolute addresses in tags, module imports, `fetch` and
+WebSockets are moved below the room's page for it.
+
+**Capture** takes the page at 390 and 1440 px on this machine and files it as a
+review page of that room. The browser runs boxed as an unprivileged id with no
+home and no network but that one page (`packaging/capture-box.sh`). Without
+`CHROMIUM` the page says capture is not available. Install fonts for your
+language system-wide (for Thai, a package such as `fonts-noto-core`), and
+`chrome-headless-shell` with the shared libraries it needs.
+
+Any reverse proxy can stand in front; send only `/dev/<room>` and what is below
+it, and pass the host name on:
+
+```nginx
+# server { server_name preview.example.com; ... }
+location ~ ^/dev/(anna|bob)(/|$) {
+    proxy_pass http://127.0.0.1:8891;
+    proxy_set_header Host $host;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+    proxy_buffering off;
+    proxy_read_timeout 1h;
+}
+```
+
+Keep the `~…` part of these addresses out of shared logs: it opens the content
+while the page is open.
+
+With Kubernetes Gateway API, fill the six keys and run
+`systemctl enable --now aiagent-preview-routes.timer`: `preview-routes.py` keeps
+one rule per room (`/dev/<room>`, `Host` header equal to `HOST`) pointing at
+`SERVICE:PORT`, which must lead to the preview listener. `--print` shows what it
+would apply, `--remove` takes the routes away.
+
 ### One person, several rooms
 
 Rooms that share one Claude sign-in are for **one person**: the subscriber,

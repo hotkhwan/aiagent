@@ -63,6 +63,18 @@ issue. There is one maintainer, so expect a human-speed reply, not an SLA.
 - A **review page is agent-authored HTML** and is therefore treated as hostile:
   it opens in an iframe with `sandbox="allow-scripts"` and `default-src 'none'`,
   behind a single-use ticket that expires in two minutes.
+- A **room's preview page** is agent-written too, and lives on an origin that
+  may serve other applications. It is framed by a small shell of this service
+  and sandboxed without `allow-same-origin`, in the frame and again in the CSP
+  of every response, errors included. Response headers from a room are an
+  allowlist. Content is reached by a 192-bit capability bound to one room and
+  one viewer, dead ten minutes after the shell closes, eight hours at most, or
+  at once when the room's (or the admin's) token is revoked or replaced. The
+  preview host answers nothing else, and the rest of aiagent does not answer on
+  it. What this does not stop: a page can look like a sign-in form; anyone who
+  gets a live capability address can read that one page; and a script running
+  in another application **on the preview origin itself** can act as its viewer
+  there, because it shares the origin.
 - Scene images are served from an embedded filesystem through a name
   allowlist, so a path can never escape into the real filesystem.
 

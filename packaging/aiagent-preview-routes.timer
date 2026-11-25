@@ -1,0 +1,9 @@
+[Unit]
+Description=sync the gateway routes of the rooms' preview pages
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=1min
+
+[Install]
+WantedBy=timers.target

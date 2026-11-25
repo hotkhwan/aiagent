@@ -26,8 +26,9 @@ RestartSec=5
 NoNewPrivileges=yes
 ProtectSystem=strict
 ProtectHome=read-only
-; the rooms' model, written here and read by them (--os-users)
-RuntimeDirectory=aiagent-room
+; the rooms' model, written here and read by them, and the folder of running
+; captures, root only inside (--os-users)
+RuntimeDirectory=aiagent-room aiagent-capture
 RuntimeDirectoryMode=0755
 RuntimeDirectoryPreserve=yes
 ReadWritePaths=%h/.local/state/aiagent

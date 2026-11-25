@@ -70,6 +70,8 @@ func main() {
 		_ = world.RunStatusline(os.Stdin, os.Stdout, home, time.Now())
 	case "git-credential":
 		gitCredential(os.Args[2:])
+	case "capture-box":
+		captureBox(os.Args[2:])
 	case "review":
 		review(os.Args[2:])
 	case "enable", "rotate-token", "disable", "status":
@@ -101,6 +103,7 @@ func serve(args []string) {
 	workerRepo := fs.String("worker-repo", "", "git checkout that headless workers branch from; empty leaves headless dispatch off")
 	workerTest := fs.String("worker-test", "go test ./...", "command that verifies a worker's commit in --worker-repo")
 	osUsers := fs.Bool("os-users", false, "give each user token its own OS user and instance (Linux, systemd, root)")
+	previewConf := fs.String("preview-conf", "/etc/aiagent/preview.conf", "rooms' preview pages, with --os-users; a missing file or empty HOST leaves them off")
 	_ = fs.Parse(args)
 
 	if (*certFile == "") != (*keyFile == "") {
@@ -186,6 +189,7 @@ func serve(args []string) {
 	}
 	if *osUsers {
 		svc.OSUsers = &world.OSUsers{SocketDir: "/run/aiagent-users", TokenDir: filepath.Join(dir, "instances"), ModelDir: "/run/aiagent-room", Runner: world.ExecRunner{}}
+		startPreview(svc, *previewConf)
 	}
 	svc.Mount(app)
 	svc.StartRooms(context.Background())
@@ -216,6 +220,39 @@ func serve(args []string) {
 	}
 	if err := app.Listen(*listen, cfg); err != nil {
 		log.Fatalf("listen: %v", err)
+	}
+}
+
+// startPreview serves the rooms' pages on their own loopback listener. A bad
+// configuration leaves them off and the service running.
+func startPreview(svc *world.Service, conf string) {
+	cfg, err := world.LoadPreviewConfig(conf)
+	if err != nil {
+		log.Printf("preview is off: %s: %v", conf, err)
+		return
+	}
+	if cfg == nil {
+		return
+	}
+	p := world.NewPreview(svc, *cfg)
+	svc.Preview = p
+	if cfg.Host == "" {
+		return
+	}
+	capture := p.EnableCapture(world.CaptureDir, world.ExecRunner{})
+	log.Printf("preview on %s (capture: %v)", cfg.Listen, capture)
+	go func() { log.Printf("preview stopped: %v", p.Listen()) }()
+}
+
+// captureBox runs inside packaging/capture-box.sh.
+func captureBox(args []string) {
+	if len(args) != 4 {
+		log.Fatal("usage: aiagent capture-box CHROMIUM SOCKET PATH OUT (run by packaging/capture-box.sh)")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Second)
+	defer cancel()
+	if err := world.RunCaptureBox(ctx, args[0], args[1], args[2], args[3]); err != nil {
+		log.Fatalf("capture: %v", err)
 	}
 }
 

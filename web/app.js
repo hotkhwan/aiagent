@@ -140,8 +140,22 @@ function viewAs (name) {
   st.snap = null; st.accSig = ''; st.models = null; st.sel = null
   $('asBar').hidden = !name
   $('asName').textContent = name
+  showPreview()
   $('accountsDlg').close()
   poll()
+}
+// A room's page, on its own host: a user's own room, or the one an admin is in.
+function previewRoom () { return !st.me || !st.me.preview ? '' : isUser() ? st.me.osUser : st.as }
+function showPreview () { $('previewBtn').hidden = !previewRoom() }
+async function openPreview (room) {
+  // opened before the request, or the browser takes it for a popup
+  const w = window.open('', '_blank')
+  if (w) w.opener = null
+  try {
+    const { url } = await api('/preview/ticket', { method: 'POST', body: { room } })
+    const to = url + '&l=' + LANG
+    if (w) w.location.replace(to); else toast(tr('เบราว์เซอร์กันหน้าต่างใหม่ไว้ อนุญาต popup แล้วกดอีกครั้ง'), true)
+  } catch (e) { if (w) w.close(); toast(tr('ไม่สำเร็จ: ') + e.message, true) }
 }
 async function api (path, opts) {
   const res = await fetch('/aiagent/api' + path, {
@@ -174,6 +188,7 @@ async function poll () {
       st.me = await api('/me')
       st.meFor = st.token
       showMenu(st.me.role)
+      showPreview()
       safeSet(roleKey, st.me.role, safeLocal(tokenKey))
       if (isUser() && (st.view === 'pm' || st.view === 'tasks')) setView('list')
     }
@@ -2862,7 +2877,7 @@ async function drawTokens (fresh) {
     h('div', { class: 'accTop' }, h('b', null, tr('Token ของผู้ใช้'))),
     fresh ? h('p', null, fresh.name + ': ', h('code', { class: 'devCode' }, fresh.token), ' ', h('button', { type: 'button', class: 'ghost', onclick: e => copyText(fresh.token, e.currentTarget) }, tr('คัดลอก'))) : null,
     fresh ? h('p', { class: 'note' }, tr('token นี้แสดงครั้งเดียว ส่งให้ผู้ใช้ทางช่องทางส่วนตัว')) : null,
-    list.length ? h('ul', null, ...list.map(t => h('li', null, h('b', null, t.name), t.removing ? h('span', { class: 'note' }, ' · ' + tr('ลบไม่สำเร็จ กดเพิกถอนอีกครั้ง')) : null, ' ', t.osUser && !t.removing ? h('button', { type: 'button', class: 'ghost', onclick: () => viewAs(t.osUser) }, tr('เข้าห้อง / login')) : null, ' ', t.removing ? null : h('button', { type: 'button', class: 'ghost', title: tr('ใช้เมื่อลืม token: ดู token เดิมไม่ได้ เพราะระบบเก็บแค่ hash'), onclick: () => reissue(t) }, tr('ออก token ใหม่')), ' ', h('button', { type: 'button', class: 'warn', onclick: () => revoke(t) }, tr('เพิกถอน'))))) : h('p', { class: 'note' }, tr('ยังไม่มี token ของผู้ใช้')),
+    list.length ? h('ul', null, ...list.map(t => h('li', null, h('b', null, t.name), t.removing ? h('span', { class: 'note' }, ' · ' + tr('ลบไม่สำเร็จ กดเพิกถอนอีกครั้ง')) : null, ' ', t.osUser && !t.removing ? h('button', { type: 'button', class: 'ghost', onclick: () => viewAs(t.osUser) }, tr('เข้าห้อง / login')) : null, ' ', t.osUser && !t.removing && st.me.preview ? h('button', { type: 'button', class: 'ghost', onclick: () => openPreview(t.osUser) }, tr('พรีวิว')) : null, ' ', t.removing ? null : h('button', { type: 'button', class: 'ghost', title: tr('ใช้เมื่อลืม token: ดู token เดิมไม่ได้ เพราะระบบเก็บแค่ hash'), onclick: () => reissue(t) }, tr('ออก token ใหม่')), ' ', h('button', { type: 'button', class: 'warn', onclick: () => revoke(t) }, tr('เพิกถอน'))))) : h('p', { class: 'note' }, tr('ยังไม่มี token ของผู้ใช้')),
     osUsers ? h('p', { class: 'note' }, tr('สร้าง token = สร้าง OS user และห้องทำงานแยกบนเครื่องนี้ ใช้เวลาราว 10 วินาที จากนั้นเข้าห้องเพื่อ login Claude ให้ผู้ใช้')) : null,
     h('div', { class: 'accRow' }, name, h('button', { type: 'button', class: 'pri', onclick: create }, tr('สร้าง token')))))
 }
@@ -2991,6 +3006,7 @@ function helpMenu () {
 $('helpBtn').addEventListener('click', e => { e.stopPropagation(); helpMenu() })
 document.addEventListener('click', e => { const p = document.querySelector('.helpPop'); if (p && !p.contains(e.target)) p.remove() })
 $('accountsBtn').addEventListener('click', openAccounts)
+$('previewBtn').addEventListener('click', () => openPreview(previewRoom()))
 $('asBack').addEventListener('click', () => viewAs(''))
 
 // The agent's own face, cropped out of the walking sprite it already uses in

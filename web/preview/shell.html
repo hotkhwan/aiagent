@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>Preview</title>
+<link rel="stylesheet" href="-/shell.css">
+<script src="-/shell.js" defer></script>
+</head>
+<body>
+<header>
+  <b id="room"></b>
+  <span id="src"></span>
+  <div class="tools" id="tools" hidden>
+    <button type="button" id="reload"></button>
+    <span class="seg" id="widths" role="group">
+      <button type="button" data-w="390">390</button>
+      <button type="button" data-w="768">768</button>
+      <button type="button" data-w="1440">1440</button>
+      <button type="button" data-w="full" aria-pressed="true"></button>
+    </span>
+    <button type="button" id="capture"></button>
+    <span id="noCapture" hidden></span>
+  </div>
+</header>
+<p id="msg" role="status"></p>
+<main id="stage" hidden>
+  <iframe id="frame" sandbox="allow-scripts allow-forms" referrerpolicy="no-referrer" title="Preview"></iframe>
+</main>
+<dialog id="shots">
+  <form method="dialog"><button id="close" aria-label="close">✕</button></form>
+  <div id="pics"></div>
+  <textarea id="note" rows="2" maxlength="1500"></textarea>
+  <button type="button" id="send"></button>
+  <p id="sent" role="status"></p>
+</dialog>
+</body>
+</html>

@@ -5,12 +5,12 @@ package web
 
 import "embed"
 
-// FS is the UI tree: index.html, app.js, i18n.js, styles.css, assets/ and
-// fonts/.
+// FS is the UI tree: index.html, app.js, i18n.js, styles.css, assets/,
+// fonts/ and preview/ (the shell of a room's page, on its own host).
 //
 // The fonts are embedded rather than loaded from Google's CDN so the page
 // keeps working on a machine with no route to the internet, and so that
 // opening it does not tell a third party who is using the service.
 //
-//go:embed all:assets all:fonts all:docs index.html app.js i18n.js styles.css manifest.webmanifest
+//go:embed all:assets all:fonts all:docs all:preview index.html app.js i18n.js styles.css manifest.webmanifest
 var FS embed.FS

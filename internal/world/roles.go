@@ -224,7 +224,7 @@ var userRoutes = map[string][]*regexp.Regexp{
 		`/uploads/[A-Za-z0-9.-]+`,
 	),
 	"POST": compileAll(
-		`/messages`, `/uploads`,
+		`/messages`, `/uploads`, `/preview/ticket`,
 		`/sessions/[A-Za-z0-9-]+/(message|stop|name|look|answer)`,
 		`/reviews/[A-Za-z0-9._-]+/(view|compose|decision)`,
 	),
@@ -406,7 +406,12 @@ func (s *Service) reviewsFor(c fiber.Ctx, rs []Review) []Review {
 	return out
 }
 
-func (s *Service) handleMe(c fiber.Ctx) error { return c.JSON(okEnv(identity(c))) }
+func (s *Service) handleMe(c fiber.Ctx) error {
+	return c.JSON(okEnv(struct {
+		Identity
+		Preview bool `json:"preview,omitempty"`
+	}{identity(c), s.OSUsers != nil && s.Preview.on()}))
+}
 
 func (s *Service) handleTokens(c fiber.Ctx) error {
 	st, err := s.Store.Load()
@@ -434,6 +439,10 @@ func (s *Service) handleTokenCreate(c fiber.Ctx) error {
 			osUser = strings.TrimSpace(body.Name)
 			if !osUserRE.MatchString(osUser) {
 				return nil, ErrBadRequest("ชื่อผู้ใช้: a-z 0-9 และขีดกลาง ขึ้นต้นด้วยตัวอักษร")
+			}
+			// the name becomes a path segment beside other applications
+			if s.roomReserved(osUser) {
+				return nil, ErrBadRequest("ชื่อนี้สงวนไว้ให้ระบบ ใช้ชื่ออื่น")
 			}
 		}
 		u, token, err := s.Store.AddUser(body.Name, osUser)

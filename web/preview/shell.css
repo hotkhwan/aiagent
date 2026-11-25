@@ -1,0 +1,24 @@
+:root { color-scheme: light dark; --bg: #eef0f6; --bar: #fff; --ink: #14182b; --line: #c9cede; --pri: #3550c8 }
+@media (prefers-color-scheme: dark) { :root { --bg: #0e1324; --bar: #1b2138; --ink: #eef0f6; --line: #39415f; --pri: #8fa3ff } }
+* { box-sizing: border-box }
+[hidden] { display: none !important }
+html, body { height: 100%; margin: 0 }
+body { display: flex; flex-direction: column; background: var(--bg); color: var(--ink); font: 15px/1.5 system-ui, sans-serif }
+header { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; padding: 8px 14px; background: var(--bar); border-bottom: 1px solid var(--line) }
+#src { color: color-mix(in srgb, var(--ink) 70%, transparent); overflow-wrap: anywhere }
+.tools { display: flex; flex-wrap: wrap; gap: 8px; margin-left: auto; align-items: center }
+button { min-height: 40px; padding: 4px 14px; border: 1px solid var(--line); border-radius: 8px; background: transparent; color: inherit; font: inherit; cursor: pointer }
+button:disabled { opacity: .5; cursor: default }
+button[aria-pressed=true], #send { border-color: var(--pri); color: var(--pri); font-weight: 700 }
+button:focus-visible { outline: 3px solid var(--pri); outline-offset: 2px }
+.seg { display: inline-flex; gap: 4px }
+#msg { margin: 0; padding: 0 14px }
+#msg:not(:empty) { padding: 14px }
+main { flex: 1; min-height: 0; overflow: auto; display: flex }
+iframe { flex: none; width: 100%; height: 100%; margin: 0 auto; border: 0; background: #fff }
+iframe.w390 { width: 390px } iframe.w768 { width: 768px } iframe.w1440 { width: 1440px }
+dialog { width: min(1100px, 94vw); max-height: 92vh; border: 1px solid var(--line); border-radius: 12px; background: var(--bar); color: var(--ink) }
+dialog form { display: flex; justify-content: flex-end }
+#pics { display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-start; margin: 10px 0 }
+#pics img { max-width: 100%; max-height: 50vh; border: 1px solid var(--line); border-radius: 8px }
+textarea { width: 100%; margin: 0 0 10px; padding: 8px; border: 1px solid var(--line); border-radius: 8px; background: transparent; color: inherit; font: inherit }

@@ -64,6 +64,10 @@ Linux)
 			done
 			groupdel aiagent-users 2>/dev/null || true
 		fi
+		if [ -x /usr/local/lib/aiagent/preview-routes.py ]; then
+			$s systemctl disable --now aiagent-preview-routes.timer >/dev/null 2>&1 || true
+			$s /usr/local/lib/aiagent/preview-routes.py --remove || true
+		fi
 		$s systemctl disable --now "aiagent-keep@$me.timer" "aiagent-quota@$me.timer" aiagent-room-share.timer \
 			"aiagent-agents@$me" "aiagent@$me" "aiagent-tmux@$me" >/dev/null 2>&1 || true
 		if [ -n "$session" ]; then tmux kill-session -t "=$session" 2>/dev/null || true; fi
@@ -81,7 +85,8 @@ Linux)
 		$s rm -f /etc/apparmor.d/aiagent-agy
 	fi
 	$s rm -rf /usr/local/lib/aiagent /usr/local/share/aiagent /etc/aiagent \
-		/run/aiagent-users /run/aiagent-tmux /run/aiagent-room /run/agent-box
+		/run/aiagent-users /run/aiagent-tmux /run/aiagent-room /run/agent-box \
+		/run/aiagent-capture /run/aiagent-capture-box
 	$s rm -f /usr/local/sbin/aiagent-claude-token
 	# the copy of claude the rooms ran: only a plain file beside this user's own
 	if [ "$(id -u)" = 0 ] && [ -f /usr/local/bin/claude ] && [ ! -L /usr/local/bin/claude ] && [ -e "$home/.local/bin/claude" ]; then

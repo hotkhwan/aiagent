@@ -1,0 +1,20 @@
+; packaging/aiagent-capture@.service — one screenshot job, started by the admin
+; service. The box itself is capture-box.sh; these are its limits.
+[Unit]
+Description=Capture a preview page (%i)
+CollectMode=inactive-or-failed
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/lib/aiagent/capture-box.sh %i
+TimeoutStartSec=65
+KillMode=control-group
+MemoryMax=1200M
+MemorySwapMax=0
+TasksMax=300
+CPUQuota=200%
+Nice=10
+NoNewPrivileges=yes
+PrivateMounts=yes
+ProtectHome=yes
+CapabilityBoundingSet=CAP_SYS_ADMIN CAP_NET_ADMIN CAP_SETUID CAP_SETGID CAP_SETPCAP CAP_CHOWN CAP_FOWNER CAP_DAC_OVERRIDE CAP_KILL CAP_SYS_RESOURCE

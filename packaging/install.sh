@@ -224,7 +224,12 @@ if [ "$with_service" = yes ]; then
 			# what every agent knows: the admin's rules, skills and marked memories
 			install -m 0755 "$root/packaging/room-share.py" /usr/local/lib/aiagent/room-share.py
 			install -m 0644 "$root/packaging/aiagent-room-share.service" "$root/packaging/aiagent-room-share.timer" "$unitdir/"
+			install -m 0755 "$root/packaging/capture-box.sh" /usr/local/lib/aiagent/capture-box.sh
+			install -m 0755 "$root/packaging/preview-routes.py" /usr/local/lib/aiagent/preview-routes.py
+			install -m 0644 "$root/packaging/aiagent-capture@.service" "$root/packaging/aiagent-preview-routes.service" "$root/packaging/aiagent-preview-routes.timer" "$unitdir/"
 			mkdir -p /usr/local/share/aiagent/room /etc/aiagent
+			# off until HOST is set; the routes' timer is not enabled here
+			[ -e /etc/aiagent/preview.conf ] || install -m 0644 "$root/packaging/preview.conf.example" /etc/aiagent/preview.conf
 			[ -e /etc/aiagent/room-base.md ] || install -m 0644 "$root/packaging/room-base.md" /etc/aiagent/room-base.md
 			[ -e /usr/local/share/aiagent/room/settings.json ] || install -m 0644 "$root/packaging/room-settings.json" /usr/local/share/aiagent/room/settings.json
 			[ -e /etc/aiagent/share.conf ] || printf 'BASE=/etc/aiagent/room-base.md\nRULES=\nSKILLS=%s/.claude/skills\nMEMORY=\n' "$HOME" > /etc/aiagent/share.conf

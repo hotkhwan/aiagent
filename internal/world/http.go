@@ -4,6 +4,7 @@
 //
 //	GET  /aiagent                      the AI Agent World page (404 while disabled)
 //	GET  /aiagent/api/snapshot         token
+//	POST /aiagent/api/preview/ticket   token — {room} → one-time link to a room's page
 //	GET  /aiagent/api/sessions/:id     token — session + tool timeline
 //	GET  /aiagent/api/runs/:id/log     token — agcmd eng run notes (tail)
 //	POST /aiagent/api/missions         token — {workspace, task}   → agcmd eng
@@ -87,8 +88,10 @@ type Service struct {
 	// OSUsers is set when each user token gets its own OS user (osusers.go).
 	OSUsers     *OSUsers
 	userTickets map[string]userTicket
-	roomRev     roomReviewCache
-	mates       mateCache
+	// Preview is set when rooms have pages of their own (preview.go).
+	Preview *Preview
+	roomRev roomReviewCache
+	mates   mateCache
 
 	mu        sync.Mutex
 	failures  map[string][]time.Time
@@ -264,6 +267,14 @@ func (s *Service) Mount(app *fiber.App) {
 		s.StartOutbox(context.Background())
 		s.StartOrchestrator(context.Background())
 	})
+	// The preview host serves rooms' pages on its own listener; nothing of
+	// this one is reachable by that name.
+	app.Use(func(c fiber.Ctx) error {
+		if s.Preview.onHost(string(c.Request().Host())) {
+			return c.SendStatus(fiber.StatusNotFound)
+		}
+		return c.Next()
+	})
 	page := s.asset("index.html", "html")
 	// On its own hostname — behind a tunnel or a reverse proxy — the /aiagent
 	// prefix is redundant, so the root serves the page itself rather than
@@ -314,6 +325,11 @@ func (s *Service) Mount(app *fiber.App) {
 	api.Post("/tokens", s.handleTokenCreate)
 	api.Post("/tokens/:id/revoke", s.handleTokenRevoke)
 	api.Post("/tokens/:id/reissue", s.handleTokenReissue)
+	api.Post("/preview/ticket", s.handlePreviewTicket)
+	// a room's own instance; the admin service has no work folder to show
+	api.Get("/preview/state", s.handlePreviewState)
+	api.Get("/preview/file", s.handlePreviewFile)
+	api.Post("/preview/review", s.handlePreviewReview)
 	api.Get("/snapshot", s.handleSnapshot)
 	api.Get("/sessions/:id", s.handleSession)
 	api.Get("/runs/:id/log", s.handleRunLog)

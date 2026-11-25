@@ -20,6 +20,12 @@
 var LANG_KEY = 'aiagentLang'
 
 var EN = {
+  // a room's page
+  '🖥 พรีวิว': '🖥 Preview',
+  'พรีวิว': 'Preview',
+  'หน้าที่ agent ของห้องกำลังสร้าง': 'The page this room\'s agent is building',
+  'เบราว์เซอร์กันหน้าต่างใหม่ไว้ อนุญาต popup แล้วกดอีกครั้ง': 'The browser blocked the new window; allow popups and press again',
+
   // agent and session state
   'กำลังเขียนโค้ด': 'Coding',
   'กำลังทดสอบ': 'Testing',

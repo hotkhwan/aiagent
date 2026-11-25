@@ -1,0 +1,11 @@
+; packaging/aiagent-preview-routes.service — the gateway's routes to the rooms'
+; preview pages follow the rooms. Does nothing unless preview.conf names a
+; gateway. Set KUBECONFIG or KUBECTL in a drop-in if the defaults do not fit.
+[Unit]
+Description=sync the gateway routes of the rooms' preview pages
+ConditionPathExists=/etc/aiagent/preview.conf
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/lib/aiagent/preview-routes.py
+TimeoutStartSec=180

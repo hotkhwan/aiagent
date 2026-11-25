@@ -1,0 +1,17 @@
+# /etc/aiagent/preview.conf - the rooms' preview pages. Off while HOST is empty.
+# The preview host: a name of its own, never the one aiagent's web answers on.
+HOST=
+# Loopback only; a reverse proxy or the gateway reaches it.
+LISTEN=127.0.0.1:8891
+# Optional browser for captures (chrome-headless-shell), under /opt or /usr.
+CHROMIUM=
+# More names that cannot be rooms: the other paths under /dev/ on that host.
+RESERVED=
+# Kubernetes Gateway API routes (aiagent-preview-routes.timer). Off while
+# GATEWAY is empty.
+GATEWAY=
+GATEWAY_NAMESPACE=
+SECTION=
+NAMESPACE=
+SERVICE=
+PORT=

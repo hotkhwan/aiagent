@@ -58,6 +58,21 @@ sudo ./packaging/setup.sh --site ชื่อไซต์
 
 ห้องใหม่เริ่มใน auto mode จึงไม่มีใครต้องตอบคำถามสิทธิ์ที่ terminal
 
+### หน้าพรีวิวของห้อง (ไม่บังคับ)
+
+แต่ละห้องมีหน้า `https://<preview host>/dev/<ห้อง>/` ให้เจ้าของห้องกับ admin ดูงานที่ agent กำลังสร้าง เปิดจากปุ่ม **พรีวิว**
+
+| งาน | วิธี |
+| --- | --- |
+| เปิดใช้ | ใส่ `HOST` ใน `/etc/aiagent/preview.conf` (ต้องเป็นคนละชื่อกับเว็บ aiagent) แล้ว restart `aiagent@root` |
+| เส้นทาง | reverse proxy หรือ gateway ส่งเฉพาะ `/dev/<ห้อง>` มาที่ `LISTEN` (ค่าเริ่มต้น `127.0.0.1:8891`) |
+| Kubernetes | ใส่ `GATEWAY` ถึง `PORT` แล้ว `systemctl enable --now aiagent-preview-routes.timer` |
+| ชื่อที่ห้ามใช้เป็นห้อง | มีชุดพื้นฐาน (ci, cd, api, …) เพิ่มได้ที่ `RESERVED` |
+| จับภาพ | ใส่ `CHROMIUM` (chrome-headless-shell ใต้ `/opt` หรือ `/usr`) และติดตั้งฟอนต์ไทยบนเครื่อง |
+| ปิดสิทธิ์ | เพิกถอนหรือออก token ใหม่ของห้อง ทุกหน้าที่เปิดอยู่ของห้องนั้นใช้ไม่ได้ทันที |
+
+ห้องเลือกเองว่าแสดงอะไรใน `~/work/preview.json` (โฟลเดอร์ หรือพอร์ต 3000-5999 ที่ user ของห้องเปิดเอง) หน้าเว็บถูกครอบ sandbox ไม่มี cookie และไม่มีสิทธิ์ของโดเมนนั้น
+
 ## 5. สิทธิ์
 
 | | Token admin | Token ห้อง |
@@ -150,4 +165,6 @@ sudo ./packaging/uninstall.sh --purge    # รวม login บทสนทนา
 | agent ขึ้น "รอคุณตอบ" ค้าง | เปิด tmux ดูคำถามบนจอ ตอบ แล้วส่งใหม่ |
 | Antigravity ถามก่อนรันทุกคำสั่ง | sandbox เปิดไม่ได้ ติดตั้งใหม่ด้วย `--agy-sandbox` |
 | quota ไม่อัปเดต | `systemctl status aiagent-quota@root.timer` |
+| หน้าพรีวิวตอบ 404 | `journalctl -u aiagent@root` ต้องเห็น `preview on …`; ดู `HOST`, เส้นทาง และชื่อสงวน |
+| จับภาพไม่ได้ | `journalctl -u 'aiagent-capture@*' -n 20` |
 | กติกากลางไม่ถึงห้อง | `journalctl -u aiagent-room-share -n 20` |
