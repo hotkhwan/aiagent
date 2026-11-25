@@ -1888,7 +1888,7 @@ function renderInspector () {
     const sess = st.snap.sessions.find(x => x.sessionId === sel.id)
     if (sess) {
       const tab = st.tab || 'chat'
-      const key = [sess.sessionId, charFor(sess.sessionId), tab, sess.prompt ? sess.prompt.question + sess.prompt.options.length : '', sess.status, sess.activityType, sess.messageVia, sess.stopVia, sess.live].join('|')
+      const key = [sess.sessionId, charFor(sess.sessionId), tab, sess.prompt ? sess.prompt.question + sess.prompt.options.length + (sess.prompt.ask ? '|' + sess.prompt.ask.active + (sess.prompt.ask.review ? 'r' : '') + (sess.prompt.ask.questions || []).length + sess.prompt.ask.tabs.map(t => t.answered ? 1 : 0).join('') : '') : '', sess.status, sess.activityType, sess.messageVia, sess.stopVia, sess.live].join('|')
       if (tab === 'chat' && st.inspKey === key && box.querySelector('.chatLog')) {
         updateChat()
         return
@@ -1981,6 +1981,7 @@ function sessionHeader (sess) {
 function promptBox (sess) {
   const p = sess.prompt
   if (!p || sess.readOnly || (sess.protected && isUser())) return null
+  if (p.ask) return askBox(sess, p)
   const pick = o => onceFor('answer:' + sess.sessionId, async () => {
     if (!await confirmBox(tr('ตอบ agent'), p.question || '', o.n + '. ' + o.label + (o.detail ? '\n' + o.detail : ''), tr('เลือกข้อนี้'))) return
     await act('/sessions/' + encodeURIComponent(sess.sessionId) + '/answer', { option: o.n, sendId: newSendId() }, () => tr('ตอบแล้ว: ') + o.n + '. ' + o.label)
@@ -1990,6 +1991,144 @@ function promptBox (sess) {
     p.question ? h('p', null, p.question) : null,
     ...p.options.map(o => h('button', { type: 'button', class: 'ghost', disabled: !!o.needsText, title: o.needsText ? tr('ข้อนี้ต้องพิมพ์ข้อความ ตอบใน terminal') : '', onclick: () => pick(o) },
       h('b', null, o.n + '. ' + o.label), o.detail ? h('small', null, o.detail) : null)))
+}
+
+// Claude Code's AskUserQuestion: every question at once (radio for one
+// choice, boxes for several, a line for "Type something"), one Send for all of
+// them, and "Chat about this" on its own. What the user picked is kept per
+// session for as long as the same questions are on screen, and dropped as
+// soon as they change. The service presses the keys and checks the screen
+// before each one (ask.go).
+const askPicks = new Map()
+
+// askQuestions is every question the page can answer: all of them when the
+// transcript gave them, else only the one on screen.
+function askQuestions (p) {
+  const a = p.ask
+  if (a.questions && a.questions.length) {
+    return a.questions.map((q, i) => ({ tab: i, header: q.header, question: q.question, multi: !!q.multiSelect, freeText: !!q.freeText, options: q.options }))
+  }
+  if (a.review || a.active < 0 || a.active >= a.tabs.length) return []
+  return [{
+    tab: a.active,
+    header: a.header,
+    question: a.question,
+    multi: !!a.multiSelect,
+    freeText: !!a.textOption,
+    options: p.options.filter(o => o.n !== a.textOption).map(o => ({ label: o.label, detail: o.detail }))
+  }]
+}
+
+function askStateFor (sess, p, qs) {
+  const sig = JSON.stringify([p.ask.tabs.map(t => t.header), qs.map(q => [q.tab, q.question, q.options.map(o => o.label)])])
+  let st0 = askPicks.get(sess.sessionId)
+  if (!st0 || st0.sig !== sig) {
+    st0 = { sig, picks: {}, sendId: '', sentBody: '' }
+    // what the screen already shows ticked on the question in front
+    const a = p.ask
+    const on = qs.find(q => q.tab === a.active)
+    if (on && on.multi) {
+      const sel = p.options.filter(o => o.selected && o.n !== a.textOption).map(o => o.label)
+      if (sel.length) st0.picks[on.tab] = { options: sel, text: '' }
+    }
+    askPicks.set(sess.sessionId, st0)
+  }
+  return st0
+}
+
+function askAnswered (pk) { return !!pk && ((pk.options || []).length > 0 || !!(pk.text || '').trim()) }
+
+function askBox (sess, p) {
+  const a = p.ask
+  // on the Submit tab the answers are in already: show them and confirm
+  const qs = a.review ? [] : askQuestions(p)
+  const state = askStateFor(sess, p, qs)
+  const tabs = a.tabs.map(t => t.header)
+  const path = '/sessions/' + encodeURIComponent(sess.sessionId) + '/answer'
+  const sendBtn = h('button', { type: 'button', class: 'pri askSend' }, a.review && !qs.length ? tr('ยืนยันส่งคำตอบ') : tr('ส่งคำตอบ'))
+  const note = h('small', { class: 'askNote' })
+  // questions on other tabs that this page cannot show must already be answered
+  const othersDone = a.tabs.every((t, i) => t.answered || qs.some(q => q.tab === i))
+  const refresh = () => {
+    const missing = qs.filter(q => !askAnswered(state.picks[q.tab])).map(q => q.header)
+    let why = ''
+    if (missing.length) why = tr('ยังไม่ได้ตอบ: ') + missing.join(', ')
+    else if (!othersDone) why = tr('มีคำถามที่ต้องตอบใน terminal ก่อน')
+    else if (a.review && !qs.length && a.unanswered) why = tr('ยังมีคำถามที่ยังไม่ได้ตอบ')
+    sendBtn.disabled = !!why
+    note.textContent = why
+  }
+  const body = () => {
+    const answers = qs.map(q => {
+      const pk = state.picks[q.tab] || {}
+      return { tab: q.tab, question: q.question, options: pk.options || [], text: (pk.text || '').trim() }
+    })
+    return { tabs, answers, submit: othersDone }
+  }
+  const send = () => onceFor('answer:' + sess.sessionId, async () => {
+    const ask = body()
+    const summary = ask.answers.map(x => qs.find(q => q.tab === x.tab).header + ': ' + x.options.concat(x.text ? [x.text] : []).join(', ')).join('\n')
+    if (!await confirmBox(tr('ตอบ agent'), tr('ส่งคำตอบทั้งหมดนี้ให้ agent'), summary || (a.summary || []).map(x => x.question + ': ' + x.answer).join('\n'), tr('ส่งคำตอบ'))) return
+    // the same answers sent again reuse their id: the service then answers
+    // with the first result instead of pressing the keys twice
+    const key = JSON.stringify(ask)
+    if (state.sentBody !== key) { state.sentBody = key; state.sendId = newSendId() }
+    await sendOnce(sendBtn, sendBtn, () => act(path, { ask, sendId: state.sendId }, () => tr('ส่งคำตอบแล้ว')))
+  })
+  sendBtn.addEventListener('click', send)
+  const chat = () => onceFor('answer:' + sess.sessionId, async () => {
+    if (!await confirmBox(tr('คุยเรื่องนี้'), tr('agent จะยกเลิกคำถามชุดนี้แล้วถามว่าอยากคุยเรื่องอะไร คำตอบที่เลือกไว้จะไม่ถูกส่ง'), '', tr('คุยเรื่องนี้'))) return
+    await act(path, { ask: { tabs, chat: true }, sendId: newSendId() }, () => tr('เลือก "คุยเรื่องนี้" แล้ว พิมพ์ต่อในช่องข้อความได้เลย'))
+  })
+
+  const name = 'ask-' + sess.sessionId
+  const questionBox = q => {
+    const pk = state.picks[q.tab] || (state.picks[q.tab] = { options: [], text: '' })
+    const kind = q.multi ? 'checkbox' : 'radio'
+    const set = (label, on) => {
+      if (q.multi) pk.options = on ? pk.options.filter(x => x !== label).concat([label]) : pk.options.filter(x => x !== label)
+      else { pk.options = on ? [label] : []; if (on) { pk.text = ''; textIn.value = '' } }
+      refresh()
+    }
+    const textIn = h('input', { type: 'text', class: 'askText', maxlength: '500', placeholder: tr('พิมพ์คำตอบเอง'), 'aria-label': tr('พิมพ์คำตอบเอง') + ' · ' + q.header })
+    textIn.value = pk.text || ''
+    textIn.addEventListener('input', () => {
+      pk.text = textIn.value.replace(/[\r\n]+/g, ' ')
+      // one choice: typing replaces the picked option
+      if (!q.multi && pk.text.trim()) {
+        pk.options = []
+        for (const r of box.querySelectorAll('input[type=radio]')) r.checked = false
+      }
+      refresh()
+    })
+    const tab = a.tabs[q.tab] || {}
+    const box = h('fieldset', { class: 'askQ' + (q.tab === a.active ? ' on' : '') },
+      h('legend', null, (tab.answered ? '☒ ' : '☐ ') + q.header, q.multi ? h('small', null, tr(' · เลือกได้หลายข้อ')) : null),
+      h('p', null, q.question),
+      ...q.options.map(o => {
+        const inp = h('input', { type: kind, name: name + '-' + q.tab, value: o.label })
+        inp.checked = pk.options.includes(o.label)
+        inp.addEventListener('change', () => set(o.label, inp.checked))
+        return h('label', { class: 'askOpt' }, inp,
+          h('span', null, h('b', null, o.label), o.detail ? h('small', null, o.detail) : null, o.preview ? h('pre', { class: 'askPreview' }, o.preview) : null))
+      }),
+      q.freeText ? textIn : null)
+    return box
+  }
+
+  const reviewList = a.review && !qs.length
+    ? h('ul', { class: 'askSummary' }, (a.summary || []).map(x => h('li', null, h('span', null, x.question), h('b', null, '→ ' + x.answer))))
+    : null
+  refresh()
+  return h('div', { class: 'promptBox askBox' },
+    h('b', null, tr('agent ถามและรอคำตอบ')),
+    a.tabs.length > 1 ? h('p', { class: 'askTabs' }, a.tabs.map(t => (t.answered ? '☒ ' : '☐ ') + t.header).join('  ·  ')) : null,
+    reviewList ? h('p', null, tr('คำตอบอยู่ที่หน้าสรุปแล้ว รอกดยืนยันส่ง')) : null,
+    reviewList,
+    ...qs.map(questionBox),
+    h('div', { class: 'btns askBtns' }, sendBtn,
+      a.chat && !a.review ? h('button', { type: 'button', class: 'ghost', onclick: chat }, tr('คุยเรื่องนี้')) : null),
+    note)
 }
 
 function sessionTabs () {

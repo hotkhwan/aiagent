@@ -1,0 +1,40 @@
+[38;5;174m ▐[48;5;16m▛███▛█[39m[49m   [1mClaude[0m [1mCode[0m [38;5;246mv2.1.332[39m
+[38;5;174m▝▜[48;5;16m█████[49m█▀[39m  [38;5;246mHaiku[39m [38;5;246m5.5[39m [38;5;246m·[39m [38;5;246mClaude[39m [38;5;246mMax[39m
+[38;5;174m ▝▝[39m   [38;5;174m▝▝[39m   [38;5;246m/tmp/demo[39m
+
+
+[38;5;246m[48;5;237m❯ [38;5;231mCall AskUserQuestion once with 3 questions: (1) header "Color" single choice Red/Blue; (2) header[39m
+  [38;5;231m"Fruit" multiSelect Apple/Banana/Cherry; (3) header "Layout" single choice A/B where each option[39m
+  [38;5;231mhas a short preview. No other tools.[39m
+
+[38;5;246m[49m────────────────────────────────────────────────────────────────────────────────────────────────────
+[39m←  ☒ Color  ☒ Fruit  ☒ Layout [38;5;16m[48;5;153m ✔ Submit [38;5;246m[49m →[39m
+
+[1m[38;5;231mReview your answers[0m
+
+ ● Which color do you prefer?
+   [38;5;114m→ Blue[39m
+ ● Which fruits do you want? (select all that apply)
+   [38;5;114m→ Apple, Cherry[39m
+ ● Which layout do you prefer?
+   [38;5;114m→ B[39m
+
+[38;5;153m❯[39m [38;5;246m1. [38;5;153mSubmit answers[39m
+  [38;5;246m2. [39mCancel
+
+
+
+
+
+
+[38;5;244m─────────────────────────────────────────────────────────────────────────────────────────[39m [38;5;244mdemo-name[39m [38;5;244m─
+
+
+
+
+
+
+
+
+
+

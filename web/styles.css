@@ -1779,3 +1779,23 @@ button.rtChip:hover { background: #1D2440 }
 /* a send waits for the service: the button says so and takes no second press */
 button.pri.sending { cursor: progress; opacity: .7 }
 textarea[aria-busy="true"] { opacity: .75 }
+
+/* ---------- AskUserQuestion: every question, one Send ---------- */
+.askBox .askTabs { color: var(--muted); font-size: 13px }
+.askQ { border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px 10px; margin: 0; display: flex; flex-direction: column; gap: 6px; min-width: 0 }
+.askQ.on { border-color: var(--amber) }
+.askQ legend { padding: 0 4px; font-weight: 600 }
+.askQ legend small { color: var(--muted); font-weight: 400 }
+.askOpt { display: flex; gap: 8px; align-items: flex-start; cursor: pointer; padding: 6px 4px; border-radius: 8px; min-width: 0 }
+.askOpt:hover { background: var(--sky3) }
+.askOpt input { margin-top: 3px; flex: none; width: 18px; height: 18px; accent-color: var(--brand) }
+.askOpt span { display: flex; flex-direction: column; gap: 2px; min-width: 0; overflow-wrap: anywhere }
+.askOpt small { color: var(--muted) }
+.askPreview { margin: 4px 0 0; padding: 6px 8px; background: var(--sky); border: 1px solid var(--line); border-radius: 6px; font-size: 12px; line-height: 1.3; overflow-x: auto; max-width: 100% }
+.askText { width: 100%; box-sizing: border-box; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--sky); color: var(--ink); font: inherit }
+.askSummary { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px }
+.askSummary li span { display: block; color: var(--muted); font-size: 13px }
+.askBtns { display: flex; gap: 8px; flex-wrap: wrap }
+.askBox .askBtns button { flex-direction: row; text-align: center }
+.askNote { color: var(--muted) }
+.askNote:empty { display: none }

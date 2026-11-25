@@ -338,6 +338,8 @@ const agentViewBox = "describe a task for a new session"
 // such dialogs, every send was typed into them and reported ok.
 var dialogFooters = []string{"Esc to cancel", "Enter to confirm", "Enter to continue", "Enter to select", "enter continue", "enter Select", "↑/↓ Navigate", "esc to cancel"}
 
+var askSubmitRE = regexp.MustCompile(`^(❯\s*)?1\.\s+Submit answers$`)
+
 // onDialog reports a dialog on screen, judged by the last few lines only, so a
 // footer quoted in the conversation above the prompt does not count.
 func onDialog(screen string) bool {
@@ -349,6 +351,10 @@ func onDialog(screen string) bool {
 			continue
 		}
 		seen++
+		// the Submit tab of AskUserQuestion prints no key hints
+		if askSubmitRE.MatchString(l) {
+			return true
+		}
 		for _, f := range dialogFooters {
 			if strings.Contains(l, f) {
 				return true

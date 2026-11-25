@@ -1,0 +1,40 @@
+[38;5;174m ▐[48;5;16m▛███▛█[39m[49m   [1mClaude[0m [1mCode[0m [38;5;246mv2.1.332[39m
+[38;5;174m▝▜[48;5;16m█████[49m█▀[39m  [38;5;246mHaiku[39m [38;5;246m5.5[39m [38;5;246m·[39m [38;5;246mClaude[39m [38;5;246mMax[39m
+[38;5;174m ▝▝[39m   [38;5;174m▝▝[39m   [38;5;246m/tmp/demo[39m
+
+
+[38;5;246m[48;5;237m❯ [38;5;231mCall AskUserQuestion once with 3 questions: (1) header "Color" single choice Red/Blue; (2) header[39m
+  [38;5;231m"Fruit" multiSelect Apple/Banana/Cherry; (3) header "Layout" single choice A/B where each option[39m
+  [38;5;231mhas a short preview. No other tools.[39m
+
+[38;5;246m[49m●[39m Answered Claude's questions:
+[38;5;246m  ⎿  · Which color do you prefer? → Blue[39m
+     [38;5;246m· Which fruits do you want? (select all that apply) → Apple, Cherry[39m
+     [38;5;246m· Which layout do you prefer? → B[39m
+
+[38;5;231m●[39m I asked the three questions in one call. Your answers:
+
+  - [1mColor:[0m Blue
+  - [1mFruit:[0m Apple, Cherry
+  - [1mLayout:[0m B (full-width content under a header)
+
+[38;5;246m✻[39m [38;5;246mWorked for 4s · done 11:32 PM[39m
+
+[38;5;246m[48;5;237m❯ [38;5;231mAgain: AskUserQuestion with 2 questions: "Color" Red/Blue, "Fruit" multiSelect Apple/Banana. No [39m
+  [38;5;231mother tools.[39m
+[38;5;246m[49m────────────────────────────────────────────────────────────────────────────────────────────────────
+← [38;5;16m[48;5;153m ☐ Color [39m[49m ☐ Fruit  ✔ Submit  →
+
+[1m[38;5;231mWhich color do you prefer?[0m
+
+  [38;5;246m1.[39m Red
+     [38;5;246mRed color option[39m
+  [38;5;246m2.[39m Blue
+     [38;5;246mBlue color option[39m
+[38;5;153m❯[39m [38;5;246m3.[39m teal ok
+[38;5;246m────────────────────────────────────────────────────────────────────────────────────────────────────
+[39m  4. Chat about this
+
+[38;5;246mEnter[39m [38;5;246mto[39m [38;5;246mselect[39m [38;5;246m·[39m [38;5;246mTab/Arrow[39m [38;5;246mkeys[39m [38;5;246mto[39m [38;5;246mnavigate[39m [38;5;246m·[39m [38;5;246mctrl+g[39m [38;5;246mto edit in Vim · Esc to cancel[39m
+[38;5;244m─────────────────────────────────────────────────────────────────────────────────────────[39m [38;5;244mdemo-name[39m [38;5;244m─
+

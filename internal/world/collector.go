@@ -301,8 +301,15 @@ func (c *Collector) collectLocked(ctx context.Context) Snapshot {
 				// A question on its screen (a permission prompt, a menu) is
 				// invisible in the transcript; without this the web shows an
 				// idle agent that takes no messages.
-				if screen := c.paneScreen(ctx, w.TmuxSession); onDialog(screen) {
-					ss.Prompt = parsePrompt(screen)
+				if screen, _ := c.tmux(ctx, "capture-pane", "-e", "-p", "-t", tmuxPane(w.TmuxSession)); onDialog(sgrRE.ReplaceAllString(screen, "")) {
+					ss.Prompt = readPrompt(screen)
+					if p := ss.Prompt; p != nil && p.Ask != nil && ss.RuntimeType == "claudeCode" {
+						if tp := c.claudeTranscript(ss.home, ss.SessionID); tp != "" {
+							if fi, err := os.Stat(tp); err == nil {
+								p.Ask.withQuestions(pendingAsk(readTail(tp, fi.Size(), askTailBytes)))
+							}
+						}
+					}
 					ss.Status, ss.Title = StatusNeedsInput, "รอคำตอบที่หน้าจอ agent (ถามสิทธิ์หรือเมนู) — admin เปิด tmux ตอบ หรือกด หยุด แล้วส่งใหม่"
 				}
 				break

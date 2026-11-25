@@ -10,6 +10,7 @@ package world
 
 import (
 	"context"
+	"encoding/json"
 	"regexp"
 	"strconv"
 	"strings"
@@ -21,6 +22,10 @@ import (
 type Prompt struct {
 	Question string         `json:"question"`
 	Options  []PromptOption `json:"options"`
+	// Ask is set for Claude Code's AskUserQuestion dialog (ask.go): its
+	// tabs, the question on screen and, when the transcript has them, all
+	// of its questions. Options then are the question on screen's.
+	Ask *AskDialog `json:"ask,omitempty"`
 }
 
 // PromptOption is one numbered choice.
@@ -31,6 +36,30 @@ type PromptOption struct {
 	Current bool   `json:"current,omitempty"`
 	// NeedsText marks a choice that opens a text box.
 	NeedsText bool `json:"needsText,omitempty"`
+	// Selected: a multiSelect option's box is ticked.
+	Selected bool `json:"selected,omitempty"`
+}
+
+// readPrompt reads the question on a capture-pane -e screen: parsePrompt, and
+// for an AskUserQuestion dialog its tabs and boxes as well.
+func readPrompt(screen string) *Prompt {
+	plain := sgrRE.ReplaceAllString(screen, "")
+	if !onDialog(plain) {
+		return nil
+	}
+	p := parsePrompt(plain)
+	if a := parseAsk(screen); a != nil {
+		if p == nil {
+			p = &Prompt{}
+		}
+		p.Ask = a
+		p.Options = append([]PromptOption(nil), a.opts...)
+		p.Question = a.Question
+		if a.Review {
+			p.Question = "Review your answers"
+		}
+	}
+	return p
 }
 
 var (
@@ -92,8 +121,8 @@ func parsePrompt(screen string) *Prompt {
 	return p
 }
 
-// AnswerPrompt picks choice n of the question the session's pane shows.
-func (c *Collector) AnswerPrompt(ctx context.Context, id string, n int) error {
+// answerPane is the agcmd workspace whose pane shows the session.
+func (c *Collector) answerPane(ctx context.Context, id string) (workspaceEntry, error) {
 	c.invalidate()
 	var target *Session
 	snap := c.Snapshot(ctx)
@@ -103,11 +132,20 @@ func (c *Collector) AnswerPrompt(ctx context.Context, id string, n int) error {
 		}
 	}
 	if target == nil || !target.Live || target.DispatchVia == "" {
-		return ErrConflict("session นี้ไม่มีหน้าต่างที่เว็บเข้าถึงได้")
+		return workspaceEntry{}, ErrConflict("session นี้ไม่มีหน้าต่างที่เว็บเข้าถึงได้")
 	}
 	w, ok := c.lookupWorkspace(target.DispatchVia)
 	if !ok {
-		return ErrConflict("session นี้ไม่มีหน้าต่างที่เว็บเข้าถึงได้")
+		return workspaceEntry{}, ErrConflict("session นี้ไม่มีหน้าต่างที่เว็บเข้าถึงได้")
+	}
+	return w, nil
+}
+
+// AnswerPrompt picks choice n of the question the session's pane shows.
+func (c *Collector) AnswerPrompt(ctx context.Context, id string, n int) error {
+	w, err := c.answerPane(ctx, id)
+	if err != nil {
+		return err
 	}
 	defer c.lockSend("ws:" + w.session)()
 	// read it again under the lock: the answer is for what is on screen now
@@ -131,11 +169,7 @@ func (c *Collector) AnswerPrompt(ctx context.Context, id string, n int) error {
 	if pick.NeedsText {
 		return ErrConflict("ตัวเลือกนี้ต้องพิมพ์ข้อความ ให้ตอบในเทอร์มินัล")
 	}
-	session, window, ok := strings.Cut(w.session, ":")
-	if !ok {
-		window = "agent"
-	}
-	pane := "=" + session + ":=" + window
+	pane := tmuxPane(w.session)
 	key := "Down"
 	steps := n - cur
 	if steps < 0 {
@@ -153,14 +187,34 @@ func (c *Collector) AnswerPrompt(ctx context.Context, id string, n int) error {
 	return nil
 }
 
+// handleSessionAnswer takes {option: n} (one choice, as before) or {ask: {...}}
+// (a whole AskUserQuestion answer, ask.go).
 func (s *Service) handleSessionAnswer(c fiber.Ctx) error {
 	var body struct {
-		Option int `json:"option"`
+		Option int         `json:"option"`
+		Ask    *AskRequest `json:"ask"`
 	}
-	if err := c.Bind().Body(&body); err != nil || body.Option < 1 || body.Option > 9 {
-		return s.fail(c, ErrBadRequest(`expected {"option": 1-9}`))
+	if err := c.Bind().Body(&body); err != nil {
+		return s.fail(c, ErrBadRequest(`expected {"option": 1-9} or {"ask": {...}}`))
 	}
 	id := strings.Clone(c.Params("id"))
+	if body.Ask != nil {
+		if body.Option != 0 {
+			return s.fail(c, ErrBadRequest(`send either "option" or "ask"`))
+		}
+		req := *body.Ask
+		if err := req.check(); err != nil {
+			return s.fail(c, err)
+		}
+		// only a digest reaches the audit log: the answers may be personal
+		b, _ := json.Marshal(req)
+		return s.mutate(c, "aiagent.sessionAsk", []string{id, digest(string(b))}, func() (any, error) {
+			return fiber.Map{"sessionId": id, "answers": len(req.Answers), "chat": req.Chat}, s.Collector.AnswerAsk(c.Context(), id, req)
+		})
+	}
+	if body.Option < 1 || body.Option > 9 {
+		return s.fail(c, ErrBadRequest(`expected {"option": 1-9}`))
+	}
 	return s.mutate(c, "aiagent.sessionAnswer", []string{id, strconv.Itoa(body.Option)}, func() (any, error) {
 		return fiber.Map{"sessionId": id, "option": body.Option}, s.Collector.AnswerPrompt(c.Context(), id, body.Option)
 	})

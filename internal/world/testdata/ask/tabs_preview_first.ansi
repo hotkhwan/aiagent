@@ -1,0 +1,40 @@
+[38;5;246m●[39m Answered Claude's questions:
+[38;5;246m  ⎿  · Which pets do you have? (select all that apply) → Dog[39m
+
+[38;5;231m●[39m Your pets answer is Dog.
+
+[38;5;246m✻[39m [38;5;246mWorked for 2s · done 11:35 PM[39m
+
+[38;5;246m[48;5;237m❯ [38;5;231mAskUserQuestion: 2 questions, "Pets" multiSelect Cat/Dog and "Size" Small/Large. No other tools.[39m
+
+[38;5;246m[49m●[39m Declined to answer Claude's questions:
+[38;5;246m  ⎿  · Which pets do you have? (select all that apply) (Cat / Dog)[39m
+     [38;5;246m· Which size do you want? (Small / Large)[39m
+
+[38;5;246m[48;5;237m❯ [38;5;231mAskUserQuestion: 2 questions, "Pets" multiSelect Cat/Dog and "Size" Small/Large. No other tools.[39m
+
+[38;5;246m[49m●[39m Declined to answer Claude's questions:
+[38;5;246m  ⎿  · Which pets do you have? (select all that apply) (Cat / Dog)[39m
+     [38;5;246m· Which size do you want? (Small / Large)[39m
+
+[38;5;246m[48;5;237m❯ [38;5;231mAskUserQuestion: 2 questions, "Layout" A/B each option with a 2-line preview, and "Size" [39m
+  [38;5;231mSmall/Large. No other tools.[39m
+
+[38;5;246m[49m────────────────────────────────────────────────────────────────────────────────────────────────────
+← [38;5;16m[48;5;153m ☐ Layout [39m[49m ☐ Size  ✔ Submit  →
+
+[1m[38;5;231mWhich layout do you prefer?[0m
+
+[38;5;153m❯[38;5;246m 1.[1m[38;5;153m A[0m                            [38;5;246m┌──────────────────────────────────────────┐[39m
+ [38;5;246m 2.[39m B                            [38;5;246m│ [39m+----------+----------+[38;5;246m                  │[39m
+                                  [38;5;246m│ [39m| Content  |  Side    |[38;5;246m                  │[39m
+                                  [38;5;246m└──────────────────────────────────────────┘[39m
+
+                                  [38;5;153mNotes:[39m [3m[38;5;246mpress n to add notes[0m
+
+[38;5;246m────────────────────────────────────────────────────────────────────────────────────────────────────
+[39m  Chat about this
+
+[38;5;246mEnter to select · ↑/↓ to navigate · n to add notes · Tab to switch questions · Esc to cancel[39m
+[38;5;244m─────────────────────────────────────────────────────────────────────────────────────────[39m [38;5;244mdemo-name[39m [38;5;244m─
+

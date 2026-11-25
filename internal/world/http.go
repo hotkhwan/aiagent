@@ -14,6 +14,8 @@
 //	POST /aiagent/api/runs/:id/abort   token                       → agcmd eng abort
 //	GET  /aiagent/api/sessions/:id/messages token — redacted user/assistant text
 //	POST /aiagent/api/sessions/:id/message  token — {message} → that session
+//	POST /aiagent/api/sessions/:id/answer   token — {option: n} one choice, or {ask: {tabs,
+//	                                    answers, submit, chat}} a whole AskUserQuestion (ask.go)
 //	                                   (agcmd dispatch, or relay for own bg sessions)
 //	POST /aiagent/api/uploads          token — raw image or zip body → {path} for a message
 //	POST /aiagent/api/sessions/:id/model token — /model <opus|sonnet|haiku> via the session's channel
