@@ -68,6 +68,8 @@ func main() {
 		// that writes an error on every keystroke is worse than a quiet one.
 		home, _ := os.UserHomeDir()
 		_ = world.RunStatusline(os.Stdin, os.Stdout, home, time.Now())
+	case "git-credential":
+		gitCredential(os.Args[2:])
 	case "review":
 		review(os.Args[2:])
 	case "enable", "rotate-token", "disable", "status":
