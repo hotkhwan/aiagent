@@ -72,7 +72,7 @@ func (c *Collector) Suggest(ctx context.Context, id string) (string, error) {
 	dir := c.suggestDir()
 	cctx, cancel := context.WithTimeout(ctx, 40*time.Second)
 	defer cancel()
-	out, err := c.runIn(cctx, dir, in, c.ClaudePath, "-p", "--model", "claude-haiku-5-5", "--tools", "", "--no-session-persistence", suggestPrompt)
+	out, err := c.runIn(cctx, dir, in, c.ClaudeBin(), "-p", "--model", "claude-haiku-5-5", "--tools", "", "--no-session-persistence", suggestPrompt)
 	if err != nil {
 		return "", nil
 	}

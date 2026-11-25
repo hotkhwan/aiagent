@@ -511,7 +511,7 @@ func (c *Collector) Stop(ctx context.Context, sessionID string) (string, error) 
 		}
 		cctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 		defer cancel()
-		out, err := c.Runner.Run(cctx, c.ClaudePath, "stop", short)
+		out, err := c.Runner.Run(cctx, c.ClaudeBin(), "stop", short)
 		if err != nil {
 			return "", &APIError{502, "AIAGENT_STOP_FAILED", "claude stop failed: " + truncateRunes(strings.TrimSpace(string(out)), 300)}
 		}

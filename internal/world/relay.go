@@ -203,7 +203,7 @@ func (c *Collector) wakeInBackground(ctx context.Context, ss *Session, dir strin
 	c.trustFolder(dir)
 	cctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
-	out, err := c.runIn(cctx, dir, "", c.ClaudePath, "--bg", "--resume", ss.SessionID)
+	out, err := c.runIn(cctx, dir, "", c.ClaudeBin(), "--bg", "--resume", ss.SessionID)
 	if err != nil {
 		return &APIError{502, "AIAGENT_RESUME_FAILED", "claude --bg --resume failed: " + attachReason(out+"\n"+err.Error())}
 	}
@@ -212,8 +212,8 @@ func (c *Collector) wakeInBackground(ctx context.Context, ss *Session, dir strin
 		return &APIError{502, "AIAGENT_RESUME_FAILED", "claude --bg --resume did not say which job it started: " + attachReason(out)}
 	}
 	if m[1] != shortID(ss.SessionID) {
-		_, _ = c.Runner.Run(cctx, c.ClaudePath, "stop", m[1])
-		_, _ = c.Runner.Run(cctx, c.ClaudePath, "rm", m[1])
+		_, _ = c.Runner.Run(cctx, c.ClaudeBin(), "stop", m[1])
+		_, _ = c.Runner.Run(cctx, c.ClaudeBin(), "rm", m[1])
 		return ErrConflict("the session is open in another Claude Code process (a terminal or VS Code), so it cannot be continued from here; close it there, or send from there")
 	}
 	return nil
@@ -465,7 +465,7 @@ func (c *Collector) relaySend(ctx context.Context, ss *Session, message string) 
 				argv = append(argv, "-c", dir)
 				c.trustFolder(dir)
 			}
-			argv = append(argv, c.ClaudePath, "attach", short)
+			argv = append(argv, c.ClaudeBin(), "attach", short)
 			if _, err := c.tmux(ctx, argv...); err != nil {
 				return &APIError{502, "AIAGENT_RELAY_FAILED", "could not start relay: " + err.Error()}
 			}

@@ -10,10 +10,13 @@
 [Unit]
 Description=AI Agent World (%i)
 Documentation=https://github.com/hotkhwan/aiagent
-After=network.target
+After=network.target aiagent-tmux@%i.service
+Wants=aiagent-tmux@%i.service
 
 [Service]
 User=%i
+; systemd's default PATH has no ~/.local/bin, where the agent CLIs live.
+Environment=PATH=%h/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 ExecStart=/usr/local/bin/aiagent serve --listen 127.0.0.1:8890
 Restart=on-failure
 RestartSec=5
@@ -28,7 +31,8 @@ ReadWritePaths=%h/.local/state/aiagent
 ; folder trust (aiagent trust-roots). The home stays read-only, so the file is
 ; rewritten in place rather than renamed over. "-" skips it if absent.
 ReadWritePaths=-%h/.claude.json
-ReadOnlyPaths=%h/.claude %h/.codex
+; "-": a new machine has neither until the first sign-in.
+ReadOnlyPaths=-%h/.claude -%h/.codex
 ; Trusted roots: set them with `sudo -u <user> -H aiagent trust-roots add DIR`, or
 ; here with Environment=AIAGENT_TRUSTED_ROOTS=/srv/a:/srv/b (overrides).
 ProtectKernelTunables=yes

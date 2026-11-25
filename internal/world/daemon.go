@@ -53,7 +53,7 @@ func (c *Collector) daemonList(ctx context.Context) []daemonEntry {
 func (c *Collector) daemonFetch(ctx context.Context) []daemonEntry {
 	cctx, cancel := context.WithTimeout(ctx, 6*time.Second)
 	defer cancel()
-	out, err := c.Runner.Run(cctx, c.ClaudePath, "agents", "--json", "--all")
+	out, err := c.Runner.Run(cctx, c.ClaudeBin(), "agents", "--json", "--all")
 	if err != nil {
 		return nil
 	}

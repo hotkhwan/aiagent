@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -93,7 +92,7 @@ func (c *Collector) cliPath(name string) (string, error) {
 	if name == "claude" && c.ClaudePath != "" {
 		return c.ClaudePath, nil
 	}
-	return exec.LookPath(name)
+	return lookBin(name)
 }
 
 func (c *Collector) planCLIUpdates() []cliPlan {
@@ -112,11 +111,22 @@ func (c *Collector) planCLIUpdates() []cliPlan {
 		case strings.Contains(real, "/claude/versions/"):
 			p.Method, p.argv = "native", []string{path, "update"}
 		case strings.Contains(real, "/node_modules/") && spec.npm != "":
-			p.Method, p.argv = "npm", []string{"npm", "install", "-g", spec.npm + "@latest"}
+			p.Method, p.argv = "npm", npmUpdateArgv(real, spec.npm)
 		}
 		plan = append(plan, p)
 	}
 	return plan
+}
+
+// npmUpdateArgv keeps the CLI in the npm prefix it was installed under; the
+// default prefix may be another directory, which would leave the copy on PATH
+// at its old version.
+func npmUpdateArgv(real, pkg string) []string {
+	argv := []string{"npm", "install", "-g"}
+	if i := strings.Index(real, "/lib/node_modules/"); i > 0 {
+		argv = append(argv, "--prefix", real[:i])
+	}
+	return append(argv, pkg+"@latest")
 }
 
 func (c *Collector) cliVersion(ctx context.Context, path string) string {

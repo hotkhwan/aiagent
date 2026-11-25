@@ -46,6 +46,12 @@ cd aiagent
 ./packaging/install.sh            # add --with-service for a systemd unit or LaunchAgent
 ```
 
+It also installs Claude Code, Codex and Gemini CLI when they are missing. One
+already on the machine is left alone, sign-in included; `--update-clis` updates
+it, `--no-clis` skips this step. `--skills DIR` copies a folder of skills into
+`~/.claude/skills`; memory and settings are never copied. Sign Claude and Codex
+in from the web (Accounts); Gemini is signed in from a terminal for now.
+
 This installs two binaries into `~/.local/bin`: **`aiagent`**, the service and
 its switch, and **`agcmd`**, the small tool that actually talks to the agents
 through tmux. A clone is usable immediately — there is nothing else to fetch.

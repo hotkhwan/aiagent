@@ -5,6 +5,12 @@
 #   ./packaging/install.sh                 build + install both binaries
 #   ./packaging/install.sh --with-service  also install the service unit
 #                                          (systemd on Linux, LaunchAgent on macOS)
+#   ./packaging/install.sh --no-clis       leave the agent CLIs alone
+#   ./packaging/install.sh --update-clis   also update the CLIs already there
+#   ./packaging/install.sh --skills DIR    copy the skills in DIR to ~/.claude/skills
+#
+# Claude Code, Codex and Gemini CLI are installed when missing; one that is
+# already there, and its sign-in, is left as it is.
 #
 # It does NOT enable AI Agent World and does NOT create a token: turning it on
 # is a deliberate act, so you run `aiagent enable` yourself and keep the token
@@ -13,12 +19,23 @@ set -eu
 
 prefix="${PREFIX:-}"
 with_service=no
+clis=install
+skills=""
 
-for arg in "$@"; do
+while [ $# -gt 0 ]; do
+	arg="$1"
+	shift
 	case "$arg" in
+	--no-clis) clis=skip ;;
+	--update-clis) clis=update ;;
+	--skills)
+		[ $# -gt 0 ] && [ -d "$1" ] || { echo "--skills needs a directory" >&2; exit 2; }
+		skills="$1"
+		shift
+		;;
 	--with-service | --with-systemd) with_service=yes ;;
 	-h | --help)
-		sed -n '2,12p' "$0" | sed 's/^# \{0,1\}//'
+		sed -n '2,18p' "$0" | sed 's/^# \{0,1\}//'
 		exit 0
 		;;
 	*)
@@ -81,6 +98,13 @@ bash)
 	;;
 esac
 
+if [ "$clis" != skip ]; then
+	sh "$root/packaging/install-clis.sh" "$clis" || echo "note: some agent CLIs were not installed (see above); aiagent itself is fine" >&2
+fi
+if [ -n "$skills" ]; then
+	sh "$root/packaging/install-skills.sh" "$skills"
+fi
+
 stateDir="${XDG_STATE_HOME:-$HOME/.local/state}/aiagent"
 mkdir -p "$stateDir"
 if [ ! -e "$stateDir/workspaces.json" ]; then
@@ -97,12 +121,17 @@ if [ "$with_service" = yes ]; then
 	case "$(uname -s)" in
 	Linux)
 		unitdir="${UNITDIR:-/etc/systemd/system}"
-		echo "installing $unitdir/aiagent@.service"
-		if [ -w "$unitdir" ]; then
-			install -m 0644 "$root/packaging/aiagent@.service" "$unitdir/aiagent@.service"
-		else
-			sudo install -m 0644 "$root/packaging/aiagent@.service" "$unitdir/aiagent@.service"
-		fi
+		# the unit must run the binary this script just installed
+		sed "s|/usr/local/bin/aiagent|$bindir/aiagent|" "$root/packaging/aiagent@.service" > "$tmp/aiagent@.service"
+		cp "$root/packaging/aiagent-tmux@.service" "$tmp/aiagent-tmux@.service"
+		for u in aiagent@.service aiagent-tmux@.service; do
+			echo "installing $unitdir/$u"
+			if [ -w "$unitdir" ]; then
+				install -m 0644 "$tmp/$u" "$unitdir/$u"
+			else
+				sudo install -m 0644 "$tmp/$u" "$unitdir/$u"
+			fi
+		done
 		echo "  systemctl daemon-reload && systemctl enable --now aiagent@\$USER"
 		;;
 	Darwin)

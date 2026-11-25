@@ -1,0 +1,22 @@
+; packaging/aiagent-tmux@.service — the tmux server agents and sign-ins run in.
+;
+; aiagent@ is sandboxed: it cannot create a tmux socket and its home is
+; read-only, so a tmux server started BY it could not save a sign-in. This unit
+; starts the server outside that sandbox, so signing in from the web works on a
+; machine where nobody has opened tmux yet.
+[Unit]
+Description=tmux server for AI Agent World (%i)
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+User=%i
+WorkingDirectory=%h
+Environment=PATH=%h/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+; "-": the session already exists when the unit is started again.
+ExecStart=-/usr/bin/tmux new-session -d -s aiagent-host -n host "sleep infinity"
+; Stopping or restarting this unit must never kill the agents inside.
+KillMode=process
+
+[Install]
+WantedBy=default.target

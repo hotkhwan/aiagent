@@ -61,9 +61,9 @@ func (c *Collector) loginArgv(provider, email string) (string, []string, error) 
 			}
 			args = append(args, "--email", email)
 		}
-		return c.ClaudePath, args, nil
+		return c.ClaudeBin(), args, nil
 	case "codex":
-		return c.CodexPath, []string{"login", "--device-auth"}, nil
+		return c.codexBin(), []string{"login", "--device-auth"}, nil
 	}
 	return "", nil, &APIError{400, "AIAGENT_BAD_PROVIDER", "provider must be claude or codex"}
 }
@@ -86,7 +86,7 @@ func (c *Collector) run(ctx context.Context, bin string, args ...string) (string
 
 func (c *Collector) claudeAccount(ctx context.Context) Account {
 	a := Account{Provider: "claude"}
-	out, _ := c.run(ctx, c.ClaudePath, "auth", "status")
+	out, _ := c.run(ctx, c.ClaudeBin(), "auth", "status")
 	var st struct {
 		LoggedIn       bool   `json:"loggedIn"`
 		AuthMethod     string `json:"authMethod"`
@@ -107,7 +107,7 @@ func (c *Collector) claudeAccount(ctx context.Context) Account {
 
 func (c *Collector) codexAccount(ctx context.Context) Account {
 	a := Account{Provider: "codex"}
-	out, _ := c.run(ctx, c.CodexPath, "login", "status")
+	out, _ := c.run(ctx, c.codexBin(), "login", "status")
 	out = strings.TrimSpace(out)
 	low := strings.ToLower(out)
 	a.LoggedIn = strings.Contains(low, "logged in") && !strings.Contains(low, "not logged in")
@@ -172,8 +172,10 @@ func (c *Collector) StartLogin(ctx context.Context, provider, email string) (*Lo
 	name := loginSessions[provider]
 	_, _ = c.tmux(ctx, "kill-session", "-t", "="+name)
 	argv := append([]string{"new-session", "-d", "-s", name, "-x", "220", "-y", "50", bin}, args...)
-	if _, err := c.tmux(ctx, argv...); err != nil {
-		return nil, &APIError{502, "AIAGENT_LOGIN_FAILED", "could not start login: " + err.Error()}
+	if out, err := c.tmux(ctx, argv...); err != nil {
+		// tmux's own words say why (often: no server, and the service's sandbox
+		// may not create one; see packaging/aiagent-tmux@.service)
+		return nil, &APIError{502, "AIAGENT_LOGIN_FAILED", "could not start login: " + err.Error() + " " + truncateRunes(Redact(strings.TrimSpace(out)), 200)}
 	}
 	// keep the pane after the CLI exits so its last words can be read
 	_, _ = c.tmux(ctx, "set-option", "-w", "-t", "="+name+":", "remain-on-exit", "on")
@@ -220,9 +222,9 @@ func (c *Collector) Logout(ctx context.Context, provider string) error {
 	var err error
 	switch provider {
 	case "claude":
-		_, err = c.run(ctx, c.ClaudePath, "auth", "logout")
+		_, err = c.run(ctx, c.ClaudeBin(), "auth", "logout")
 	case "codex":
-		_, err = c.run(ctx, c.CodexPath, "logout")
+		_, err = c.run(ctx, c.codexBin(), "logout")
 	default:
 		return &APIError{400, "AIAGENT_BAD_PROVIDER", "provider must be claude or codex"}
 	}

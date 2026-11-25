@@ -68,8 +68,8 @@ func NewCollector() *Collector {
 		RunsDir:    envOr("AGCMD_RUNS", filepath.Join(DefaultStateDir(), "runs")),
 		AgcmdPath:  envOr("AGCMD_BIN", findBin("agcmd")),
 		TmuxPath:   envOr("AIAGENT_TMUX", "tmux"),
-		ClaudePath: envOr("AIAGENT_CLAUDE", findClaude()),
-		CodexPath:  envOr("AIAGENT_CODEX", findBin("codex")),
+		ClaudePath: os.Getenv("AIAGENT_CLAUDE"),
+		CodexPath:  os.Getenv("AIAGENT_CODEX"),
 		Runner:     ExecRunner{},
 		CacheTTL:   3 * time.Second,
 		HistoryMax: 60,
@@ -84,28 +84,43 @@ func NewCollector() *Collector {
 	return c
 }
 
-func findClaude() string {
-	if p, err := exec.LookPath("claude"); err == nil {
-		return p
+// ClaudeBin is the Claude Code CLI to run. Unless it is pinned it is looked up
+// on every call: a CLI installed after the service started must be found
+// without a restart, or the web shows a signed-in CLI as signed out.
+func (c *Collector) ClaudeBin() string {
+	if c.ClaudePath != "" {
+		return c.ClaudePath
 	}
-	if h, err := os.UserHomeDir(); err == nil {
-		if p := filepath.Join(h, ".local", "bin", "claude"); fileExists(p) {
-			return p
-		}
-	}
-	return "claude"
+	return findBin("claude")
 }
 
+func (c *Collector) codexBin() string {
+	if c.CodexPath != "" {
+		return c.CodexPath
+	}
+	return findBin("codex")
+}
+
+// findBin falls back to the bare name, which fails with a readable error.
 func findBin(name string) string {
-	if p, err := exec.LookPath(name); err == nil {
+	if p, err := lookBin(name); err == nil {
 		return p
 	}
-	if h, err := os.UserHomeDir(); err == nil {
+	return name
+}
+
+// lookBin also tries ~/.local/bin, which a service's PATH usually lacks.
+func lookBin(name string) (string, error) {
+	p, err := exec.LookPath(name)
+	if err == nil {
+		return p, nil
+	}
+	if h, herr := os.UserHomeDir(); herr == nil {
 		if p := filepath.Join(h, ".local", "bin", name); fileExists(p) {
-			return p
+			return p, nil
 		}
 	}
-	return name
+	return "", err
 }
 
 func fileExists(p string) bool {

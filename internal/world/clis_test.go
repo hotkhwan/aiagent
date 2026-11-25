@@ -56,6 +56,7 @@ func installedCLIs(t *testing.T) string {
 		t.Fatal(err)
 	}
 	t.Setenv("PATH", bin)
+	t.Setenv("HOME", filepath.Join(root, "home"))
 	return bin
 }
 
@@ -155,7 +156,7 @@ func TestUpdateCLIsRunsEachUpdaterAndReportsTheVersionChange(t *testing.T) {
 		filepath.Join(bin, "claude") + " update",
 		filepath.Join(bin, "claude") + " --version",
 		filepath.Join(bin, "codex") + " --version",
-		"npm install -g @openai/codex@latest",
+		"npm install -g --prefix " + filepath.Dir(bin) + " @openai/codex@latest", // the prefix codex came from
 		filepath.Join(bin, "codex") + " --version",
 	}
 	if strings.Join(f.calls, "\n") != strings.Join(wantCalls, "\n") {
@@ -190,4 +191,25 @@ func (b blockingRunner) Run(_ context.Context, name string, args ...string) ([]b
 	}
 	<-b.release
 	return nil, nil
+}
+
+// A CLI installed after the service started is found without a restart.
+func TestCLIFoundAfterStart(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("PATH", t.TempDir())
+	c := &Collector{}
+	if got := c.ClaudeBin(); got != "claude" {
+		t.Fatalf("before install = %q", got)
+	}
+	p := filepath.Join(home, ".local", "bin", "claude")
+	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(p, []byte("#!/bin/sh\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if got := c.ClaudeBin(); got != p {
+		t.Fatalf("after install = %q, want %q", got, p)
+	}
 }

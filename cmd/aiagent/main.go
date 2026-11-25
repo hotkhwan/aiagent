@@ -177,7 +177,7 @@ func serve(args []string) {
 		if th, err := planner.OpenThread(filepath.Join(dir, "pm.jsonl")); err != nil {
 			log.Printf("PM log unavailable, PM routes are off: %v", err)
 		} else {
-			svc.PM, svc.PMThread = &planner.Cloud{Exec: planner.OSExec{}, Path: col.ClaudePath}, th
+			svc.PM, svc.PMThread = &planner.Cloud{Exec: planner.OSExec{}, Path: col.ClaudeBin()}, th
 		}
 	}
 	svc.Mount(app)
