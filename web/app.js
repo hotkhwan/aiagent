@@ -174,7 +174,11 @@ async function api (path, opts) {
     showLogin(body && serverText(body.message))
     throw new Error('auth')
   }
-  if (!res.ok) throw new Error((body && serverText(body.message)) || ('HTTP ' + res.status))
+  if (!res.ok) {
+    const err = new Error((body && serverText(body.message)) || ('HTTP ' + res.status))
+    err.code = body && body.code
+    throw err
+  }
   return body ? body.details : null
 }
 
@@ -463,7 +467,7 @@ function updateComposerHint () {
     chip.replaceChildren(h('span', null, tr('ส่งถึง: ') + sess.displayName), h('small', null, sess.messageVia === 'relay' ? 'relay' : 'agcmd ' + sess.dispatchVia), h('button', { type: 'button', class: 'ghost', title: tr('เปลี่ยนเป็นส่งตาม workspace'), onclick: () => { back() } }, '×'))
     $('askText').placeholder = tr('พิมพ์ถึง ') + sess.displayName +
       hint(tr('… (Enter ส่ง · Shift+Enter ขึ้นบรรทัด · วาง/ลากรูปได้)'), '…')
-    $('askGo').disabled = false
+    $('askGo').disabled = sendingIn.has($('askText'))
     return
   }
   const ws = $('askWs').value
@@ -490,7 +494,7 @@ function updateComposerHint () {
   $('askMode').hidden = isUser() || !!picked || ws === 'pm'
   // A provider target and the PM are sendable too. Send used to be disabled
   // for "by provider", which left a phone — no Enter-to-send — unable to use it.
-  $('askGo').disabled = !w && !picked && ws !== 'pm' && !ws.startsWith('provider:')
+  $('askGo').disabled = sendingIn.has($('askText')) || (!w && !picked && ws !== 'pm' && !ws.startsWith('provider:'))
 }
 
 // targetSession resolves a "session:<id>" value from the target picker.
@@ -1550,9 +1554,11 @@ function drawPopComposer (want) {
   const file = h('input', { type: 'file', accept: 'image/png,image/jpeg,image/gif,image/webp', multiple: true, hidden: true })
   file.addEventListener('change', () => { addFiles(file.files, thumbs); file.value = '' })
   ta.addEventListener('paste', e => pasteImages(e, thumbs))
-  const send = () => { sendChat(targetOf(), ta, thumbs); ta.style.height = ''; return false }
+  const go = h('button', { type: 'button', class: 'pri' }, tr('ส่ง'))
+  const send = () => { sendOnce(ta, go, () => sendChat(targetOf(), ta, thumbs)).then(() => { ta.style.height = '' }); return false }
+  go.addEventListener('click', send)
   ta.addEventListener('keydown', e => {
-    if (e.key === 'Enter' && !e.shiftKey && !isPhone()) { e.preventDefault(); send() }
+    if (e.key === 'Enter' && !e.shiftKey && !isPhone()) { e.preventDefault(); if (!e.repeat) send() }
   })
   const last = [...(st.monMsgs[targets[0].sessionId] || [])].reverse().find(m => m.role === 'assistant')
   const sugs = suggestFrom(last ? last.text : '').slice(0, 3)
@@ -1563,7 +1569,7 @@ function drawPopComposer (want) {
       h('button', { type: 'button', class: 'ghost clip', 'aria-label': tr('แนบรูป'), onclick: () => file.click() }, '📎'),
       thumbs, file,
       h('div', { class: 'spTa' }, ta),
-      h('button', { type: 'button', class: 'pri', onclick: send }, tr('ส่ง')))
+      go)
   )
   drawThumbs(thumbs)
 }
@@ -1585,17 +1591,18 @@ function drawSheetComposer () {
   const file = h('input', { type: 'file', accept: 'image/png,image/jpeg,image/gif,image/webp', multiple: true, hidden: true })
   file.addEventListener('change', () => { addFiles(file.files, thumbs); file.value = '' })
   ta.addEventListener('paste', e => pasteImages(e, thumbs))
+  const go = h('button', { type: 'button', class: 'pri' }, tr('ส่ง'))
   const send = () => {
     const now = composerSession()
-    if (now) sendChat(now, ta, thumbs)
-    ta.style.height = ''
+    if (now) sendOnce(ta, go, () => sendChat(now, ta, thumbs)).then(() => { ta.style.height = '' })
     return false
   }
+  go.addEventListener('click', send)
   foot.append(h('div', { class: 'spAsk' },
     h('button', { type: 'button', class: 'ghost clip', 'aria-label': tr('แนบรูป'), onclick: () => file.click() }, '📎'),
     thumbs, file,
     h('div', { class: 'spTa' }, ta),
-    h('button', { type: 'button', class: 'pri', onclick: send }, tr('ส่ง'))))
+    go))
   drawThumbs(thumbs)
 }
 
@@ -1974,10 +1981,10 @@ function sessionHeader (sess) {
 function promptBox (sess) {
   const p = sess.prompt
   if (!p || sess.readOnly || (sess.protected && isUser())) return null
-  const pick = async o => {
+  const pick = o => onceFor('answer:' + sess.sessionId, async () => {
     if (!await confirmBox(tr('ตอบ agent'), p.question || '', o.n + '. ' + o.label + (o.detail ? '\n' + o.detail : ''), tr('เลือกข้อนี้'))) return
-    await act('/sessions/' + encodeURIComponent(sess.sessionId) + '/answer', { option: o.n }, () => tr('ตอบแล้ว: ') + o.n + '. ' + o.label)
-  }
+    await act('/sessions/' + encodeURIComponent(sess.sessionId) + '/answer', { option: o.n, sendId: newSendId() }, () => tr('ตอบแล้ว: ') + o.n + '. ' + o.label)
+  })
   return h('div', { class: 'promptBox' },
     h('b', null, tr('agent ถามและรอคำตอบ')),
     p.question ? h('p', null, p.question) : null,
@@ -2251,25 +2258,24 @@ async function sendChat (sess, ta, thumbs) {
     st.confirmedChat[sess.sessionId] = true
   }
   if (files.some(f => f.busy || !f.path)) { toast(tr('รูปยังอัปโหลดไม่เสร็จ — รออีกครู่แล้วกดส่งอีกที'), true); return }
-  ta.disabled = true
   if (files.length) {
     text = (text || tr('ดูไฟล์ที่แนบ')) + '\n\n' + attachLines(files)
   }
   const withPics = files.length ? tr(' พร้อมรูป ') + files.length + tr(' รูป') : ''
   const mine = st.sending = { sid: sess.sessionId, text, sent: false, at: Date.now() }
   drawSending()
-  const ok = await act('/sessions/' + encodeURIComponent(sess.sessionId) + '/message', { message: text }, r => r.queued
+  const ok = await act('/sessions/' + encodeURIComponent(sess.sessionId) + '/message', { message: text, sendId: draftSendId(ta, sess.sessionId + '\n' + text) }, r => r.queued
     ? sess.displayName + tr(' กำลังทำงานอยู่ — เก็บข้อความไว้ให้แล้ว จะส่งเองเมื่อว่าง') + withPics
     : (mine.delivery = r.delivery) === 'unknown'
       ? tr('พิมพ์ส่งให้ ') + sess.displayName + tr(' แล้ว') + withPics
       : r.delivery === 'held'
         ? sess.displayName + tr(' กำลังทำงานอยู่ — ข้อความอยู่ในคิวของ agent แล้ว จะอ่านเมื่อถึงคิว') + withPics
         : tr('ส่งถึง ') + sess.displayName + tr(' แล้ว (') + (r.via || '') + ')' + (r.delivery === 'acked' ? tr(' · ยืนยันจาก transcript') : '') + withPics)
-  ta.disabled = false
   if (!ok && st.sending === mine) { st.sending = null; drawSending() }
   if (ok) {
     mine.sent = true
     drawSending()
+    forgetSendId(ta)
     ta.value = ''
     clearPastes()
     clearDraft()
@@ -2805,13 +2811,13 @@ async function openReview (id) {
       h('b', null, tr('ส่งต่อให้ session admin')),
       h('p', { class: 'note' }, tr('ให้ session ของ admin ตรวจ diff แล้ว push และเปิด merge request ตามกติกาของ repo การกดผ่านอย่างเดียวไม่ได้ push')),
       adminSess.length > 1 ? pick : null,
-      h('button', { type: 'button', class: 'pri', onclick: async () => {
+      h('button', { type: 'button', class: 'pri', onclick: () => onceFor('handover:' + r.id, async () => {
         const target = adminSess.find(x => x.sessionId === pick.value) || adminSess[0]
         const text = tr('คำขอจากห้อง ') + r.owner + tr(' ผ่านการตรวจบนเว็บแล้ว: ') + r.title + (r.summary ? '\n' + r.summary : '') +
           tr('\nงานอยู่ในห้องนั้น (commit ในเครื่อง) ให้ตรวจ diff ทุกไฟล์ secret และ version ที่ bump แล้ว push และเปิด merge request ตามกติกาของ repo นี้ ถ้าพบปัญหาให้หยุดและรายงาน')
         if (!await confirmBox(tr('ส่งต่อให้ ') + target.displayName, tr('session นี้จะได้รับคำสั่งให้ตรวจ แล้ว push และเปิด merge request'), text, tr('ส่งคำสั่ง'))) return
-        if (await act('/sessions/' + encodeURIComponent(target.sessionId) + '/message', { message: text }, () => tr('ส่งคำสั่งให้ ') + target.displayName + tr(' แล้ว'))) $('reviewDlg').close()
-      } }, tr('ให้ admin push และเปิด MR')))
+        if (await act('/sessions/' + encodeURIComponent(target.sessionId) + '/message', { message: text, sendId: newSendId() }, () => tr('ส่งคำสั่งให้ ') + target.displayName + tr(' แล้ว'))) $('reviewDlg').close()
+      }) }, tr('ให้ admin push และเปิด MR')))
   }
   $('reviewSide').replaceChildren(...[
     h('dl', { class: 'kv' },
@@ -3180,9 +3186,22 @@ function toast (msg, bad) {
 
 async function act (path, body, okMsg) {
   try {
-    const res = await api(path, { method: 'POST', body })
+    let res
+    try {
+      res = await api(path, { method: 'POST', body })
+    } catch (e) {
+      // the service refused the same words to the same place a moment ago:
+      // say so, and send only if the user means it (sendonce.go)
+      if (e.code !== 'AIAGENT_DUPLICATE_SEND' || !body || body.resend) throw e
+      if (!await confirmBox(tr('ข้อความนี้เพิ่งส่งไป'), e.message, body.message || body.task || body.answer || body.text || '', tr('ส่งซ้ำ'))) {
+        toast(tr('ไม่ได้ส่งซ้ำ — ข้อความเดิมส่งไปแล้ว'), true)
+        return false
+      }
+      res = await api(path, { method: 'POST', body: Object.assign({}, body, { resend: true }) })
+    }
     const lost = !!res && res.delivery === 'unknown'
-    toast(okMsg(res || {}) + (lost ? tr(' — ยังไม่ยืนยันว่าถึง agent (ไม่พบในบทสนทนา) ตรวจก่อนส่งซ้ำ') : ''), lost)
+    const again = res && res.replayed ? tr(' (ส่งไปแล้วก่อนหน้านี้ ไม่ได้พิมพ์ซ้ำ)') : ''
+    toast(okMsg(res || {}) + again + (lost ? tr(' — ยังไม่ยืนยันว่าถึง agent (ไม่พบในบทสนทนา) ตรวจก่อนส่งซ้ำ') : ''), lost)
     poll()
     return true
   } catch (e) {
@@ -3190,6 +3209,55 @@ async function act (path, body, okMsg) {
     return false
   }
 }
+
+// ----- one send at a time -----
+// A send waits seconds for the agent's transcript. The Send button used to
+// work meanwhile, and a long message reached an agent twice in the same minute
+// (owner, 2026-11-25). From the press until the service answers, the composer
+// is locked: the button is disabled and says so, Enter does nothing, and the
+// draft stays where it is until the send has succeeded.
+const sendingIn = new WeakSet()
+async function sendOnce (ta, btn, fn) {
+  if (sendingIn.has(ta)) return false
+  sendingIn.add(ta)
+  const label = btn ? btn.textContent : ''
+  ta.readOnly = true
+  ta.setAttribute('aria-busy', 'true')
+  if (btn) { btn.disabled = true; btn.classList.add('sending'); btn.textContent = tr('กำลังส่ง…') }
+  try {
+    return await fn()
+  } finally {
+    sendingIn.delete(ta)
+    ta.readOnly = false
+    ta.removeAttribute('aria-busy')
+    if (btn) { btn.disabled = false; btn.classList.remove('sending'); btn.textContent = label }
+    if (ta === $('askText')) updateComposerHint()
+  }
+}
+// The same for a button that answers rather than a composer: one at a time
+// per key (the session or run being answered).
+const sendingKeys = new Set()
+async function onceFor (key, fn) {
+  if (sendingKeys.has(key)) return false
+  sendingKeys.add(key)
+  try { return await fn() } finally { sendingKeys.delete(key) }
+}
+// Each draft gets a random id the first time it is sent, and keeps it while it
+// is the same draft: sending it again after a failure or a lost answer is then
+// answered by the service with the first result instead of typing it twice.
+function newSendId () {
+  if (crypto.randomUUID) return crypto.randomUUID()
+  return [...crypto.getRandomValues(new Uint8Array(16))].map(b => b.toString(16).padStart(2, '0')).join('')
+}
+const draftIds = new WeakMap()
+function draftSendId (ta, key) {
+  const d = draftIds.get(ta)
+  if (d && d.key === key) return d.id
+  const id = newSendId()
+  draftIds.set(ta, { key, id })
+  return id
+}
+function forgetSendId (ta) { draftIds.delete(ta) }
 
 function focusComposer (ws, mode) {
   st.target = ws
@@ -3201,8 +3269,16 @@ function focusComposer (ws, mode) {
 }
 
 $('askWs').addEventListener('change', () => { st.target = $('askWs').value; st.blockReason = ''; updateComposerHint() })
-$('ask').addEventListener('submit', async e => {
+// Pressing Send must not take the focus from the box. With the box focused the
+// bar is taller (growText's floor); losing focus on mousedown collapsed it at
+// once, the button moved away from under the pointer, the mouseup landed on
+// the bar and the press did nothing — so people pressed again.
+$('askGo').addEventListener('mousedown', e => e.preventDefault())
+$('ask').addEventListener('submit', e => {
   e.preventDefault()
+  sendOnce($('askText'), $('askGo'), sendFromComposer)
+})
+async function sendFromComposer () {
   const sess = composerSession()
   const ta = $('askText')
   if (sess) return sendChat(sess, ta, $('askThumbs'))
@@ -3229,10 +3305,12 @@ $('ask').addEventListener('submit', async e => {
   if (files.length) {
     text = (text || tr('ดูไฟล์ที่แนบ')) + '\n\n' + attachLines(files)
   }
+  const sendId = draftSendId(ta, mode + '\n' + ws + '\n' + text)
   const sent = mode === 'mission'
-    ? await act('/missions', prov ? { provider: prov, task: text } : { workspace: ws, task: text }, r => tr('สร้างงาน ') + (r.runId || '') + tr(' ใน ') + (r.workspace || ws) + tr(' แล้ว'))
-    : await act('/messages', { workspace: ws, message: text }, () => tr('ส่งข้อความถึง ') + ws + tr(' แล้ว'))
+    ? await act('/missions', prov ? { provider: prov, task: text, sendId } : { workspace: ws, task: text, sendId }, r => tr('สร้างงาน ') + (r.runId || '') + tr(' ใน ') + (r.workspace || ws) + tr(' แล้ว'))
+    : await act('/messages', { workspace: ws, message: text, sendId }, () => tr('ส่งข้อความถึง ') + ws + tr(' แล้ว'))
   if (sent) {
+    forgetSendId(ta)
     ta.value = ''
     clearPastes()
     clearDraft()
@@ -3241,7 +3319,7 @@ $('ask').addEventListener('submit', async e => {
     drawThumbs($('askThumbs'))
     growText()
   }
-})
+}
 
 // Pictures are uploaded the moment they are picked, not when Send is pressed.
 // On an iPad the photo library is a system screen, and coming back from it can
@@ -3370,7 +3448,8 @@ $('askText').addEventListener('keydown', e => {
     const cur = $('askText').value
     if (!cur.trim() || v.startsWith(cur)) { e.preventDefault(); useSuggest(v); return }
   }
-  if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); $('ask').requestSubmit() }
+  // a held-down Enter repeats; only the first press sends
+  if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); if (!e.repeat) $('ask').requestSubmit() }
 })
 $('askText').addEventListener('paste', e => {
   const files = [...(e.clipboardData ? e.clipboardData.items : [])].filter(i => i.kind === 'file').map(i => i.getAsFile())
@@ -3419,11 +3498,13 @@ function openLightbox (src) {
 }
 $('lightbox').addEventListener('click', e => { if (e.target === $('lightbox') || e.target === $('lightboxImg')) $('lightbox').close() })
 
-async function doAnswer (run, answer) {
+function doAnswer (run, answer) {
   answer = (answer || '').trim()
   if (!answer) return
-  if (!await confirmBox(tr('ตอบ ') + run.id, tr('คำตอบจะถูกพิมพ์เข้า agent ใน ') + run.tmuxSession, answer, tr('ส่งคำตอบ'))) return
-  act('/runs/' + encodeURIComponent(run.id) + '/answer', { answer }, () => tr('ส่งคำตอบให้ ') + run.id + tr(' แล้ว'))
+  return onceFor('run:' + run.id, async () => {
+    if (!await confirmBox(tr('ตอบ ') + run.id, tr('คำตอบจะถูกพิมพ์เข้า agent ใน ') + run.tmuxSession, answer, tr('ส่งคำตอบ'))) return
+    await act('/runs/' + encodeURIComponent(run.id) + '/answer', { answer, sendId: newSendId() }, () => tr('ส่งคำตอบให้ ') + run.id + tr(' แล้ว'))
+  })
 }
 
 async function doStop (sess) {
@@ -4652,8 +4733,10 @@ async function sendToPM (ta) {
   if (!text) return
   if ((st.attach || []).length) { toast(tr('PM ยังอ่านรูปแนบไม่ได้ — เอารูปออกก่อน หรือส่งรูปให้ agent โดยตรง'), true); return }
   if (st.pm && st.pm.thinking) { toast(tr('PM ยังคิดคำตอบก่อนหน้าอยู่ — รอสักครู่'), true); return }
-  const ok = await spaced(() => act('/pm/messages', { text }, () => tr('ส่งถึง PM แล้ว — กำลังคิด')))
+  const sendId = draftSendId(ta, 'pm\n' + text)
+  const ok = await spaced(() => act('/pm/messages', { text, sendId }, () => tr('ส่งถึง PM แล้ว — กำลังคิด')))
   if (!ok) return
+  forgetSendId(ta)
   ta.value = ''
   clearPastes()
   clearDraft()
