@@ -119,6 +119,7 @@ var EN = {
   'ค่า token ใหม่ (เว้นว่าง = ใช้ค่าเดิม)': 'New token value (empty = keep the current one)',
   'แก้ไข ': 'Edit ',
   'เพิ่ม token': 'Add a token',
+  'ชื่อ: ตัวอักษร ตัวเลข เว้นวรรค . _ / - ไม่เกิน 60 ตัว · ใช้กับอะไร: 3-300 ตัว · ค่า token: 16-400 ตัว ไม่มีเว้นวรรค': 'Name: letters, digits, spaces . _ / -, up to 60 · Purpose: 3-300 characters · Token: 16-400 characters, no spaces',
   ' quota ไม่ทราบ': ' quota unknown',
   'รายสัปดาห์': 'Weekly',
   ' วัน': 'd',

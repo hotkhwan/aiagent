@@ -2818,6 +2818,7 @@ async function drawVault (editing) {
     h('div', { class: 'accRow' }, purpose),
     h('div', { class: 'accRow' }, value, h('button', { type: 'button', class: 'pri', onclick: save }, tr('บันทึก')), editing ? h('button', { type: 'button', class: 'ghost', onclick: () => drawVault() }, tr('ยกเลิก')) : null),
     err,
+    h('p', { class: 'note' }, tr('ชื่อ: ตัวอักษร ตัวเลข เว้นวรรค . _ / - ไม่เกิน 60 ตัว · ใช้กับอะไร: 3-300 ตัว · ค่า token: 16-400 ตัว ไม่มีเว้นวรรค')),
     h('p', { class: 'note' }, tr('ห้องของ user ไม่เห็นค่า token นี้ ใช้ได้เฉพาะระบบของ admin เช่น การส่ง MR และ CI'))))
 }
 
@@ -3077,11 +3078,25 @@ function confirmBox (title, body, text, okLabel) {
   })
 }
 
+// The banner is part of the page, so an open dialog covers it: a refused save
+// inside one looked like nothing happened. The same text is also shown in the
+// browser's top layer, above any dialog, and goes away by itself.
+let toastTimer = 0
 function toast (msg, bad) {
   const b = $('banner')
   b.hidden = false
   b.className = bad ? 'banner bad' : 'banner'
   b.textContent = msg
+  const t = $('topToast')
+  t.className = 'topToast' + (bad ? ' bad' : '')
+  t.setAttribute('role', bad ? 'alert' : 'status')
+  t.textContent = (bad ? '⚠ ' : '✓ ') + msg
+  try {
+    if (t.matches(':popover-open')) t.hidePopover()
+    t.showPopover() // shown again each time, so it is above a dialog opened since
+    clearTimeout(toastTimer)
+    toastTimer = setTimeout(() => { if (t.matches(':popover-open')) t.hidePopover() }, bad ? 9000 : 4000)
+  } catch (e) { /* older browser: the banner only */ }
 }
 
 async function act (path, body, okMsg) {

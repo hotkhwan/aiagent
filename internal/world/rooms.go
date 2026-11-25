@@ -52,7 +52,7 @@ func (s *Service) loadRoomPolicy() RoomPolicy {
 
 func (s *Service) saveRoomPolicy(p RoomPolicy) error {
 	if !(p.WeeklyPct >= 10 && p.WeeklyPct <= 99) {
-		return ErrBadRequest("weekly threshold must be 10-99%")
+		return ErrBadRequest("เกณฑ์รายสัปดาห์ต้องเป็น 10-99%")
 	}
 	b, err := json.Marshal(p)
 	if err != nil {

@@ -48,7 +48,7 @@ type OSUsers struct {
 
 func (o *OSUsers) unit(ctx context.Context, action, name string) error {
 	if !osUserRE.MatchString(name) {
-		return ErrBadRequest("user name must be lower-case letters, digits or dashes, starting with a letter")
+		return ErrBadRequest("ชื่อผู้ใช้: a-z 0-9 และขีดกลาง ขึ้นต้นด้วยตัวอักษร")
 	}
 	ctx, cancel := context.WithTimeout(ctx, 50*time.Second)
 	defer cancel()

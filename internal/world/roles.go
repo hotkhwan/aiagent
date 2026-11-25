@@ -97,7 +97,7 @@ func (s *Store) Identify(presented string) (Identity, bool) {
 func (s *Store) AddUser(name, osUser string) (UserToken, string, error) {
 	name = strings.TrimSpace(name)
 	if !userNameRE.MatchString(name) {
-		return UserToken{}, "", ErrBadRequest("name must be 1-40 letters, digits, spaces, dots or dashes")
+		return UserToken{}, "", ErrBadRequest("ชื่อ: ตัวอักษร ตัวเลข เว้นวรรค จุด หรือขีด ยาว 1-40 ตัว")
 	}
 	tokensMu.Lock()
 	defer tokensMu.Unlock()
@@ -106,11 +106,11 @@ func (s *Store) AddUser(name, osUser string) (UserToken, string, error) {
 		return UserToken{}, "", ErrConflict("the service is not enabled")
 	}
 	if len(st.Users) >= maxUserTokens {
-		return UserToken{}, "", ErrConflict("too many user tokens; revoke one first")
+		return UserToken{}, "", ErrConflict("token ของผู้ใช้เต็มแล้ว เพิกถอนบางอันก่อน")
 	}
 	for _, u := range st.Users {
 		if strings.EqualFold(u.Name, name) {
-			return UserToken{}, "", ErrConflict("that name already has a token; revoke it first")
+			return UserToken{}, "", ErrConflict("ชื่อนี้มี token แล้ว ใช้ปุ่มออก token ใหม่ หรือเพิกถอนก่อน")
 		}
 	}
 	token, err := newToken()
@@ -433,7 +433,7 @@ func (s *Service) handleTokenCreate(c fiber.Ctx) error {
 		if s.OSUsers != nil {
 			osUser = strings.TrimSpace(body.Name)
 			if !osUserRE.MatchString(osUser) {
-				return nil, ErrBadRequest("user name must be lower-case letters, digits or dashes, starting with a letter")
+				return nil, ErrBadRequest("ชื่อผู้ใช้: a-z 0-9 และขีดกลาง ขึ้นต้นด้วยตัวอักษร")
 			}
 		}
 		u, token, err := s.Store.AddUser(body.Name, osUser)

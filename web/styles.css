@@ -1747,3 +1747,6 @@ button.rtChip:hover { background: #1D2440 }
 
 .vaultErr { color: var(--rose); margin: 0 }
 .vaultErr:empty { display: none }
+
+.topToast { position: fixed; inset: 18px auto auto 50%; transform: translateX(-50%); margin: 0; max-width: min(720px, 92vw); padding: 12px 20px; border-radius: 12px; border: 2px solid var(--brand); background: #10203A; color: #E6FFF4; font-size: 15px; box-shadow: 0 14px 34px rgba(0,0,0,.55); overflow-wrap: anywhere }
+.topToast.bad { border-color: var(--rose); background: #3A1420; color: #FFE4EA }
