@@ -1674,3 +1674,5 @@ button.rtChip:hover { background: #1D2440 }
 
 .asBar { display: flex; align-items: center; gap: 10px; padding: 6px 14px; border-radius: 999px; background: #FFC24D; color: #14182B }
 .asBar .ghost { color: #14182B; border-color: #14182B }
+#roomBody .polRow { display: flex; align-items: center; gap: 8px; flex-wrap: wrap }
+#roomBody input[type=number] { width: 80px; padding: 6px 8px; border: 1px solid #3A3F5C; border-radius: 8px; background: #0B1020; color: #E6ECFF }

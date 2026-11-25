@@ -42,6 +42,7 @@ var (
 type OSUsers struct {
 	SocketDir string // /run/aiagent-users, root only
 	TokenDir  string // <state>/instances, root only
+	ModelDir  string // /run/aiagent-room, readable by rooms
 	Runner    Runner
 }
 
@@ -106,6 +107,14 @@ func (o *OSUsers) do(ctx context.Context, name, method, uri, contentType string,
 
 // forward answers an API request from a user's instance.
 func (s *Service) forward(c fiber.Ctx, name string) error {
+	if p := strings.TrimPrefix(c.Path(), apiPrefix); c.Method() == "POST" && identity(c).Role == RoleUser && (p == "/messages" || strings.HasSuffix(p, "/message")) {
+		var body struct {
+			Message string `json:"message"`
+		}
+		if json.Unmarshal(c.Body(), &body) != nil || !userText(body.Message) {
+			return c.Status(fiber.StatusForbidden).JSON(failEnv("AIAGENT_COMMAND_BLOCKED", "คำสั่งนี้ใช้ได้เฉพาะ admin"))
+		}
+	}
 	if m := sessionPathRE.FindStringSubmatch(strings.TrimPrefix(c.Path(), apiPrefix)); m != nil && identity(c).Role == RoleUser {
 		if mate := s.teammateOf(c.Context(), name, m[1]); mate != "" {
 			tail := strings.TrimPrefix(strings.TrimPrefix(c.Path(), apiPrefix), m[0])
@@ -186,10 +195,14 @@ func (s *Service) userReview(c fiber.Ctx, ticket string) (bool, error) {
 // instanceSessions lists one user's own sessions, kept for a few seconds since
 // every open tab polls.
 func (s *Service) instanceSessions(ctx context.Context, name string) []Session {
+	return s.instance(ctx, name).sessions
+}
+
+func (s *Service) instance(ctx context.Context, name string) mateEntry {
 	s.mates.Lock()
 	if e, ok := s.mates.m[name]; ok && time.Since(e.at) < mateTTL {
 		s.mates.Unlock()
-		return e.list
+		return e
 	}
 	s.mates.Unlock()
 	ctx, cancel := context.WithTimeout(ctx, 4*time.Second)
@@ -197,26 +210,29 @@ func (s *Service) instanceSessions(ctx context.Context, name string) []Session {
 	var env struct {
 		Details struct {
 			Sessions []Session `json:"sessions"`
+			Quotas   []Quota   `json:"quotas"`
 		} `json:"details"`
 	}
 	status, _, b, err := s.OSUsers.do(ctx, name, "GET", apiPrefix+"/snapshot", "", nil)
 	if err != nil || status != 200 || json.Unmarshal(b, &env) != nil {
-		env.Details.Sessions = nil
+		env.Details.Sessions, env.Details.Quotas = nil, nil
 	}
 	s.mates.Lock()
 	if s.mates.m == nil {
 		s.mates.m = map[string]mateEntry{}
 	}
-	s.mates.m[name] = mateEntry{at: time.Now(), list: env.Details.Sessions}
+	e := mateEntry{at: time.Now(), sessions: env.Details.Sessions, quotas: env.Details.Quotas}
+	s.mates.m[name] = e
 	s.mates.Unlock()
-	return env.Details.Sessions
+	return e
 }
 
 const mateTTL = 3 * time.Second
 
 type mateEntry struct {
-	at   time.Time
-	list []Session
+	at       time.Time
+	sessions []Session
+	quotas   []Quota
 }
 
 type mateCache struct {
@@ -300,7 +316,7 @@ func (s *Service) withOthers(c fiber.Ctx, name string, b []byte) []byte {
 
 // localPaths are answered here even while a request is for a user's instance.
 func localPath(path string) bool {
-	return path == "/me" || path == "/tokens" || strings.HasPrefix(path, "/tokens/")
+	return path == "/me" || path == "/rooms" || path == "/tokens" || strings.HasPrefix(path, "/tokens/")
 }
 
 // forwardAudited records a write before it leaves, as mutate does.

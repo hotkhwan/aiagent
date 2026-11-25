@@ -26,6 +26,10 @@ RestartSec=5
 NoNewPrivileges=yes
 ProtectSystem=strict
 ProtectHome=read-only
+; the rooms' model, written here and read by them (--os-users)
+RuntimeDirectory=aiagent-room
+RuntimeDirectoryMode=0755
+RuntimeDirectoryPreserve=yes
 ReadWritePaths=%h/.local/state/aiagent
 ; ~/.claude.json is writable only so trusted roots can record Claude Code's
 ; folder trust (aiagent trust-roots). The home stays read-only, so the file is

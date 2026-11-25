@@ -2229,6 +2229,7 @@ function quotaAdvice () {
   }
   const worst = qs.filter(q => q.confidence === 'actual').sort((a, b) => b.usedPercent - a.usedPercent)[0]
   if (!worst || worst.usedPercent < 60) return null
+  if (isUser()) return null
   const heavy = st.snap.sessions.filter(x => x.live && x.runtimeType === 'claudeCode' && /opus|fable/i.test(x.model || '') && x.messageVia)
   return h('div', { class: 'advice warn' }, h('b', null, tr('Claude ใช้ไป ') + Math.round(worst.usedPercent) + '% (' + windowName(worst.windowMinutes) + ')'),
     h('p', null, heavy.length ? tr('แนะนำลด agent ที่ใช้ ') + modelName('opus') + tr(' เป็น Sonnet เพื่อยืดโควตา:') : tr('ไม่มี agent ที่สั่งได้ซึ่งใช้ model ใหญ่อยู่')),
@@ -2257,6 +2258,7 @@ async function loadModels () {
 
 function modelRow (sess) {
   const row = h('div', { class: 'modelRow' }, h('span', { class: 'modelChip', title: sess.model || '' }, '🧠 ' + modelName(sess.model)))
+  if (isUser()) { row.append(h('small', { class: 'note' }, tr('admin เป็นผู้กำหนด model'))); return row }
   const codex = sess.runtimeType === 'codexCli'
   const can = sess.live && !codex && sess.messageVia
   loadModels().then(ms => {
@@ -2687,9 +2689,28 @@ async function openAccounts () {
   await drawAccounts()
   await drawCLIs()
   await drawTokens()
+  await drawRooms()
 }
 
 // ----- user tokens: the server refuses these calls without an admin token -----
+async function drawRooms () {
+  const box = $('roomBody')
+  let r
+  try { r = await api('/rooms') } catch (e) { box.replaceChildren(); return }
+  const on = h('input', { type: 'checkbox', id: 'roomOn' })
+  on.checked = r.policy.enabled
+  const pct = h('input', { type: 'number', id: 'roomPct', min: 10, max: 99, step: 1, value: r.policy.weeklyPct })
+  const save = async () => {
+    try { await api('/rooms', { method: 'POST', body: { enabled: on.checked, weeklyPct: Number(pct.value) } }); toast(tr('บันทึกแล้ว มีผลภายใน 1 นาที')) } catch (e) { toast(tr('ไม่สำเร็จ: ') + e.message, true) }
+    drawRooms()
+  }
+  box.replaceChildren(h('div', { class: 'accCard' },
+    h('div', { class: 'accTop' }, h('b', null, tr('Model ของห้อง user'))),
+    h('p', null, tr('ตอนนี้: ') + modelName(r.model || 'opus') + ' · ' + tr('ใช้รายสัปดาห์: ') + (r.weekly === undefined ? tr('ไม่ทราบ') : Math.round(r.weekly) + '%')),
+    h('label', { class: 'polRow' }, on, h('span', null, tr('เปลี่ยนเป็น ') + modelName(r.lowModel) + tr(' เมื่อรายสัปดาห์เกิน')), pct, h('span', null, '%')),
+    h('p', { class: 'note' }, tr('ปกติใช้ Opus รุ่นล่าสุด user เปลี่ยน model เองไม่ได้ ระบบสลับเมื่อห้องว่างและคุยต่อจากเดิม ถ้าไม่ทราบค่าจะใช้ Opus')),
+    h('div', { class: 'accRow' }, h('button', { type: 'button', class: 'pri', onclick: save }, tr('บันทึก')))))
+}
 async function drawTokens (fresh) {
   if (!$('accountsDlg').open) return
   let list, osUsers

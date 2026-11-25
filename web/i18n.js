@@ -252,6 +252,16 @@ var EN = {
   'เสร็จ': 'Done',
   'เมื่ออัปเดตเสร็จ รายการ model จะตามเวอร์ชันใหม่ของ CLI โดยไม่ต้องแก้โค้ด': 'After an update the model list follows the new CLI version, no code change needed.',
 
+  // rooms' model
+  'บันทึกแล้ว มีผลภายใน 1 นาที': 'Saved. It takes effect within a minute',
+  'Model ของห้อง user': 'Model of user rooms',
+  'ตอนนี้: ': 'Now: ',
+  'ใช้รายสัปดาห์: ': 'weekly usage: ',
+  'เปลี่ยนเป็น ': 'Switch to ',
+  ' เมื่อรายสัปดาห์เกิน': ' when weekly usage is above',
+  'ปกติใช้ Opus รุ่นล่าสุด user เปลี่ยน model เองไม่ได้ ระบบสลับเมื่อห้องว่างและคุยต่อจากเดิม ถ้าไม่ทราบค่าจะใช้ Opus': 'Rooms run the latest Opus and users cannot change it. A room is switched while idle and continues its conversation. With no reading, Opus is used.',
+  'admin เป็นผู้กำหนด model': 'the admin sets the model',
+
   // user tokens
   'อ่านรายการ token ไม่ได้: ': 'Cannot read the token list: ',
   'ชื่อผู้ใช้': 'User name',

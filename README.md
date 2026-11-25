@@ -103,6 +103,21 @@ home to `/var/backups/aiagent-users` and removes the OS user.
 | Other rooms | enter and manage | read only |
 | Admin sessions | read, send | state only |
 | PM, tasks, accounts, tokens, CLI updates | yes | no |
+| Choose the model | yes | no, the admin's rule |
+
+Rooms run the latest Opus. **Accounts → Model of user rooms** sets the weekly
+usage above which they move to Haiku 5.5. The reading comes from Claude Code's
+status line, so set it for the whole machine in
+`/etc/claude-code/managed-settings.json`:
+
+```json
+{ "statusLine": { "type": "command", "command": "aiagent statusline" } }
+```
+
+A room is a fresh home: it has none of your skills, memory or `CLAUDE.md`. Put
+what every room should know in `/usr/local/share/aiagent/room/` (root-owned):
+`CLAUDE.md` and `skills/<name>/`. Rooms link to it, so an update reaches them
+all. Nothing is copied from your own home; keep secrets out of it.
 
 Rooms get uids from 700000 up, away from the ids containers use. Outbound
 network limits are the host's job.

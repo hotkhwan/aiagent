@@ -283,6 +283,8 @@ func (s *Service) Mount(app *fiber.App) {
 
 	api := app.Group("/aiagent/api", s.gate)
 	api.Get("/me", s.handleMe)
+	api.Get("/rooms", s.handleRooms)
+	api.Post("/rooms", s.handleSetRooms)
 	api.Get("/tokens", s.handleTokens)
 	api.Post("/tokens", s.handleTokenCreate)
 	api.Post("/tokens/:id/revoke", s.handleTokenRevoke)

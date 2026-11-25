@@ -14,6 +14,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"log"
@@ -182,9 +183,10 @@ func serve(args []string) {
 		}
 	}
 	if *osUsers {
-		svc.OSUsers = &world.OSUsers{SocketDir: "/run/aiagent-users", TokenDir: filepath.Join(dir, "instances"), Runner: world.ExecRunner{}}
+		svc.OSUsers = &world.OSUsers{SocketDir: "/run/aiagent-users", TokenDir: filepath.Join(dir, "instances"), ModelDir: "/run/aiagent-room", Runner: world.ExecRunner{}}
 	}
 	svc.Mount(app)
+	svc.StartRooms(context.Background())
 
 	scheme := "http"
 	if tls {
