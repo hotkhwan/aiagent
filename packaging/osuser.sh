@@ -7,6 +7,11 @@ act="${1:?}"; name="${2:?}"
 group=aiagent-users
 tokens="${AIAGENT_STATE:-/root/.local/state/aiagent}/instances"
 archive=/var/backups/aiagent-users
+# Far above the ids containers run as: a container's uid 1000 is this host's
+# uid 1000, so an account with a low uid could read its volumes and signal its
+# processes, and removing the account would kill them.
+uid_min=700000
+uid_max=799999
 units=("aiagent-user@$name.service" "aiagent-user@$name.socket" "aiagent-user-tmux@$name.service")
 
 managed() { id "$name" >/dev/null 2>&1 && id -nG "$name" | tr ' ' '\n' | grep -qx "$group"; }
@@ -15,8 +20,14 @@ remove() {
 	systemctl disable --now "${units[@]}" >/dev/null 2>&1 || true
 	if managed; then
 		loginctl terminate-user "$name" >/dev/null 2>&1 || true
-		pkill -KILL -u "$name" 2>/dev/null || true
-		for _ in 1 2 3 4 5 6 7 8 9 10; do pgrep -u "$name" >/dev/null || break; sleep 0.5; done
+		# units are stopped, which kills their cgroups; this is for strays only,
+		# and never for a uid outside our own range
+		uid=$(id -u "$name")
+		if [ "$uid" -lt "$uid_min" ] || [ "$uid" -gt "$uid_max" ]; then
+			echo "refusing: $name has uid $uid, outside $uid_min-$uid_max"; exit 4
+		fi
+		pkill -KILL -u "$uid" 2>/dev/null || true
+		for _ in 1 2 3 4 5 6 7 8 9 10; do pgrep -u "$uid" >/dev/null || break; sleep 0.5; done
 		if [ "${1:-}" = archive ] && [ -d "/home/$name" ]; then
 			mkdir -p -m 0700 "$archive"
 			out="$archive/$name-$(date -u +%Y%m%d-%H%M%S).tar.gz"
@@ -37,7 +48,7 @@ add)
 	fi
 	getent group "$group" >/dev/null || groupadd --system "$group"
 	trap 'remove' ERR
-	useradd -m -s /bin/bash -K HOME_MODE=0700 -G "$group" "$name"
+	useradd -m -s /bin/bash -K HOME_MODE=0700 -K "UID_MIN=$uid_min" -K "UID_MAX=$uid_max" -K "GID_MIN=$uid_min" -K "GID_MAX=$uid_max" -G "$group" "$name"
 	passwd -l "$name" >/dev/null
 	run() { runuser -u "$name" -- env -i HOME="/home/$name" USER="$name" PATH=/usr/local/bin:/usr/bin:/bin "$@"; }
 	run mkdir -p "/home/$name/work" "/home/$name/.local/state/aiagent" "/home/$name/.claude" "/home/$name/.codex"
