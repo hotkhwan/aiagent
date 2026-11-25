@@ -929,7 +929,12 @@ var EN = {
   'ไม่มีบรรทัดที่เปลี่ยน': 'No changed lines',
   'diff ยาวเกินที่หน้านี้แสดง — เห็นเฉพาะส่วนต้น ดูทั้งหมดด้วย git diff ใน workspace': 'The diff is longer than this page shows — only the start is here; run git diff in the workspace for all of it',
   'เปลี่ยนชื่อไม่ได้: ': 'Cannot rename: ',
+  'login ไม่สำเร็จ — ข้อความจาก CLI': 'Sign-in failed — what the CLI said',
+  'ข้อความจาก CLI': 'What the CLI says',
+  'ยังไม่มีบัญชีบนเครื่องนี้ กด Login เพื่อเริ่ม': 'No account on this machine; press Login to start',
   // messages of the service
+  'ยังไม่ได้ติดตั้ง CLI นี้บนเครื่อง': 'this CLI is not installed on this machine',
+  'อ่านสถานะจาก CLI ไม่ได้': 'the CLI’s state could not be read',
   'Antigravity login อยู่ ให้ logout ก่อนจึงใช้บัญชีอื่นได้': 'Antigravity is signed in; log out first to use another account',
   'Claude Code กำลังแสดงคำถามหรือเมนู': 'Claude Code is showing a question or menu',
   'Claude Code ถามว่าเชื่อถือโฟลเดอร์นี้หรือไม่': 'Claude Code is asking whether to trust',

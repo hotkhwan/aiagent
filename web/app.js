@@ -2975,7 +2975,12 @@ function setAccOut (a) {
   if (!el) return
   const text = (a.login && a.login.output) || ''
   el.out.textContent = text
-  el.out.hidden = !text
+  el.box.hidden = !text
+  // while it runs the link and the code are what matter; once it has failed,
+  // what the CLI said is the reason
+  const failed = !!(a.login && !a.login.running)
+  el.sum.textContent = failed ? tr('login ไม่สำเร็จ — ข้อความจาก CLI') : tr('ข้อความจาก CLI')
+  if (failed) el.box.open = true
 }
 function accountCard (a) {
   const p = a.provider
@@ -2984,10 +2989,12 @@ function accountCard (a) {
     accEls[p] = {
       email: h('input', { type: 'email', placeholder: tr('อีเมลบัญชีที่จะใช้ (ไม่บังคับ)'), autocomplete: 'off' }),
       code: h('input', { type: 'text', placeholder: tr('วางโค้ดที่ได้หลัง login'), autocomplete: 'off', spellcheck: 'false' }),
-      out: h('pre', { class: 'accOut' })
+      out: h('pre', { class: 'accOut' }),
+      sum: h('summary', null, '')
     }
+    accEls[p].box = h('details', { class: 'accCli' }, accEls[p].sum, accEls[p].out)
   }
-  const { email, code, out } = accEls[p]
+  const { email, code, box: out } = accEls[p]
   const call = async (path, body, msg) => {
     try { await api('/accounts/' + p + '/' + path, { method: 'POST', body: body || {} }); if (msg) toast(msg) } catch (e) { toast(tr('ไม่สำเร็จ: ') + e.message, true) }
     drawAccounts()
@@ -2997,7 +3004,7 @@ function accountCard (a) {
       ? tr('Codex จะ logout ทันทีที่เริ่ม (เป็นพฤติกรรมของ codex เอง) — agent Codex ทุกตัวบนเครื่องจะใช้ไม่ได้จนกว่า login ใหม่เสร็จ')
       : p === 'agy' ? tr('login ด้วยบัญชี Google ของคุณเอง ข้อกำหนดของ Antigravity ห้ามใช้เครื่องมือภายนอกเข้าถึงบริการ ตรวจก่อนให้ agent อื่นสั่งงาน')
       : tr('บัญชีเดิมยังใช้ได้จนกว่าจะวางโค้ดสำเร็จ — หลังสลับ session ที่เปิดอยู่จะใช้บัญชีใหม่เมื่อรีเฟรช token')
-    if (!await confirmBox(tr('สลับบัญชี ') + accountName[p], warn, a.email ? tr('ปัจจุบัน: ') + a.email : (a.detail || ''), tr('เริ่ม login'))) return
+    if (!await confirmBox(tr('สลับบัญชี ') + accountName[p], warn, a.email ? tr('ปัจจุบัน: ') + a.email : serverText(a.detail || ''), tr('เริ่ม login'))) return
     call('login', { email: email.value.trim() })
   }
   const logout = async () => {
@@ -3006,7 +3013,7 @@ function accountCard (a) {
   }
   return h('div', { class: 'accCard' },
     h('div', { class: 'accTop' }, h('b', null, accountName[p]), h('span', { class: 'pill ' + (a.loggedIn ? 'normal' : 'reserve') }, h('i'), a.loggedIn ? tr('login อยู่') : tr('ยังไม่ได้ login'))),
-    a.loggedIn ? h('p', null, [a.email, a.method, a.org].filter(Boolean).join(' · ') + (a.expiresAt ? tr(' · หมดอายุ ') + new Date(a.expiresAt).toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' }) : '')) : (a.detail ? h('p', { class: 'note' }, a.detail) : null),
+    a.loggedIn ? h('p', null, [a.email, a.method, a.org].filter(Boolean).join(' · ') + (a.expiresAt ? tr(' · หมดอายุ ') + new Date(a.expiresAt).toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' }) : '')) : h('p', { class: 'note' }, a.detail ? serverText(a.detail) : tr('ยังไม่มีบัญชีบนเครื่องนี้ กด Login เพื่อเริ่ม')),
     f && f.running
       ? h('div', { class: 'accFlow' },
         h('p', null, tr('1) เปิดลิงก์นี้แล้ว sign in ด้วยบัญชีที่ต้องการ')),

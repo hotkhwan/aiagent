@@ -16,7 +16,9 @@ package world
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -93,7 +95,7 @@ func (c *Collector) run(ctx context.Context, bin string, args ...string) (string
 
 func (c *Collector) claudeAccount(ctx context.Context) Account {
 	a := Account{Provider: "claude"}
-	out, _ := c.run(ctx, c.ClaudeBin(), "auth", "status")
+	out, err := c.run(ctx, c.ClaudeBin(), "auth", "status")
 	var st struct {
 		LoggedIn       bool   `json:"loggedIn"`
 		AuthMethod     string `json:"authMethod"`
@@ -101,33 +103,44 @@ func (c *Collector) claudeAccount(ctx context.Context) Account {
 		OrgName        string `json:"orgName"`
 		LoginExpiresAt string `json:"loginExpiresAt"`
 	}
-	if i := strings.Index(out, "{"); i >= 0 && json.Unmarshal([]byte(out[i:]), &st) == nil {
+	if i := strings.Index(out, "{"); i >= 0 && json.NewDecoder(strings.NewReader(out[i:])).Decode(&st) == nil {
 		a.LoggedIn, a.Method, a.Email, a.Org = st.LoggedIn, st.AuthMethod, st.Email, st.OrgName
 		if t := parseTS(st.LoginExpiresAt); !t.IsZero() {
 			a.Expires = &t
 		}
 		return a
 	}
-	a.Detail = truncateRunes(Redact(strings.TrimSpace(out)), 200)
+	a.Detail = statusDetail(err)
 	return a
+}
+
+// statusDetail says why a CLI's sign-in state could not be read. What the CLI
+// printed is not shown: it is a warning or a stack trace, not a state.
+func statusDetail(err error) string {
+	if errors.Is(err, exec.ErrNotFound) || errors.Is(err, os.ErrNotExist) {
+		return "ยังไม่ได้ติดตั้ง CLI นี้บนเครื่อง"
+	}
+	return "อ่านสถานะจาก CLI ไม่ได้"
 }
 
 func (c *Collector) codexAccount(ctx context.Context) Account {
 	a := Account{Provider: "codex"}
-	out, _ := c.run(ctx, c.codexBin(), "login", "status")
-	// the service sees the home read-only, which Codex warns about first
-	if i := strings.Index(out, "WARNING:"); i >= 0 {
-		if j := strings.Index(out[i:], "\n"); j >= 0 {
-			out = out[:i] + out[i+j:]
+	out, err := c.run(ctx, c.codexBin(), "login", "status")
+	// the state is one line; Codex prints warnings (a read-only home) around it
+	known := false
+	for _, l := range strings.Split(out, "\n") {
+		l = strings.TrimSpace(l)
+		switch low := strings.ToLower(l); {
+		case strings.HasPrefix(low, "not logged in"):
+			known = true
+		case strings.HasPrefix(low, "logged in"):
+			known, a.LoggedIn = true, true
+			a.Method = truncateRunes(Redact(strings.TrimPrefix(l, "Logged in using ")), 200)
 		}
 	}
-	out = strings.TrimSpace(out)
-	low := strings.ToLower(out)
-	a.LoggedIn = strings.Contains(low, "logged in") && !strings.Contains(low, "not logged in")
-	if a.LoggedIn {
-		a.Method = strings.TrimSpace(strings.TrimPrefix(out, "Logged in using "))
+	if !known {
+		a.Detail = statusDetail(err)
 	}
-	a.Detail = truncateRunes(Redact(out), 200)
 	return a
 }
 
