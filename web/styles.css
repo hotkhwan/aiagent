@@ -1117,6 +1117,8 @@ body.listView .stageHead, body.listView .sceneTools { display: none }
   padding: 9px 12px; border-radius: 12px; background: rgba(245,184,75,.12); border: 1px solid rgba(245,184,75,.4) }
 .queued b { color: var(--amber); font-size: 14px }
 .queued span { flex: 1; min-width: 0; color: var(--muted); font-size: 12.5px }
+.queued.bad { background: rgba(242,114,127,.1); border-color: rgba(242,114,127,.45) }
+.queued.bad b { color: var(--rose) }
 
 /* ---------- the session list, which is the home screen ---------- */
 .sCards { display: flex; flex-direction: column; gap: 8px; margin-bottom: 18px }
@@ -1797,5 +1799,15 @@ textarea[aria-busy="true"] { opacity: .75 }
 .askSummary li span { display: block; color: var(--muted); font-size: 13px }
 .askBtns { display: flex; gap: 8px; flex-wrap: wrap }
 .askBox .askBtns button { flex-direction: row; text-align: center }
-.askNote { color: var(--muted) }
+.askNote { color: var(--muted); flex: 1 1 100% }
 .askNote:empty { display: none }
+/* The side panel does not scroll while it shows the chat
+   (.insp:has(.chatLog) { overflow: hidden }), so a question with long options
+   ran past its bottom edge and its Send could not be reached by wheel or
+   finger (owner, 2026-11-26). The box keeps to part of the panel, scrolls on
+   its own, and its Send row stays in sight at the bottom of it. */
+.insp > .promptBox { flex: 0 1 auto; min-height: 96px; max-height: 70%; overflow-y: auto }
+/* stacked under the list the panel has no height of its own: the screen's */
+@media (max-width: 900px) { .insp > .promptBox { max-height: 70dvh } }
+.insp > .askBox .askBtns { position: sticky; bottom: -12px; z-index: 1; margin: 0 -14px -12px; padding: 10px 14px 12px;
+  background: var(--sky2); border-top: 1px solid var(--line) }

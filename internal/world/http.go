@@ -874,6 +874,9 @@ func (s *Service) handleReviewDecision(c fiber.Ctx) error {
 		Note     string       `json:"note"`
 		Items    []ReviewItem `json:"items"`
 		Send     bool         `json:"send"`
+		// Resend sends an answered review's unconfirmed reply again; the page
+		// sets it only after the operator chose "send again".
+		Resend bool `json:"resend"`
 	}
 	if err := c.Bind().Body(&body); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(failEnv("AIAGENT_BAD_REQUEST", "ข้อมูลที่ส่งมาไม่ใช่ JSON ที่ถูกต้อง"))
@@ -884,7 +887,14 @@ func (s *Service) handleReviewDecision(c fiber.Ctx) error {
 		if body.Send {
 			deliver = s.deliverReview
 		}
-		reply, sent, err := s.Collector.DecideReview(c.Context(), id, body.Decision, body.Note, body.Items, deliver)
+		var reply string
+		var sent *ReviewSent
+		var err error
+		if body.Send && body.Resend {
+			reply, sent, err = s.Collector.ResendReview(c.Context(), id, deliver)
+		} else {
+			reply, sent, err = s.Collector.DecideReview(c.Context(), id, body.Decision, body.Note, body.Items, deliver)
+		}
 		out := fiber.Map{"reviewId": id, "reply": reply, "via": ""}
 		if sent != nil {
 			out["via"], out["delivery"], out["queued"] = sent.Via, sent.Delivery, sent.Queued
@@ -900,7 +910,7 @@ func (s *Service) deliverReview(ctx context.Context, r *Review, reply string) (R
 	sentAt := s.Collector.now()
 	sid, via, err := s.Collector.SendReview(ctx, r, reply)
 	if ae, ok := err.(*APIError); ok && ae.Code == "AIAGENT_RELAY_NOT_READY" && sid != "" {
-		if _, qerr := s.Enqueue(sid, reply, time.Now()); qerr != nil {
+		if _, qerr := s.enqueue(sid, reply, r.ID, time.Now()); qerr != nil {
 			return ReviewSent{}, qerr
 		}
 		return ReviewSent{Via: "queued", Queued: true}, nil

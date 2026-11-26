@@ -2126,9 +2126,10 @@ function askBox (sess, p) {
     reviewList ? h('p', null, tr('คำตอบอยู่ที่หน้าสรุปแล้ว รอกดยืนยันส่ง')) : null,
     reviewList,
     ...qs.map(questionBox),
+    // the note says why Send is off, so it stays beside it in the sticky row
     h('div', { class: 'btns askBtns' }, sendBtn,
-      a.chat && !a.review ? h('button', { type: 'button', class: 'ghost', onclick: chat }, tr('คุยเรื่องนี้')) : null),
-    note)
+      a.chat && !a.review ? h('button', { type: 'button', class: 'ghost', onclick: chat }, tr('คุยเรื่องนี้')) : null,
+      note))
 }
 
 function sessionTabs () {
@@ -2189,12 +2190,22 @@ function copyText (text, btn) {
 function chatPanel (sess) {
   const log = h('div', { class: 'chatLog', 'aria-live': 'polite' }, h('p', { class: 'note' }, tr('กำลังโหลดบทสนทนา…')))
   const parts = [log]
-  const waiting = pendingOf(sess.sessionId)
+  // A held message the agent later refused is not "waiting": it is never
+  // tried again, and saying "will type when free" hid that it never went.
+  const all = pendingOf(sess.sessionId)
+  const failed = all.filter(p => p.state === 'failed' || p.state === 'unknown')
+  const waiting = all.filter(p => !failed.includes(p))
   if (waiting.length) {
     parts.push(h('div', { class: 'queued' },
       h('b', null, '⏳ ' + tr('รอส่ง ') + waiting.length + tr(' ข้อความ')),
       h('span', null, tr('agent กำลังทำงาน — จะพิมพ์ให้เองเมื่อว่าง')),
       h('button', { type: 'button', class: 'ghost', onclick: () => cancelPending(sess) }, tr('ยกเลิกที่รออยู่'))))
+  }
+  for (const p of failed) {
+    parts.push(h('div', { class: 'queued bad' },
+      h('b', null, '⚠ ' + tr('ส่งข้อความที่รอไว้ไม่สำเร็จ — จะไม่ลองใหม่เอง')),
+      h('span', null, serverText(p.lastError || '')),
+      h('button', { type: 'button', class: 'ghost', onclick: () => cancelPending(sess) }, tr('ล้างรายการ'))))
   }
   return h('div', { class: 'chat' }, parts)
 }
@@ -2723,7 +2734,11 @@ async function openReview (id) {
   // through its own channel, a stopped Claude Code one by resuming it.
   const resumable = r.runtime === 'claudeCode' && !!r.sessionId
   const canSend = open && !!r.sessionId && (sess && sess.live ? !!sess.messageVia : resumable)
-  const cantSendWhy = !open
+  // answered, typed, but never seen in the transcript: it may not have arrived
+  const unconfirmed = !open && !!r.sentAt && r.delivery === 'unknown' && r.sentVia !== 'queued' && !!r.sessionId
+  const cantSendWhy = unconfirmed
+    ? tr('ผลตรวจนี้พิมพ์ให้ agent ไปแล้วแต่ยังไม่ยืนยันว่าถึง — เปิด session ดูก่อน ถ้าไม่ถึงกดส่งซ้ำ')
+    : !open
     ? tr('งานนี้ตรวจไปแล้ว — ส่งซ้ำไม่ได้ (คัดลอกข้อความได้)')
     : !r.sessionId
       ? tr('หน้านี้ไม่ได้บอกว่ามาจาก session ไหน — กดคัดลอกแล้ววางใน Claude / Codex เอง')
@@ -2901,13 +2916,39 @@ async function openReview (id) {
   }
   const later = () => { clearTimeout(timer); timer = setTimeout(composeNow, 250) }
   const confirmItems = () => { confirmed = true; composeNow() }
+  // The reply went out once but no transcript showed it: the service refuses
+  // a second press (AIAGENT_REVIEW_UNCONFIRMED) and sends it again only when
+  // the operator says so here, as a composer's "send again" does.
+  const sendAgain = async (why) => {
+    if (!await confirmBox(tr('ผลตรวจนี้ส่งไปแล้ว'), why, r.reply || '', tr('ส่งซ้ำ'))) {
+      toast(tr('ไม่ได้ส่งซ้ำ — ข้อความเดิมส่งไปแล้ว'), true)
+      return null
+    }
+    showSend(sendingText, 'busy')
+    return call('/decision', { send: true, resend: true })
+  }
+  const sentAgain = res => {
+    const msg = sentText(res)
+    showSend(msg, 'ok')
+    toast(msg)
+    st.revAt = 0
+    poll()
+    sentToSession(r)
+  }
   const finish = async (sendIt) => {
     if (!ready || busy) return
     busy = true
     paint()
     if (sendIt) showSend(sendingText, 'busy')
     try {
-      const res = await call('/decision', { items, note: noteText(), send: sendIt })
+      let res
+      try {
+        res = await call('/decision', { items, note: noteText(), send: sendIt })
+      } catch (refused) {
+        if (!sendIt || refused.code !== 'AIAGENT_REVIEW_UNCONFIRMED') throw refused
+        res = await sendAgain(refused.message)
+        if (!res) { sendState.hidden = true; busy = false; paint(); return }
+      }
       queue.textContent = res.reply
       ready = false
       confirmBtn.disabled = true
@@ -2976,6 +3017,16 @@ async function openReview (id) {
     sendState,
     handOver,
     canSend ? null : h('p', { class: 'note' }, cantSendWhy),
+    unconfirmed ? h('div', { class: 'revBtns' }, h('button', { type: 'button', class: 'warn', onclick: e => { const btn = e.currentTarget; onceFor('review:' + r.id, async () => {
+      btn.disabled = true
+      try {
+        const res = await sendAgain(tr('ผลตรวจนี้พิมพ์ให้ agent ไปแล้วแต่ยังไม่ยืนยันว่าถึง ถ้าเปิดดูแล้วไม่ถึงให้กด "ส่งซ้ำ"'))
+        if (res) sentAgain(res)
+      } catch (err) {
+        showSend(failText(err), 'bad')
+        toast(failText(err), true)
+      } finally { btn.disabled = false }
+    }) } }, tr('ส่งซ้ำ'))) : null,
     canSend && !(sess && sess.live) ? h('p', { class: 'note' }, tr('session นี้ไม่ได้รันอยู่ — กดส่งแล้ว aiagent จะเปิด session ต่อ (claude --resume) ในโฟลเดอร์ของมันแล้วพิมพ์ข้อความให้')) : null,
     out].filter(Boolean))
   paint()

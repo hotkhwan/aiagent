@@ -40,7 +40,10 @@ type Review struct {
 	SentAt   *time.Time `json:"sentAt,omitempty"`
 	SentVia  string     `json:"sentVia,omitempty"`
 	Delivery string     `json:"delivery,omitempty"`
-	Size     int64      `json:"size"`
+	// Reply is the answer that was sent, kept so a send that was never
+	// confirmed can be sent again as it was.
+	Reply string `json:"reply,omitempty"`
+	Size  int64  `json:"size"`
 	// Owner is the room a review was filed in, when the admin lists rooms' reviews.
 	Owner string `json:"owner,omitempty"`
 	home  string
@@ -254,6 +257,9 @@ func (c *Collector) DecideReview(ctx context.Context, id, decision, note string,
 	if len(note) > 4000 {
 		return "", nil, &APIError{400, "AIAGENT_NOTE_TOO_LONG", "หมายเหตุยาวเกินไป"}
 	}
+	// One answer at a time per review: two presses (two tabs, the admin and
+	// the room's user) both found it open and both typed the reply.
+	defer c.lockSend("review:" + id)()
 	r, err := c.review(id)
 	if err != nil {
 		return "", nil, err
@@ -276,6 +282,9 @@ func (c *Collector) DecideReview(ctx context.Context, id, decision, note string,
 		// already answered: never type the reply into the session twice;
 		// copying it again is fine and changes nothing
 		if deliver != nil {
+			if reviewUnconfirmed(r) {
+				return "", nil, &APIError{409, reviewUnconfirmedCode, reviewUnconfirmedMsg}
+			}
 			return "", nil, ErrConflict("งานรีวิวนี้ตอบไปแล้ว (" + r.Status + ")")
 		}
 		return reply, nil, nil
@@ -291,7 +300,7 @@ func (c *Collector) DecideReview(ctx context.Context, id, decision, note string,
 			return "", nil, err
 		}
 		sent = &s
-		r.SentAt, r.SentVia, r.Delivery = &now, s.Via, s.Delivery
+		r.SentAt, r.SentVia, r.Delivery, r.Reply = &now, s.Via, s.Delivery, reply
 	}
 	r.Status = map[string]string{"approve": "approved", "revise": "revise"}[decision]
 	r.Note, r.DecidedAt = truncateRunes(note, 4000), &now
@@ -299,6 +308,57 @@ func (c *Collector) DecideReview(ctx context.Context, id, decision, note string,
 		return "", nil, err
 	}
 	return reply, sent, nil
+}
+
+const (
+	reviewUnconfirmedCode = "AIAGENT_REVIEW_UNCONFIRMED"
+	reviewUnconfirmedMsg  = "ผลตรวจนี้พิมพ์ให้ agent ไปแล้วแต่ยังไม่ยืนยันว่าถึง ถ้าเปิดดูแล้วไม่ถึงให้กด \"ส่งซ้ำ\""
+)
+
+// reviewUnconfirmed reports an answered review whose reply was typed but
+// never seen in the session's transcript: it may not have reached the agent,
+// so the operator may send it again, on purpose.
+func reviewUnconfirmed(r *Review) bool {
+	return r.Status != "open" && r.SentAt != nil && r.Delivery == DeliveryUnknown && r.SentVia != "queued"
+}
+
+// ResendReview sends an answered review's reply again, only when its first
+// send was not confirmed and only because the operator asked (resend).
+func (c *Collector) ResendReview(ctx context.Context, id string, deliver ReviewDeliver) (string, *ReviewSent, error) {
+	defer c.lockSend("review:" + id)()
+	r, err := c.review(id)
+	if err != nil {
+		return "", nil, err
+	}
+	if r.Status == "open" {
+		return "", nil, ErrConflict("งานรีวิวนี้ยังไม่ได้ตอบ ให้ตรวจแล้วกดส่ง")
+	}
+	if !reviewUnconfirmed(r) || r.Reply == "" {
+		return "", nil, ErrConflict("งานรีวิวนี้ตอบไปแล้ว (" + r.Status + ")")
+	}
+	s, err := deliver(ctx, r, r.Reply)
+	if err != nil {
+		return "", nil, err
+	}
+	now := c.now().UTC()
+	r.SentAt, r.SentVia, r.Delivery = &now, s.Via, s.Delivery
+	if err := writeReviewMeta(r.home, r); err != nil {
+		return "", nil, err
+	}
+	return r.Reply, &s, nil
+}
+
+// reopenReview gives an answered review back to the operator when the reply
+// queued for it was refused later (a question on the agent's screen, the
+// session gone): nothing reached the agent, so it must not count as sent.
+func (c *Collector) reopenReview(id string) {
+	defer c.lockSend("review:" + id)()
+	r, err := c.review(id)
+	if err != nil || r.Status == "open" || r.SentVia != "queued" {
+		return
+	}
+	r.Status, r.DecidedAt, r.SentAt, r.SentVia, r.Delivery, r.Reply = "open", nil, nil, "", "", ""
+	_ = writeReviewMeta(r.home, r)
 }
 
 var sessionUUIDRE = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)

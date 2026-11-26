@@ -69,6 +69,9 @@ type Pending struct {
 	Tries     int       `json:"tries"`
 	LastError string    `json:"lastError,omitempty"`
 	State     string    `json:"state,omitempty"`
+	// ReviewID names the review this is the answer to: refused for good, the
+	// review is opened again (reopenReview).
+	ReviewID string `json:"reviewId,omitempty"`
 }
 
 func (s *Service) outboxPath() string { return filepath.Join(s.Store.dir, outboxFile) }
@@ -125,6 +128,10 @@ func fresh(list []Pending, now time.Time) []Pending {
 
 // Enqueue holds a message for a session that was not ready to receive it.
 func (s *Service) Enqueue(sessionID, message string, now time.Time) (Pending, error) {
+	return s.enqueue(sessionID, message, "", now)
+}
+
+func (s *Service) enqueue(sessionID, message, reviewID string, now time.Time) (Pending, error) {
 	outboxMu.Lock()
 	defer outboxMu.Unlock()
 	list := fresh(s.loadOutbox(), now)
@@ -137,7 +144,7 @@ func (s *Service) Enqueue(sessionID, message string, now time.Time) (Pending, er
 	if n >= outboxMax {
 		return Pending{}, ErrConflict("มีข้อความรอส่งให้ agent นี้มากเกินไปแล้ว")
 	}
-	p := Pending{ID: pendingID(now), SessionID: sessionID, Message: message, QueuedAt: now}
+	p := Pending{ID: pendingID(now), SessionID: sessionID, Message: message, QueuedAt: now, ReviewID: reviewID}
 	list = append(list, p)
 	return p, s.saveOutbox(list)
 }
@@ -230,6 +237,9 @@ func (s *Service) FlushOutbox(ctx context.Context, now time.Time) int {
 		}
 		s.settlePending(id, err)
 		s.auditOutbox("result", p, err)
+		if err != nil && !isRelayBusy(err) && p.ReviewID != "" {
+			s.Collector.reopenReview(p.ReviewID)
+		}
 	}
 	return sent
 }
