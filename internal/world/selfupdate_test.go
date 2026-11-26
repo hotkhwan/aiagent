@@ -19,23 +19,30 @@ type fakeGit struct {
 	remote string
 	log    string
 	fetch  error
+	// noUpstream: the branch tracks nothing (a plain clone's main often does not)
+	noUpstream bool
 }
 
 func (g *fakeGit) Run(_ context.Context, name string, args ...string) ([]byte, error) {
 	line := name + " " + strings.Join(args, " ")
 	g.calls = append(g.calls, line)
 	switch {
+	case strings.Contains(line, "rev-parse --abbrev-ref --symbolic-full-name @{u}"):
+		if g.noUpstream {
+			return nil, errors.New("no upstream")
+		}
+		return []byte("origin/main\n"), nil
 	case strings.Contains(line, " fetch "):
 		return nil, g.fetch
-	case strings.Contains(line, "rev-list --count HEAD..@{u}"):
+	case strings.Contains(line, "rev-list --count HEAD..origin/main"):
 		return []byte(g.behind + "\n"), nil
-	case strings.Contains(line, "rev-list --count @{u}..HEAD"):
+	case strings.Contains(line, "rev-list --count origin/main..HEAD"):
 		return []byte(g.ahead + "\n"), nil
 	case strings.Contains(line, "status --porcelain"):
 		return []byte(g.dirty), nil
-	case strings.Contains(line, "show @{u}:internal/world/version.go"):
+	case strings.Contains(line, "show origin/main:internal/world/version.go"):
 		return []byte(g.remote), nil
-	case strings.Contains(line, "log --format=%h%x09%s HEAD..@{u}"):
+	case strings.Contains(line, "log --format=%h%x09%s HEAD..origin/main"):
 		return []byte(g.log), nil
 	}
 	return nil, errors.New("unexpected: " + line)
@@ -142,5 +149,14 @@ func TestUpdateStatusIsReadBack(t *testing.T) {
 	fi, err := os.Stat(filepath.Join(e.store.dir, updateStatusFile))
 	if err != nil || fi.Mode().Perm() != 0o600 {
 		t.Fatalf("status file %v %v", fi, err)
+	}
+}
+
+// A checkout whose branch tracks nothing is compared with origin/main.
+func TestUpdateCheckFallsBackToOriginMain(t *testing.T) {
+	g := &fakeGit{noUpstream: true, behind: "1", ahead: "0", remote: remoteVersionFile, log: "abc1234\tfeat: one\n"}
+	info := CheckUpdate(context.Background(), g, "/src/aiagent")
+	if info.Error != "" || !info.CanUpdate || info.Latest != "0.30.0" {
+		t.Fatalf("info = %+v", info)
 	}
 }

@@ -9,7 +9,7 @@
 // clean checkout, so nothing local is ever overwritten.
 //
 // Applying runs `aiagent self-update` in its own session (it must outlive the
-// service it restarts): git pull --ff-only, packaging/install.sh, restart. It
+// service it restarts): fetch and fast-forward, packaging/install.sh, restart. It
 // writes its progress to <state-dir>/update.json and update.log.
 //
 // What this trusts: whatever is on the checkout's upstream branch. That is the
@@ -101,6 +101,7 @@ func CheckUpdate(ctx context.Context, r Runner, repo string) UpdateInfo {
 		info.Error = "ดึงข้อมูลเวอร์ชันใหม่จาก origin ไม่ได้"
 		return info
 	}
+	up := upstreamOf(git)
 	count := func(spec string) (int, error) {
 		out, err := git("rev-list", "--count", spec)
 		if err != nil {
@@ -109,21 +110,21 @@ func CheckUpdate(ctx context.Context, r Runner, repo string) UpdateInfo {
 		return strconv.Atoi(out)
 	}
 	var err error
-	if info.Behind, err = count("HEAD..@{u}"); err != nil {
+	if info.Behind, err = count("HEAD.." + up); err != nil {
 		info.Error = "checkout ไม่มี upstream branch ให้เทียบ"
 		return info
 	}
-	info.Ahead, _ = count("@{u}..HEAD")
+	info.Ahead, _ = count(up + "..HEAD")
 	if out, err := git("status", "--porcelain", "--untracked-files=no"); err == nil && out != "" {
 		info.Dirty = true
 	}
-	if out, err := git("show", "@{u}:internal/world/version.go"); err == nil {
+	if out, err := git("show", up+":internal/world/version.go"); err == nil {
 		if m := releaseVersionRE.FindStringSubmatch(out); m != nil {
 			info.Latest = m[1]
 		}
 	}
 	if info.Behind > 0 {
-		if out, err := git("log", "--format=%h%x09%s", "HEAD..@{u}", "-n", "20"); err == nil {
+		if out, err := git("log", "--format=%h%x09%s", "HEAD.."+up, "-n", "20"); err == nil {
 			for _, line := range strings.Split(out, "\n") {
 				sha, subject, ok := strings.Cut(line, "\t")
 				if ok {
@@ -143,6 +144,15 @@ func CheckUpdate(ctx context.Context, r Runner, repo string) UpdateInfo {
 		info.CanUpdate = true
 	}
 	return info
+}
+
+// upstreamOf is the branch the checkout tracks, or origin/main when it tracks
+// none (a plain clone's main often does not).
+func upstreamOf(git func(args ...string) (string, error)) string {
+	if out, err := git("rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"); err == nil && out != "" {
+		return out
+	}
+	return "origin/main"
 }
 
 // updateRepo is the checkout to update: --update-repo, else the one install.sh
@@ -286,7 +296,14 @@ func RunSelfUpdate(repo, stateDir string) error {
 	if repo == "" || !filepath.IsAbs(repo) {
 		return fail(errors.New("no source checkout"))
 	}
-	if err := step("git pull --ff-only", 3*time.Minute, repo, "git", "pull", "--ff-only"); err != nil {
+	up := upstreamOf(func(args ...string) (string, error) {
+		out, err := exec.Command("git", append([]string{"-C", repo}, args...)...).Output()
+		return strings.TrimSpace(string(out)), err
+	})
+	if err := step("git fetch", 3*time.Minute, repo, "git", "fetch", "--quiet"); err != nil {
+		return fail(err)
+	}
+	if err := step("git merge --ff-only "+up, time.Minute, repo, "git", "merge", "--ff-only", up); err != nil {
 		return fail(err)
 	}
 	if b, err := os.ReadFile(filepath.Join(repo, "internal/world/version.go")); err == nil {
