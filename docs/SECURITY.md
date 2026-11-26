@@ -68,6 +68,15 @@ issue. There is one maintainer, so expect a human-speed reply, not an SLA.
   so the token never reaches a log); a user can draw only their own, an admin
   also one they just made. No outside QR service is ever used.
 
+- **Updating from the page** (`internal/world/selfupdate.go`, admin only, audited):
+  the service fetches the upstream of the checkout `packaging/install.sh` was
+  run from (recorded in `<state-dir>/source`, or `--update-repo`) and offers an
+  update only as a clean fast-forward. Applying runs `aiagent self-update` in its
+  own session: `git pull --ff-only`, `packaging/install.sh`, restart. It trusts
+  the upstream branch exactly as running `install.sh` by hand does. On Linux the
+  systemd unit keeps the service read-only outside its state directory, so the
+  check works but the update fails there with that reason; update by hand.
+
 ## The browser surface
 
 - Strict CSP: `default-src 'self'`, `script-src 'self'`, `frame-ancestors

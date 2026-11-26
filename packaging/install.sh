@@ -125,6 +125,11 @@ trap 'rm -rf "$tmp"' EXIT
 
 echo "building..."
 (cd "$root" && go build -trimpath -o "$tmp/aiagent" ./cmd/aiagent)
+# the web page's update button pulls and reinstalls from this checkout
+state_dir="${AIAGENT_STATE_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/aiagent}"
+if mkdir -p "$state_dir" 2>/dev/null; then
+	(cd "$root" && pwd -P) > "$state_dir/source" 2>/dev/null || true
+fi
 (cd "$root" && go build -trimpath -o "$tmp/agcmd" ./cmd/agcmd)
 
 for b in aiagent agcmd; do

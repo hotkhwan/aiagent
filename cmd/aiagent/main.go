@@ -85,6 +85,8 @@ func main() {
 		switchCmd(os.Args[1], os.Args[2:])
 	case "trust-roots":
 		trustRootsCmd(os.Args[2:])
+	case "self-update":
+		selfUpdateCmd(os.Args[2:])
 	case "-h", "--help", "help":
 		fmt.Print(usage)
 	default:
@@ -109,6 +111,7 @@ func serve(args []string) {
 	keyFile := fs.String("tls-key", "", "TLS private key (PEM)")
 	workerRepo := fs.String("worker-repo", "", "git checkout that headless workers branch from; empty leaves headless dispatch off")
 	workerTest := fs.String("worker-test", "go test ./...", "command that verifies a worker's commit in --worker-repo")
+	updateRepo := fs.String("update-repo", "", "git checkout the web page updates from (default: the one packaging/install.sh recorded)")
 	pushRelay := fs.String("push-relay", world.DefaultPushRelay, "relay for phone notifications (an https origin), or off")
 	osUsers := fs.Bool("os-users", false, "give each user token its own OS user and instance (Linux, systemd, root)")
 	previewConf := fs.String("preview-conf", "/etc/aiagent/preview.conf", "rooms' preview pages, with --os-users; a missing file or empty HOST leaves them off")
@@ -204,6 +207,7 @@ func serve(args []string) {
 		log.Fatalf("push relay: %v", err)
 	}
 	svc.PushRelay = relay
+	svc.UpdateRepo = *updateRepo
 	svc.Mount(app)
 	svc.StartRooms(context.Background())
 	// a room's own instance collects what its sandboxed agent leaves in its
@@ -490,5 +494,21 @@ func capture(args []string) {
 	}
 	for _, f := range r.Files {
 		fmt.Println(f)
+	}
+}
+
+// selfUpdateCmd is started by the web page's update button, in a session of
+// its own: it pulls, installs and restarts the service that started it.
+func selfUpdateCmd(args []string) {
+	fs := flag.NewFlagSet("self-update", flag.ExitOnError)
+	repo := fs.String("repo", "", "the git checkout to update from")
+	dir := stateDirFlag(fs)
+	_ = fs.Parse(args)
+	stateDir := *dir
+	if stateDir == "" {
+		stateDir = world.DefaultStateDir()
+	}
+	if err := world.RunSelfUpdate(*repo, stateDir); err != nil {
+		log.Fatalf("self-update: %v", err)
 	}
 }

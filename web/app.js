@@ -3041,6 +3041,7 @@ async function openReview (id) {
 const accountName = { claude: 'Claude Code', codex: 'Codex', agy: 'Google Antigravity' }
 async function openAccounts () {
   $('accountsDlg').showModal()
+  drawUpdate()
   await drawAccounts()
   await drawCLIs()
   await drawTokens()
@@ -3172,6 +3173,52 @@ async function drawTokens (fresh) {
     list.length ? h('ul', null, ...list.map(t => h('li', null, h('b', null, t.name), t.removing ? h('span', { class: 'note' }, ' · ' + tr('ลบไม่สำเร็จ กดเพิกถอนอีกครั้ง')) : null, ' ', t.osUser && !t.removing ? h('button', { type: 'button', class: 'ghost', onclick: () => viewAs(t.osUser) }, tr('เข้าห้อง / login')) : null, ' ', t.osUser && !t.removing && st.me.preview ? h('button', { type: 'button', class: 'ghost', onclick: () => openPreview(t.osUser) }, tr('พรีวิว')) : null, ' ', t.removing ? null : h('button', { type: 'button', class: 'ghost', title: tr('ใช้เมื่อลืม token: ดู token เดิมไม่ได้ เพราะระบบเก็บแค่ hash'), onclick: () => reissue(t) }, tr('ออก token ใหม่')), ' ', h('button', { type: 'button', class: 'warn', onclick: () => revoke(t) }, tr('เพิกถอน'))))) : h('p', { class: 'note' }, tr('ยังไม่มี token ของผู้ใช้')),
     osUsers ? h('p', { class: 'note' }, tr('สร้าง token = สร้าง OS user และห้องทำงานแยกบนเครื่องนี้ ใช้เวลาราว 10 วินาที จากนั้นเข้าห้องเพื่อ login Claude ให้ผู้ใช้')) : null,
     h('div', { class: 'accRow' }, name, h('button', { type: 'button', class: 'pri', onclick: create }, tr('สร้าง token')))))
+}
+
+// ----- aiagent itself: see whether a newer release is out and install it -----
+// The service fetches its own checkout's upstream; an update is offered only as
+// a clean fast-forward. It restarts itself, so the page waits for the new
+// version to answer and then reloads.
+async function drawUpdate (fresh) {
+  const box = $('updateBody')
+  if (!box || !$('accountsDlg').open) return
+  let u
+  try { u = await api('/update' + (fresh ? '?fresh=1' : '')) } catch (e) { box.replaceChildren(h('div', { class: 'accCard' }, h('b', null, tr('อัปเดต aiagent')), h('p', { class: 'note' }, tr('ตรวจเวอร์ชันไม่ได้: ') + e.message))); return }
+  const status = u.status || {}
+  const run = async () => {
+    const list = (u.commits || []).map(c => c.sha + '  ' + c.subject).join('\n')
+    if (!await confirmBox(tr('อัปเดต aiagent เป็น v') + (u.latest || '?'), tr('ดึงโค้ดจาก origin ติดตั้ง แล้วเริ่ม service ใหม่ หน้านี้จะโหลดใหม่เองเมื่อเสร็จ (ราว 1-2 นาที)'), list, tr('อัปเดตเลย'))) return
+    try { await api('/update', { method: 'POST', body: {} }) } catch (e) { toast(tr('อัปเดตไม่ได้: ') + e.message, true); return }
+    waitForNewVersion(u.current)
+    drawUpdate()
+  }
+  const head = h('div', { class: 'accTop' }, h('b', null, tr('อัปเดต aiagent')),
+    h('button', { type: 'button', class: 'ghost', disabled: status.running, onclick: () => drawUpdate(true) }, tr('ตรวจอีกครั้ง')))
+  const lines = [h('p', null, tr('เวอร์ชันนี้ v') + u.current + (u.latest && u.latest !== u.current ? tr(' · ล่าสุด v') + u.latest : ''))]
+  if (status.running) lines.push(h('p', { class: 'note' }, tr('กำลังอัปเดต… หน้านี้จะโหลดใหม่เองเมื่อเสร็จ')))
+  else if (u.error) lines.push(h('p', { class: 'note' }, u.error))
+  else if (u.canUpdate) {
+    lines.push(h('p', { class: 'note' }, tr('มีของใหม่ ') + u.behind + tr(' commit')))
+    if ((u.commits || []).length) lines.push(h('ul', null, ...u.commits.map(c => h('li', null, h('code', null, c.sha), ' ' + c.subject))))
+    lines.push(h('button', { type: 'button', class: 'pri', onclick: run }, tr('อัปเดตเป็น v') + (u.latest || '?')))
+  } else if (u.reason) lines.push(h('p', { class: 'note' }, u.reason))
+  if (!status.running && status.at && !status.ok && status.log) lines.push(h('details', null, h('summary', null, tr('การอัปเดตครั้งล่าสุดไม่สำเร็จ')), h('pre', { class: 'mono' }, status.log)))
+  box.replaceChildren(h('div', { class: 'accCard' }, head, ...lines))
+  if (status.running) { clearTimeout(st.updTimer); st.updTimer = setTimeout(() => drawUpdate(), 4000) }
+}
+// The service goes away while it restarts: keep asking until it answers with
+// another version, then load the new page.
+function waitForNewVersion (from) {
+  const started = Date.now()
+  const tick = async () => {
+    if (Date.now() - started > 10 * 60 * 1000) return
+    try {
+      const snap = await api('/snapshot')
+      if (snap.version && snap.version !== from) { location.reload(); return }
+    } catch (e) { /* restarting */ }
+    setTimeout(tick, 4000)
+  }
+  setTimeout(tick, 6000)
 }
 
 // ----- agent CLIs: one button updates every installed CLI, the model menu follows -----

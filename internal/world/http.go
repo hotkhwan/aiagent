@@ -96,7 +96,11 @@ type Service struct {
 	Preview *Preview
 	// PushRelay is the relay phone notifications go through (push.go);
 	// empty turns them off.
-	PushRelay  string
+	PushRelay string
+	// UpdateRepo is the checkout the web page updates from (selfupdate.go);
+	// empty means the one packaging/install.sh recorded.
+	UpdateRepo string
+	update     updateState
 	pushSource func(context.Context, Identity) ([]PushItem, error)
 	push       pushState
 	roomRev    roomReviewCache
@@ -336,6 +340,8 @@ func (s *Service) Mount(app *fiber.App) {
 	api.Get("/me", s.handleMe)
 	api.Post("/push/devices", s.handlePushDeviceAdd)
 	api.Post("/connect/qr", s.handleConnectQR)
+	api.Get("/update", s.handleUpdateCheck)
+	api.Post("/update", s.handleUpdateApply)
 	api.Post("/push/devices/remove", s.handlePushDeviceRemove)
 	api.Get("/guides/:name", s.handleGuide)
 	api.Get("/rooms", s.handleRooms)
