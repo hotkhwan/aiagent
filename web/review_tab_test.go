@@ -123,3 +123,21 @@ func TestPreviewFallsBackToALink(t *testing.T) {
 		t.Errorf("the fallback link must open a new tab without an opener or referrer")
 	}
 }
+
+// The admin picks a room's duty when creating its token and can change it in
+// the list; the create request carries it.
+func TestTokenFormHasDuty(t *testing.T) {
+	app := readWebFile(t, "app.js")
+	draw := jsFunc(t, app, "drawTokens")
+	for _, want := range []string{"dutySelect(", "duty: duties ? duty.value : ''", "'/duty'"} {
+		if !strings.Contains(draw, want) {
+			t.Errorf("drawTokens is missing %q", want)
+		}
+	}
+	sel := jsFunc(t, app, "dutySelect")
+	for _, want := range []string{"'frontend'", "'backend'", "'tester'"} {
+		if !strings.Contains(sel, want) {
+			t.Errorf("dutySelect is missing %q", want)
+		}
+	}
+}

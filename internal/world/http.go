@@ -92,6 +92,8 @@ type Service struct {
 	userTickets map[string]userTicket
 	// Preview is set when rooms have pages of their own (preview.go).
 	Preview *Preview
+	// Duties records what each room is for (roomduties.go); nil without rooms.
+	Duties  *RoomDuties
 	roomRev roomReviewCache
 	roomCap roomCaptureState
 	mates   mateCache
@@ -337,6 +339,7 @@ func (s *Service) Mount(app *fiber.App) {
 	api.Post("/tokens", s.handleTokenCreate)
 	api.Post("/tokens/:id/revoke", s.handleTokenRevoke)
 	api.Post("/tokens/:id/reissue", s.handleTokenReissue)
+	api.Post("/tokens/:id/duty", s.handleTokenDuty)
 	api.Post("/preview/ticket", s.handlePreviewTicket)
 	// a room's own instance; the admin service has no work folder to show
 	api.Get("/preview/state", s.handlePreviewState)

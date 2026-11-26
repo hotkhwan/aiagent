@@ -110,6 +110,7 @@ func serve(args []string) {
 	workerRepo := fs.String("worker-repo", "", "git checkout that headless workers branch from; empty leaves headless dispatch off")
 	workerTest := fs.String("worker-test", "go test ./...", "command that verifies a worker's commit in --worker-repo")
 	osUsers := fs.Bool("os-users", false, "give each user token its own OS user and instance (Linux, systemd, root)")
+	dutiesConf := fs.String("room-duties", "/etc/aiagent/room-duties.conf", "each room's duty (frontend, backend, tester), with --os-users; written when the admin sets one")
 	previewConf := fs.String("preview-conf", "/etc/aiagent/preview.conf", "rooms' preview pages, with --os-users; a missing file or empty HOST leaves them off")
 	_ = fs.Parse(args)
 
@@ -196,6 +197,7 @@ func serve(args []string) {
 	}
 	if *osUsers {
 		svc.OSUsers = &world.OSUsers{SocketDir: "/run/aiagent-users", TokenDir: filepath.Join(dir, "instances"), ModelDir: "/run/aiagent-room", Runner: world.ExecRunner{}}
+		svc.Duties = &world.RoomDuties{Path: *dutiesConf}
 		startPreview(svc, *previewConf)
 	}
 	svc.Mount(app)

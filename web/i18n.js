@@ -30,6 +30,14 @@ var EN = {
   ' (ใช้ได้ครั้งเดียว ภายใน 1 นาที)': ' (one use, within 1 minute)',
   '🖥 เปิดพรีวิว': '🖥 Open preview',
 
+  // a room's duty, set by the admin with its token
+  'บทบาทของห้องใหม่': 'Duty of the new room',
+  'บทบาทของ ': 'Duty of ',
+  ' เป็น ': ' is now ',
+  'dev หน้าเว็บ': 'frontend dev',
+  'ยังไม่กำหนดบทบาท': 'no duty set',
+  'บทบาท: dev หน้าเว็บ = รัน dev server ให้ดูที่ dev/<ห้อง> · backend = ไม่มีหน้าพรีวิว ตรวจด้วยเทสต์ · tester = ไม่รันแอป ทดสอบบน UAT · agent ของห้องอ่านบทบาทนี้จากคู่มือห้อง': 'Duty: frontend dev = runs a dev server shown at dev/<room> · backend = no preview page, checked by tests · tester = runs no app, tests on UAT · the room\'s agent reads its duty from the room rules',
+
   // review dialog: the code tab and the room's preview
   'มุมมองงานตรวจ': 'Review views',
   'หน้าสรุป': 'Summary',

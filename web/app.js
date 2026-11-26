@@ -3186,11 +3186,16 @@ async function drawRooms () {
 }
 async function drawTokens (fresh) {
   if (!$('accountsDlg').open) return
-  let list, osUsers
-  try { const r = await api('/tokens'); list = r.tokens; osUsers = r.osUsers } catch (e) { $('tokenBody').replaceChildren(h('p', { class: 'note' }, tr('อ่านรายการ token ไม่ได้: ') + e.message)); return }
+  let list, osUsers, duties
+  try { const r = await api('/tokens'); list = r.tokens; osUsers = r.osUsers; duties = r.duties } catch (e) { $('tokenBody').replaceChildren(h('p', { class: 'note' }, tr('อ่านรายการ token ไม่ได้: ') + e.message)); return }
   const name = h('input', { type: 'text', id: 'tokenName', maxlength: '40', placeholder: osUsers ? tr('ชื่อผู้ใช้ (a-z, 0-9, -)') : tr('ชื่อผู้ใช้'), autocomplete: 'off' })
+  const duty = dutySelect('', tr('บทบาทของห้องใหม่'))
   const create = async () => {
-    try { drawTokens(await api('/tokens', { method: 'POST', body: { name: name.value.trim() } })) } catch (e) { toast(tr('ไม่สำเร็จ: ') + e.message, true) }
+    try { drawTokens(await api('/tokens', { method: 'POST', body: { name: name.value.trim(), duty: duties ? duty.value : '' } })) } catch (e) { toast(tr('ไม่สำเร็จ: ') + e.message, true) }
+  }
+  const setDuty = async (t, value) => {
+    try { await api('/tokens/' + t.id + '/duty', { method: 'POST', body: { duty: value } }); toast(t.name + tr(' เป็น ') + dutyLabel(value)) } catch (e) { toast(tr('ไม่สำเร็จ: ') + e.message, true) }
+    drawTokens()
   }
   const revoke = async t => {
     if (!await confirmBox(tr('เพิกถอน token'), t.osUser ? tr('ลบ OS user และหยุด agent ทุกตัวของผู้ใช้นี้ ไฟล์จะถูกเก็บสำรองไว้บนเครื่องก่อนลบ') : tr('ผู้ใช้นี้จะเข้าใช้งานไม่ได้ทันที'), t.name, tr('เพิกถอน'))) return
@@ -3205,9 +3210,19 @@ async function drawTokens (fresh) {
     h('div', { class: 'accTop' }, h('b', null, tr('Token ของผู้ใช้'))),
     fresh ? h('p', null, fresh.name + ': ', h('code', { class: 'devCode' }, fresh.token), ' ', h('button', { type: 'button', class: 'ghost', onclick: e => copyText(fresh.token, e.currentTarget) }, tr('คัดลอก'))) : null,
     fresh ? h('p', { class: 'note' }, tr('token นี้แสดงครั้งเดียว ส่งให้ผู้ใช้ทางช่องทางส่วนตัว')) : null,
-    list.length ? h('ul', null, ...list.map(t => h('li', null, h('b', null, t.name), t.removing ? h('span', { class: 'note' }, ' · ' + tr('ลบไม่สำเร็จ กดเพิกถอนอีกครั้ง')) : null, ' ', t.osUser && !t.removing ? h('button', { type: 'button', class: 'ghost', onclick: () => viewAs(t.osUser) }, tr('เข้าห้อง / login')) : null, ' ', t.osUser && !t.removing && st.me.preview ? h('button', { type: 'button', class: 'ghost', onclick: () => openPreview(t.osUser) }, tr('พรีวิว')) : null, ' ', t.removing ? null : h('button', { type: 'button', class: 'ghost', title: tr('ใช้เมื่อลืม token: ดู token เดิมไม่ได้ เพราะระบบเก็บแค่ hash'), onclick: () => reissue(t) }, tr('ออก token ใหม่')), ' ', h('button', { type: 'button', class: 'warn', onclick: () => revoke(t) }, tr('เพิกถอน'))))) : h('p', { class: 'note' }, tr('ยังไม่มี token ของผู้ใช้')),
+    list.length ? h('ul', null, ...list.map(t => h('li', null, h('b', null, t.name), duties && t.osUser && !t.removing ? [' ', dutySelect(t.duty || '', tr('บทบาทของ ') + t.name, v => setDuty(t, v))] : null, t.removing ? h('span', { class: 'note' }, ' · ' + tr('ลบไม่สำเร็จ กดเพิกถอนอีกครั้ง')) : null, ' ', t.osUser && !t.removing ? h('button', { type: 'button', class: 'ghost', onclick: () => viewAs(t.osUser) }, tr('เข้าห้อง / login')) : null, ' ', t.osUser && !t.removing && st.me.preview ? h('button', { type: 'button', class: 'ghost', onclick: () => openPreview(t.osUser) }, tr('พรีวิว')) : null, ' ', t.removing ? null : h('button', { type: 'button', class: 'ghost', title: tr('ใช้เมื่อลืม token: ดู token เดิมไม่ได้ เพราะระบบเก็บแค่ hash'), onclick: () => reissue(t) }, tr('ออก token ใหม่')), ' ', h('button', { type: 'button', class: 'warn', onclick: () => revoke(t) }, tr('เพิกถอน'))))) : h('p', { class: 'note' }, tr('ยังไม่มี token ของผู้ใช้')),
     osUsers ? h('p', { class: 'note' }, tr('สร้าง token = สร้าง OS user และห้องทำงานแยกบนเครื่องนี้ ใช้เวลาราว 10 วินาที จากนั้นเข้าห้องเพื่อ login Claude ให้ผู้ใช้')) : null,
-    h('div', { class: 'accRow' }, name, h('button', { type: 'button', class: 'pri', onclick: create }, tr('สร้าง token')))))
+    duties ? h('p', { class: 'note' }, tr('บทบาท: dev หน้าเว็บ = รัน dev server ให้ดูที่ dev/<ห้อง> · backend = ไม่มีหน้าพรีวิว ตรวจด้วยเทสต์ · tester = ไม่รันแอป ทดสอบบน UAT · agent ของห้องอ่านบทบาทนี้จากคู่มือห้อง')) : null,
+    h('div', { class: 'accRow' }, name, duties ? duty : null, h('button', { type: 'button', class: 'pri', onclick: create }, tr('สร้าง token')))))
+}
+
+// A room's duty: what the person behind the token does (roomduties.go).
+function dutyLabel (v) {
+  return { frontend: tr('dev หน้าเว็บ'), backend: tr('backend'), tester: tr('tester') }[v] || tr('ยังไม่กำหนดบทบาท')
+}
+function dutySelect (value, label, onchange) {
+  return h('select', { 'aria-label': label, onchange: onchange ? e => onchange(e.target.value) : null },
+    ...['', 'frontend', 'backend', 'tester'].map(v => h('option', { value: v, selected: v === value }, dutyLabel(v))))
 }
 
 // ----- agent CLIs: one button updates every installed CLI, the model menu follows -----
