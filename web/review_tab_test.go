@@ -92,3 +92,18 @@ func TestReviewDialogHasCodeTabAndPreview(t *testing.T) {
 		t.Errorf("the preview button must only show when previews are on")
 	}
 }
+
+// A room's session panel opens that room's preview: the admin should not
+// have to "enter" the room or go to the token list to see the running page.
+func TestSessionPanelOpensRoomPreview(t *testing.T) {
+	app := readWebFile(t, "app.js")
+	if !strings.Contains(jsFunc(t, app, "sessionPanel"), "openPreview(sessPreviewRoom(sess))") {
+		t.Errorf("the session panel must offer the room's preview")
+	}
+	room := jsFunc(t, app, "sessPreviewRoom")
+	for _, want := range []string{"st.me.preview", "'root'"} {
+		if !strings.Contains(room, want) {
+			t.Errorf("sessPreviewRoom is missing %q", want)
+		}
+	}
+}

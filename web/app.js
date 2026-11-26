@@ -146,6 +146,13 @@ function viewAs (name) {
 }
 // A room's page, on its own host: a user's own room, or the one an admin is in.
 function previewRoom () { return !st.me || !st.me.preview ? '' : isUser() ? st.me.osUser : st.as }
+// The room a session's preview belongs to: a room's own session, when
+// previews are on. The admin's own sessions have no room page.
+function sessPreviewRoom (sess) {
+  // a room's session carries its OS user as both owner and repoId
+  if (!st.me || !st.me.preview || !sess || !sess.owner || sess.owner === 'root' || sess.repoId !== sess.owner) return ''
+  return isUser() ? st.me.osUser : sess.owner
+}
 function showPreview () { $('previewBtn').hidden = !previewRoom() }
 async function openPreview (room) {
   // opened before the request, or the browser takes it for a popup
@@ -2154,7 +2161,7 @@ function sessionPanel (sess, tab) {
     sess.title ? h('p', null, sess.title) : null,
     h('dl', { class: 'kv' },
       h('dt', null, 'Session'), h('dd', { class: 'mono', title: sess.sessionId }, shortId(sess.sessionId)),
-      h('dt', null, tr('เจ้าของ')), h('dd', null, sess.owner),
+      h('dt', null, tr('เจ้าของ')), h('dd', null, sess.owner, sessPreviewRoom(sess) ? [' ', h('button', { type: 'button', class: 'ghost', title: tr('หน้าที่ agent ของห้องกำลังสร้าง'), onclick: () => openPreview(sessPreviewRoom(sess)) }, tr('🖥 พรีวิว'))] : null),
       h('dt', null, tr('โฟลเดอร์')), h('dd', { class: 'mono' }, sess.cwd || '—'),
       h('dt', null, 'Branch'), h('dd', { class: 'mono' }, sess.gitBranch || '—'),
       h('dt', null, tr('เริ่ม')), h('dd', null, sess.startedAt ? fmtTime(sess.startedAt) + ' · ' + ago(sess.startedAt) : '—'),
