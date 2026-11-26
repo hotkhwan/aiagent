@@ -772,6 +772,9 @@ body:not([data-phase="night"]) .focusHint { color: #2C3654 }
 .attStack .zipTile { width: 32px; height: 32px; border-radius: 6px; border: 2px solid #1D2440; margin-left: -14px }
 .attStack .zipTile:first-child { margin-left: 0 }
 .attStack .zipTile small { display: none }
+.connectCard { display: flex; flex-wrap: wrap; gap: 16px; align-items: center }
+.connectQR { width: 220px; height: 220px; image-rendering: pixelated; background: #fff; border-radius: 10px; padding: 6px }
+.connectCard p { margin: 0 0 8px }
 .revSendState { margin: 0; padding: 8px 10px; border-radius: 10px; font-size: 13px; background: var(--sky3) }
 .revSendState[hidden] { display: none }
 .revSendState.ok { color: var(--brand); background: rgba(0,220,130,.1) }

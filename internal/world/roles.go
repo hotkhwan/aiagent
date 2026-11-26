@@ -81,7 +81,20 @@ func (s *Store) Identify(presented string) (Identity, bool) {
 	if err != nil || !st.Enabled || st.TokenHash == "" {
 		return Identity{}, false
 	}
-	sum := sha256.Sum256([]byte(presented))
+	return s.identifyIn(st, sha256.Sum256([]byte(presented)))
+}
+
+// IdentifyHash names the holder of a token known only by its SHA-256, as a
+// registered phone is (push.go). A revoked or rotated token matches nothing.
+func (s *Store) IdentifyHash(sum [32]byte) (Identity, bool) {
+	st, err := s.Load()
+	if err != nil || !st.Enabled || st.TokenHash == "" {
+		return Identity{}, false
+	}
+	return s.identifyIn(st, sum)
+}
+
+func (s *Store) identifyIn(st State, sum [32]byte) (Identity, bool) {
 	if hashMatches(st.TokenHash, sum) {
 		return Identity{Role: RoleAdmin}, true
 	}
@@ -224,7 +237,7 @@ var userRoutes = map[string][]*regexp.Regexp{
 		`/uploads/[A-Za-z0-9.-]+`,
 	),
 	"POST": compileAll(
-		`/messages`, `/uploads`, `/preview/ticket`,
+		`/messages`, `/uploads`, `/preview/ticket`, `/push/devices`, `/push/devices/remove`, `/connect/qr`,
 		`/sessions/[A-Za-z0-9-]+/(message|stop|name|look|answer)`,
 		`/reviews/[A-Za-z0-9._-]+/(view|compose|decision)`,
 	),

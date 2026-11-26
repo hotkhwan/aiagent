@@ -2,7 +2,10 @@ module github.com/hotkhwan/aiagent
 
 go 1.26.11
 
-require github.com/gofiber/fiber/v3 v3.6.1
+require (
+	github.com/gofiber/fiber/v3 v3.6.1
+	rsc.io/qr v0.2.0
+)
 
 require (
 	github.com/gofiber/schema v1.8.8 // indirect

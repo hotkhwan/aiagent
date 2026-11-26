@@ -3108,6 +3108,42 @@ async function drawRooms () {
     h('p', { class: 'note' }, tr('ปกติใช้ Opus รุ่นล่าสุด user เปลี่ยน model เองไม่ได้ ระบบสลับเมื่อห้องว่างและคุยต่อจากเดิม ถ้าไม่ทราบค่าจะใช้ Opus')),
     h('div', { class: 'accRow' }, h('button', { type: 'button', class: 'pri', onclick: save }, tr('บันทึก')))))
 }
+// ----- the phone app: a connect code holds this server's address and a token -----
+// The QR is drawn by this service, never by an outside one: the code is a key.
+async function connectQR (token) {
+  const body = token ? { origin: location.origin, token } : { origin: location.origin }
+  const res = await fetch('/aiagent/api/connect/qr', { method: 'POST', headers: { 'X-Aiagent-Token': st.token, 'Content-Type': 'application/json' }, body: JSON.stringify(body), cache: 'no-store' })
+  if (!res.ok) {
+    let j = null
+    try { j = await res.json() } catch (e) { j = null }
+    throw new Error((j && j.message) || ('HTTP ' + res.status))
+  }
+  return URL.createObjectURL(await res.blob())
+}
+function connectCodeOf (token) { return 'aiagent://connect?u=' + encodeURIComponent(location.origin) + '&t=' + encodeURIComponent(token) }
+function connectCard (url, token) {
+  return h('div', { class: 'connectCard' },
+    h('img', { src: url, alt: tr('QR รหัสเชื่อมต่อ'), class: 'connectQR' }),
+    h('div', null,
+      h('p', null, tr('เปิดแอป AI Agent World แล้วกดสแกน QR หรือคัดลอกรหัสไปวางในแอป')),
+      h('button', { type: 'button', class: 'ghost', onclick: e => copyText(connectCodeOf(token), e.currentTarget) }, tr('คัดลอกรหัสเชื่อมต่อ')),
+      h('p', { class: 'note' }, tr('รหัสนี้คือกุญแจเข้า server เท่ากับ token อย่าถ่ายภาพหน้าจอหรือส่งในที่สาธารณะ'))))
+}
+async function openConnect () {
+  $('connectBody').replaceChildren(h('p', { class: 'note' }, tr('กำลังสร้างรหัส…')))
+  $('connectDlg').showModal()
+  try {
+    st.connectURL = await connectQR()
+    $('connectBody').replaceChildren(connectCard(st.connectURL, st.token),
+      h('p', { class: 'note' }, tr('แอปจะได้สิทธิ์เดียวกับ token ที่คุณใช้อยู่ในหน้านี้ แจ้งเตือนจะหยุดเองเมื่อ token ถูกเพิกถอนหรือออกใหม่')))
+  } catch (e) { $('connectBody').replaceChildren(h('p', { class: 'note' }, tr('สร้างรหัสไม่ได้: ') + e.message)) }
+}
+$('connectDlg').addEventListener('close', () => {
+  if (st.connectURL) URL.revokeObjectURL(st.connectURL)
+  st.connectURL = ''
+  $('connectBody').replaceChildren()
+})
+
 async function drawTokens (fresh) {
   if (!$('accountsDlg').open) return
   let list, osUsers
@@ -3125,10 +3161,14 @@ async function drawTokens (fresh) {
     if (!await confirmBox(tr('ออก token ใหม่'), tr('token เดิมของผู้ใช้นี้จะใช้ไม่ได้ทันที ห้องและงานในห้องอยู่เหมือนเดิม token ใหม่แสดงครั้งเดียว'), t.name, tr('ออก token ใหม่'))) return
     try { drawTokens(await api('/tokens/' + t.id + '/reissue', { method: 'POST', body: {} })) } catch (e) { toast(tr('ไม่สำเร็จ: ') + e.message, true) }
   }
+  // a fresh token also shows its connect code, for the user's phone
+  const freshQR = fresh ? h('div', { class: 'connectSlot' }) : null
+  if (fresh) connectQR(fresh.token).then(u => freshQR.replaceChildren(connectCard(u, fresh.token)), () => {})
   $('tokenBody').replaceChildren(h('div', { class: 'accCard' },
     h('div', { class: 'accTop' }, h('b', null, tr('Token ของผู้ใช้'))),
     fresh ? h('p', null, fresh.name + ': ', h('code', { class: 'devCode' }, fresh.token), ' ', h('button', { type: 'button', class: 'ghost', onclick: e => copyText(fresh.token, e.currentTarget) }, tr('คัดลอก'))) : null,
     fresh ? h('p', { class: 'note' }, tr('token นี้แสดงครั้งเดียว ส่งให้ผู้ใช้ทางช่องทางส่วนตัว')) : null,
+    freshQR,
     list.length ? h('ul', null, ...list.map(t => h('li', null, h('b', null, t.name), t.removing ? h('span', { class: 'note' }, ' · ' + tr('ลบไม่สำเร็จ กดเพิกถอนอีกครั้ง')) : null, ' ', t.osUser && !t.removing ? h('button', { type: 'button', class: 'ghost', onclick: () => viewAs(t.osUser) }, tr('เข้าห้อง / login')) : null, ' ', t.osUser && !t.removing && st.me.preview ? h('button', { type: 'button', class: 'ghost', onclick: () => openPreview(t.osUser) }, tr('พรีวิว')) : null, ' ', t.removing ? null : h('button', { type: 'button', class: 'ghost', title: tr('ใช้เมื่อลืม token: ดู token เดิมไม่ได้ เพราะระบบเก็บแค่ hash'), onclick: () => reissue(t) }, tr('ออก token ใหม่')), ' ', h('button', { type: 'button', class: 'warn', onclick: () => revoke(t) }, tr('เพิกถอน'))))) : h('p', { class: 'note' }, tr('ยังไม่มี token ของผู้ใช้')),
     osUsers ? h('p', { class: 'note' }, tr('สร้าง token = สร้าง OS user และห้องทำงานแยกบนเครื่องนี้ ใช้เวลาราว 10 วินาที จากนั้นเข้าห้องเพื่อ login Claude ให้ผู้ใช้')) : null,
     h('div', { class: 'accRow' }, name, h('button', { type: 'button', class: 'pri', onclick: create }, tr('สร้าง token')))))
@@ -3265,6 +3305,7 @@ function helpMenu () {
 $('helpBtn').addEventListener('click', e => { e.stopPropagation(); helpMenu() })
 document.addEventListener('click', e => { const p = document.querySelector('.helpPop'); if (p && !p.contains(e.target)) p.remove() })
 $('accountsBtn').addEventListener('click', openAccounts)
+$('connectBtn').addEventListener('click', openConnect)
 $('previewBtn').addEventListener('click', () => openPreview(previewRoom()))
 $('asBack').addEventListener('click', () => viewAs(''))
 

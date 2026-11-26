@@ -17,6 +17,8 @@
 //	POST /aiagent/api/sessions/:id/answer   token — {option: n} one choice, or {ask: {tabs,
 //	                                    answers, submit, chat}} a whole AskUserQuestion (ask.go)
 //	                                   (agcmd dispatch, or relay for own bg sessions)
+//	POST /aiagent/api/connect/qr       token — {origin[, token]} → PNG of the phone app's connect code (connect.go)
+//	POST /aiagent/api/push/devices     token — {handle} from the phone app's relay (push.go)
 //	POST /aiagent/api/uploads          token — raw image or zip body → {path} for a message
 //	POST /aiagent/api/sessions/:id/model token — /model <opus|sonnet|haiku> via the session's channel
 //	POST /aiagent/api/sessions/:id/stop token — claude stop <id> (own bg session)
@@ -92,9 +94,14 @@ type Service struct {
 	userTickets map[string]userTicket
 	// Preview is set when rooms have pages of their own (preview.go).
 	Preview *Preview
-	roomRev roomReviewCache
-	roomCap roomCaptureState
-	mates   mateCache
+	// PushRelay is the relay phone notifications go through (push.go);
+	// empty turns them off.
+	PushRelay  string
+	pushSource func(context.Context, Identity) ([]PushItem, error)
+	push       pushState
+	roomRev    roomReviewCache
+	roomCap    roomCaptureState
+	mates      mateCache
 
 	mu        sync.Mutex
 	failures  map[string][]time.Time
@@ -278,6 +285,7 @@ func (s *Service) Mount(app *fiber.App) {
 		s.StartPolicy(context.Background())
 		s.StartOutbox(context.Background())
 		s.StartOrchestrator(context.Background())
+		s.StartPush(context.Background())
 	})
 	// The preview host serves rooms' pages on its own listener; nothing of
 	// this one is reachable by that name.
@@ -326,6 +334,9 @@ func (s *Service) Mount(app *fiber.App) {
 
 	api := app.Group("/aiagent/api", s.gate)
 	api.Get("/me", s.handleMe)
+	api.Post("/push/devices", s.handlePushDeviceAdd)
+	api.Post("/connect/qr", s.handleConnectQR)
+	api.Post("/push/devices/remove", s.handlePushDeviceRemove)
 	api.Get("/guides/:name", s.handleGuide)
 	api.Get("/rooms", s.handleRooms)
 	api.Post("/rooms", s.handleSetRooms)

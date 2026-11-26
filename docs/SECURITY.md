@@ -53,6 +53,20 @@ issue. There is one maintainer, so expect a human-speed reply, not an SLA.
   command line of a watched job can itself contain a credential.
 - Redaction is pattern-based. It is a strong second line of defence, not a
   guarantee: assume anything an agent prints could in principle reach the page.
+- **Phone notifications** (`internal/world/push.go`) go through a relay
+  (`--push-relay`, default `https://aiagent-push.hotkhwan.workers.dev`;
+  `--push-relay off` turns them off). Per item the relay receives the
+  device's handle, the kind (`answer` / `waiting` / `review`), the session or
+  page name, and its id. Never a token, and never what an agent said. The relay
+  writes the notification text itself from fixed phrases.
+- A phone is registered with the token it presents (`POST /push/devices`) and
+  bound to that token's SHA-256 in `push.json` (`0600`). Revoking, reissuing or
+  rotating the token stops its pushes at the next tick and drops the device.
+  A user's phone only hears about what that user may see on the web.
+- The connect code (`aiagent://connect?u=…&t=…`) holds a token. Its QR is drawn
+  by this service (`POST /connect/qr`, `Cache-Control: no-store`, not audited
+  so the token never reaches a log); a user can draw only their own, an admin
+  also one they just made. No outside QR service is ever used.
 
 ## The browser surface
 

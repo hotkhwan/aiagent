@@ -109,6 +109,7 @@ func serve(args []string) {
 	keyFile := fs.String("tls-key", "", "TLS private key (PEM)")
 	workerRepo := fs.String("worker-repo", "", "git checkout that headless workers branch from; empty leaves headless dispatch off")
 	workerTest := fs.String("worker-test", "go test ./...", "command that verifies a worker's commit in --worker-repo")
+	pushRelay := fs.String("push-relay", world.DefaultPushRelay, "relay for phone notifications (an https origin), or off")
 	osUsers := fs.Bool("os-users", false, "give each user token its own OS user and instance (Linux, systemd, root)")
 	previewConf := fs.String("preview-conf", "/etc/aiagent/preview.conf", "rooms' preview pages, with --os-users; a missing file or empty HOST leaves them off")
 	_ = fs.Parse(args)
@@ -198,6 +199,11 @@ func serve(args []string) {
 		svc.OSUsers = &world.OSUsers{SocketDir: "/run/aiagent-users", TokenDir: filepath.Join(dir, "instances"), ModelDir: "/run/aiagent-room", Runner: world.ExecRunner{}}
 		startPreview(svc, *previewConf)
 	}
+	relay, err := world.ParsePushRelay(*pushRelay)
+	if err != nil {
+		log.Fatalf("push relay: %v", err)
+	}
+	svc.PushRelay = relay
 	svc.Mount(app)
 	svc.StartRooms(context.Background())
 	// a room's own instance collects what its sandboxed agent leaves in its
