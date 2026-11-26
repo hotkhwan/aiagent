@@ -35,7 +35,8 @@ const AsHeader = "X-Aiagent-As"
 
 var (
 	osUserRE = regexp.MustCompile(`^[a-z][a-z0-9-]{1,30}$`)
-	ticketRE = regexp.MustCompile(`"ticket":"([0-9a-f]{16,128})"`)
+	// the link a room's instance answers POST /reviews/:id/view with
+	reviewTicketRE = regexp.MustCompile(`^/aiagent/review-view/([0-9a-f]{16,128})$`)
 )
 
 // OSUsers is nil unless the service was started with --os-users.
@@ -137,7 +138,9 @@ func (s *Service) forward(c fiber.Ctx, name string) error {
 	if status == 200 && path == "/snapshot" && identity(c).Role == RoleUser {
 		b = s.withOthers(c, name, b)
 	}
-	if m := ticketRE.FindSubmatch(b); m != nil && c.Method() == "POST" && strings.HasPrefix(path, "/reviews/") {
+	// The room hands out a one-load link to a review page; the frame asks
+	// this service for it, so it must know which room the link belongs to.
+	if t := roomReviewTicket(c.Method(), path, status, b); t != "" {
 		s.mu.Lock()
 		if s.userTickets == nil {
 			s.userTickets = map[string]userTicket{}
@@ -147,7 +150,7 @@ func (s *Service) forward(c fiber.Ctx, name string) error {
 				delete(s.userTickets, k)
 			}
 		}
-		s.userTickets[string(m[1])] = userTicket{name: name, expires: time.Now().Add(2 * time.Minute)}
+		s.userTickets[t] = userTicket{name: name, expires: time.Now().Add(2 * time.Minute)}
 		s.mu.Unlock()
 	}
 	// Only these types: an instance must not be able to serve a page or a
@@ -159,6 +162,28 @@ func (s *Service) forward(c fiber.Ctx, name string) error {
 	c.Set("Content-Type", ct)
 	c.Set("Cache-Control", "no-store")
 	return c.Status(status).Send(b)
+}
+
+// roomReviewTicket is the ticket in a room's answer to POST
+// /reviews/:id/view ({"details":{"url":"/aiagent/review-view/<ticket>"}}),
+// or "" for any other answer.
+func roomReviewTicket(method, path string, status int, b []byte) string {
+	if method != "POST" || status != 200 || !strings.HasPrefix(path, "/reviews/") || !strings.HasSuffix(path, "/view") {
+		return ""
+	}
+	var env struct {
+		Details struct {
+			URL string `json:"url"`
+		} `json:"details"`
+	}
+	if json.Unmarshal(b, &env) != nil {
+		return ""
+	}
+	m := reviewTicketRE.FindStringSubmatch(env.Details.URL)
+	if m == nil {
+		return ""
+	}
+	return m[1]
 }
 
 type userTicket struct {
