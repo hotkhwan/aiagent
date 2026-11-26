@@ -240,3 +240,39 @@ func TestPushRelayAddress(t *testing.T) {
 		t.Errorf("off = %q", got)
 	}
 }
+
+func TestOneTokenKeepsAtMostFivePhones(t *testing.T) {
+	e := newEnv(t)
+	_, _ = e.store.Enable("test")
+	_, user, _ := e.store.AddUser("nok", "")
+	_, other, _ := e.store.AddUser("other", "")
+	if err := e.svc.addPushDevice(handleB, other); err != nil {
+		t.Fatal(err)
+	}
+	var first string
+	for i := 0; i < 8; i++ {
+		h := "aph_" + strings.Repeat(string(rune('a'+i)), 43)
+		if i == 0 {
+			first = h
+		}
+		if err := e.svc.addPushDevice(h, user); err != nil {
+			t.Fatalf("add %d: %v", i, err)
+		}
+		time.Sleep(2 * time.Millisecond)
+	}
+	mine, theirs, kept := 0, 0, false
+	for _, d := range e.svc.pushDevices() {
+		switch d.TokenHash {
+		case digestHex(user):
+			mine++
+			if d.Handle == first {
+				kept = true
+			}
+		case digestHex(other):
+			theirs++
+		}
+	}
+	if mine != pushPerToken || theirs != 1 || kept {
+		t.Fatalf("mine=%d theirs=%d oldest kept=%v", mine, theirs, kept)
+	}
+}

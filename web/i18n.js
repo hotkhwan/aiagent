@@ -434,6 +434,7 @@ var EN = {
   'ดูรูปที่แนบ': 'View the attachment',
   '📱 แอป': '📱 App',
   'อัปเดต aiagent': 'Update aiagent',
+  'คัดลอกไม่ได้': 'Could not copy',
   'ตรวจเวอร์ชันไม่ได้: ': 'Could not check the version: ',
   'อัปเดต aiagent เป็น v': 'Update aiagent to v',
   'ดึงโค้ดจาก origin ติดตั้ง แล้วเริ่ม service ใหม่ หน้านี้จะโหลดใหม่เองเมื่อเสร็จ (ราว 1-2 นาที)': 'Pulls the code from origin, installs it and restarts the service. This page reloads by itself when it is done (about 1-2 minutes)',

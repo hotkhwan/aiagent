@@ -44,6 +44,9 @@ const (
 	pushFile       = "push.json"
 	pushTick       = 15 * time.Second
 	pushMaxDevices = 200
+	// pushPerToken: one token's phones; the oldest gives way to a new one, so
+	// one token can never fill the slots everyone shares
+	pushPerToken   = 5
 	pushMaxPerTick = 5
 )
 
@@ -179,10 +182,27 @@ func (s *Service) addPushDevice(handle, token string) error {
 			out = append(out, d)
 		}
 	}
+	th := digestHex(token)
+	mine := 0
+	for _, d := range out {
+		if d.TokenHash == th {
+			mine++
+		}
+	}
+	for mine >= pushPerToken {
+		oldest := -1
+		for i, d := range out {
+			if d.TokenHash == th && (oldest < 0 || d.AddedAt.Before(out[oldest].AddedAt)) {
+				oldest = i
+			}
+		}
+		out = append(out[:oldest], out[oldest+1:]...)
+		mine--
+	}
 	if len(out) >= pushMaxDevices {
 		return ErrConflict("ลงทะเบียนอุปกรณ์เต็มแล้ว")
 	}
-	out = append(out, pushDevice{Handle: handle, TokenHash: digestHex(token), AddedAt: time.Now().UTC()})
+	out = append(out, pushDevice{Handle: handle, TokenHash: th, AddedAt: time.Now().UTC()})
 	return s.writePushDevices(out)
 }
 

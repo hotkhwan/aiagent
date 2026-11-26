@@ -534,13 +534,14 @@ func capture(args []string) {
 func selfUpdateCmd(args []string) {
 	fs := flag.NewFlagSet("self-update", flag.ExitOnError)
 	repo := fs.String("repo", "", "the git checkout to update from")
+	to := fs.String("to", "", "the exact upstream commit to install (refuses if upstream moved)")
 	dir := stateDirFlag(fs)
 	_ = fs.Parse(args)
 	stateDir := *dir
 	if stateDir == "" {
 		stateDir = world.DefaultStateDir()
 	}
-	if err := world.RunSelfUpdate(*repo, stateDir); err != nil {
+	if err := world.RunSelfUpdate(*repo, stateDir, *to); err != nil {
 		log.Fatalf("self-update: %v", err)
 	}
 }

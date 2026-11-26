@@ -2210,11 +2210,13 @@ function localCmd (sess) {
   return h('span', { class: 'cmd' }, h('code', null, cmd), h('button', { type: 'button', class: 'ghost copy', onclick: e => { copyText(cmd, e.currentTarget) } }, tr('คัดลอก')))
 }
 
-function copyText (text, btn) {
+// secret: the text holds a token, so a failed copy never shows it on the button
+function copyText (text, btn, secret) {
   const done = () => { btn.textContent = tr('คัดลอกแล้ว'); setTimeout(() => { btn.textContent = tr('คัดลอก') }, 1500) }
+  const failed = () => { btn.textContent = secret ? tr('คัดลอกไม่ได้') : text }
   try {
-    navigator.clipboard.writeText(text).then(done, () => { btn.textContent = text })
-  } catch (e) { btn.textContent = text }
+    navigator.clipboard.writeText(text).then(done, failed)
+  } catch (e) { failed() }
 }
 
 function chatPanel (sess) {
@@ -3203,7 +3205,7 @@ function connectCard (url, token) {
     h('img', { src: url, alt: tr('QR รหัสเชื่อมต่อ'), class: 'connectQR' }),
     h('div', null,
       h('p', null, tr('เปิดแอป AI Agent World แล้วกดสแกน QR หรือคัดลอกรหัสไปวางในแอป')),
-      h('button', { type: 'button', class: 'ghost', onclick: e => copyText(connectCodeOf(token), e.currentTarget) }, tr('คัดลอกรหัสเชื่อมต่อ')),
+      h('button', { type: 'button', class: 'ghost', onclick: e => copyText(connectCodeOf(token), e.currentTarget, true) }, tr('คัดลอกรหัสเชื่อมต่อ')),
       h('p', { class: 'note' }, tr('รหัสนี้คือกุญแจเข้า server เท่ากับ token อย่าถ่ายภาพหน้าจอหรือส่งในที่สาธารณะ'))))
 }
 async function openConnect () {
@@ -3248,7 +3250,7 @@ async function drawTokens (fresh) {
   if (fresh) connectQR(fresh.token).then(u => freshQR.replaceChildren(connectCard(u, fresh.token)), () => {})
   $('tokenBody').replaceChildren(h('div', { class: 'accCard' },
     h('div', { class: 'accTop' }, h('b', null, tr('Token ของผู้ใช้'))),
-    fresh ? h('p', null, fresh.name + ': ', h('code', { class: 'devCode' }, fresh.token), ' ', h('button', { type: 'button', class: 'ghost', onclick: e => copyText(fresh.token, e.currentTarget) }, tr('คัดลอก'))) : null,
+    fresh ? h('p', null, fresh.name + ': ', h('code', { class: 'devCode' }, fresh.token), ' ', h('button', { type: 'button', class: 'ghost', onclick: e => copyText(fresh.token, e.currentTarget, true) }, tr('คัดลอก'))) : null,
     fresh ? h('p', { class: 'note' }, tr('token นี้แสดงครั้งเดียว ส่งให้ผู้ใช้ทางช่องทางส่วนตัว')) : null,
     freshQR,
     list.length ? h('ul', null, ...list.map(t => h('li', null, h('b', null, t.name), duties && t.osUser && !t.removing ? [' ', dutySelect(t.duty || '', tr('บทบาทของ ') + t.name, v => setDuty(t, v))] : null, t.removing ? h('span', { class: 'note' }, ' · ' + tr('ลบไม่สำเร็จ กดเพิกถอนอีกครั้ง')) : null, ' ', t.osUser && !t.removing ? h('button', { type: 'button', class: 'ghost', onclick: () => viewAs(t.osUser) }, tr('เข้าห้อง / login')) : null, ' ', t.osUser && !t.removing && st.me.preview ? h('button', { type: 'button', class: 'ghost', onclick: () => openPreview(t.osUser) }, tr('พรีวิว')) : null, ' ', t.removing ? null : h('button', { type: 'button', class: 'ghost', title: tr('ใช้เมื่อลืม token: ดู token เดิมไม่ได้ เพราะระบบเก็บแค่ hash'), onclick: () => reissue(t) }, tr('ออก token ใหม่')), ' ', h('button', { type: 'button', class: 'warn', onclick: () => revoke(t) }, tr('เพิกถอน'))))) : h('p', { class: 'note' }, tr('ยังไม่มี token ของผู้ใช้')),
@@ -3279,7 +3281,7 @@ async function drawUpdate (fresh) {
   const run = async () => {
     const list = (u.commits || []).map(c => c.sha + '  ' + c.subject).join('\n')
     if (!await confirmBox(tr('อัปเดต aiagent เป็น v') + (u.latest || '?'), tr('ดึงโค้ดจาก origin ติดตั้ง แล้วเริ่ม service ใหม่ หน้านี้จะโหลดใหม่เองเมื่อเสร็จ (ราว 1-2 นาที)'), list, tr('อัปเดตเลย'))) return
-    try { await api('/update', { method: 'POST', body: {} }) } catch (e) { toast(tr('อัปเดตไม่ได้: ') + e.message, true); return }
+    try { await api('/update', { method: 'POST', body: { sha: u.upstreamSha } }) } catch (e) { toast(tr('อัปเดตไม่ได้: ') + e.message, true); drawUpdate(true); return }
     waitForNewVersion(u.current)
     drawUpdate()
   }

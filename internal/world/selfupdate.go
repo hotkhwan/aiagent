@@ -66,16 +66,18 @@ type UpdateStatus struct {
 
 // UpdateInfo answers "is there a newer aiagent, and may it be installed?".
 type UpdateInfo struct {
-	Current   string         `json:"current"`
-	Latest    string         `json:"latest,omitempty"`
-	Behind    int            `json:"behind"`
-	Ahead     int            `json:"ahead"`
-	Dirty     bool           `json:"dirty"`
-	Commits   []UpdateCommit `json:"commits"`
-	CanUpdate bool           `json:"canUpdate"`
-	Reason    string         `json:"reason,omitempty"`
-	Error     string         `json:"error,omitempty"`
-	Status    UpdateStatus   `json:"status"`
+	Current string `json:"current"`
+	Latest  string `json:"latest,omitempty"`
+	// UpstreamSha is the commit an update installs; the apply request names it.
+	UpstreamSha string         `json:"upstreamSha,omitempty"`
+	Behind      int            `json:"behind"`
+	Ahead       int            `json:"ahead"`
+	Dirty       bool           `json:"dirty"`
+	Commits     []UpdateCommit `json:"commits"`
+	CanUpdate   bool           `json:"canUpdate"`
+	Reason      string         `json:"reason,omitempty"`
+	Error       string         `json:"error,omitempty"`
+	Status      UpdateStatus   `json:"status"`
 }
 
 type updateState struct {
@@ -115,6 +117,9 @@ func CheckUpdate(ctx context.Context, r Runner, repo string) UpdateInfo {
 		return info
 	}
 	info.Ahead, _ = count(up + "..HEAD")
+	if sha, err := git("rev-parse", up); err == nil {
+		info.UpstreamSha = sha
+	}
 	if out, err := git("status", "--porcelain", "--untracked-files=no"); err == nil && out != "" {
 		info.Dirty = true
 	}
@@ -220,9 +225,22 @@ func (s *Service) handleUpdateCheck(c fiber.Ctx) error {
 	return c.JSON(okEnv(s.updateInfo(c.Context(), fiber.Query[bool](c, "fresh", false))))
 }
 
+var commitRE = regexp.MustCompile(`^[0-9a-f]{40}$`)
+
 func (s *Service) handleUpdateApply(c fiber.Ctx) error {
-	return s.mutate(c, "aiagent.update", nil, func() (any, error) {
+	var body struct {
+		Sha string `json:"sha"`
+	}
+	_ = json.Unmarshal(c.Body(), &body)
+	if !commitRE.MatchString(body.Sha) {
+		return s.fail(c, ErrBadRequest(`expected {"sha": "<the commit the check showed>"}`))
+	}
+	return s.mutate(c, "aiagent.update", []string{body.Sha}, func() (any, error) {
 		info := s.updateInfo(c.Context(), true)
+		// what the admin saw is what is installed: a newer upstream means a new look
+		if info.UpstreamSha != body.Sha {
+			return nil, ErrConflict("มี commit ใหม่ขึ้นมาหลังจากตรวจ: ตรวจอีกครั้งแล้วค่อยกดอัปเดต")
+		}
 		if info.Status.Running {
 			return nil, ErrConflict("กำลังอัปเดตอยู่แล้ว")
 		}
@@ -233,7 +251,7 @@ func (s *Service) handleUpdateApply(c fiber.Ctx) error {
 			}
 			return nil, ErrConflict(why)
 		}
-		if err := s.startSelfUpdate(s.updateRepo(), info.Latest); err != nil {
+		if err := s.startSelfUpdate(s.updateRepo(), info.Latest, body.Sha); err != nil {
 			return nil, err
 		}
 		return fiber.Map{"started": true, "from": Version, "to": info.Latest}, nil
@@ -242,7 +260,7 @@ func (s *Service) handleUpdateApply(c fiber.Ctx) error {
 
 // startSelfUpdate runs `aiagent self-update` in a session of its own, so the
 // restart it ends with does not take it down with the service.
-func (s *Service) startSelfUpdate(repo, to string) error {
+func (s *Service) startSelfUpdate(repo, to, sha string) error {
 	exe, err := os.Executable()
 	if err != nil {
 		return err
@@ -252,7 +270,7 @@ func (s *Service) startSelfUpdate(repo, to string) error {
 		return err
 	}
 	writeUpdateStatus(s.Store.dir, UpdateStatus{Running: true, From: Version, To: to, At: time.Now().UTC(), Log: "กำลังเริ่ม…"})
-	cmd := exec.Command(exe, "self-update", "--repo", repo, "--state-dir", s.Store.dir)
+	cmd := exec.Command(exe, "self-update", "--repo", repo, "--state-dir", s.Store.dir, "--to", sha)
 	cmd.Stdout, cmd.Stderr = logf, logf
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
 	if err := cmd.Start(); err != nil {
@@ -269,7 +287,7 @@ func (s *Service) startSelfUpdate(repo, to string) error {
 
 // RunSelfUpdate is `aiagent self-update`: pull, install, restart. It writes its
 // progress to the state directory for the page to read.
-func RunSelfUpdate(repo, stateDir string) error {
+func RunSelfUpdate(repo, stateDir, sha string) error {
 	var log strings.Builder
 	st := UpdateStatus{Running: true, From: Version, At: time.Now().UTC()}
 	step := func(name string, timeout time.Duration, dir, bin string, args ...string) error {
@@ -303,7 +321,16 @@ func RunSelfUpdate(repo, stateDir string) error {
 	if err := step("git fetch", 3*time.Minute, repo, "git", "fetch", "--quiet"); err != nil {
 		return fail(err)
 	}
-	if err := step("git merge --ff-only "+up, time.Minute, repo, "git", "merge", "--ff-only", up); err != nil {
+	// install exactly the commit that was approved, if one was named
+	target := up
+	if sha != "" {
+		now, err := exec.Command("git", "-C", repo, "rev-parse", up).Output()
+		if err != nil || strings.TrimSpace(string(now)) != sha {
+			return fail(errors.New("upstream moved since the check; check again"))
+		}
+		target = sha
+	}
+	if err := step("git merge --ff-only "+target, time.Minute, repo, "git", "merge", "--ff-only", target); err != nil {
 		return fail(err)
 	}
 	if b, err := os.ReadFile(filepath.Join(repo, "internal/world/version.go")); err == nil {

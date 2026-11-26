@@ -32,6 +32,8 @@ func (g *fakeGit) Run(_ context.Context, name string, args ...string) ([]byte, e
 			return nil, errors.New("no upstream")
 		}
 		return []byte("origin/main\n"), nil
+	case strings.Contains(line, "rev-parse origin/main"):
+		return []byte(strings.Repeat("b", 40) + "\n"), nil
 	case strings.Contains(line, " fetch "):
 		return nil, g.fetch
 	case strings.Contains(line, "rev-list --count HEAD..origin/main"):
@@ -134,8 +136,12 @@ func TestUpdateRoutesAreAdminOnly(t *testing.T) {
 		t.Fatalf("no checkout here: %v", d)
 	}
 	time.Sleep(writeSpacing)
-	if code, _, _ := e.do(t, "POST", "/aiagent/api/update", admin, "{}"); code != 409 {
-		t.Fatalf("nothing to update to must be refused: %d", code)
+	if code, _, _ := e.do(t, "POST", "/aiagent/api/update", admin, "{}"); code != 400 {
+		t.Fatalf("an apply that does not name the commit it saw: %d", code)
+	}
+	time.Sleep(writeSpacing)
+	if code, _, _ := e.do(t, "POST", "/aiagent/api/update", admin, `{"sha":"`+strings.Repeat("a", 40)+`"}`); code != 409 {
+		t.Fatalf("a commit that is not the upstream must be refused: %d", code)
 	}
 }
 
