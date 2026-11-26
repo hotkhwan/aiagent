@@ -103,9 +103,11 @@ type Service struct {
 	update     updateState
 	pushSource func(context.Context, Identity) ([]PushItem, error)
 	push       pushState
-	roomRev    roomReviewCache
-	roomCap    roomCaptureState
-	mates      mateCache
+	// Duties records what each room is for (roomduties.go); nil without rooms.
+	Duties  *RoomDuties
+	roomRev roomReviewCache
+	roomCap roomCaptureState
+	mates   mateCache
 
 	mu        sync.Mutex
 	failures  map[string][]time.Time
@@ -354,6 +356,7 @@ func (s *Service) Mount(app *fiber.App) {
 	api.Post("/tokens", s.handleTokenCreate)
 	api.Post("/tokens/:id/revoke", s.handleTokenRevoke)
 	api.Post("/tokens/:id/reissue", s.handleTokenReissue)
+	api.Post("/tokens/:id/duty", s.handleTokenDuty)
 	api.Post("/preview/ticket", s.handlePreviewTicket)
 	// a room's own instance; the admin service has no work folder to show
 	api.Get("/preview/state", s.handlePreviewState)
@@ -399,6 +402,7 @@ func (s *Service) Mount(app *fiber.App) {
 	api.Post("/policy/idle", s.handleSetIdle)
 	api.Post("/codex/model", s.handleCodexModel)
 	api.Post("/reviews/:id/view", s.handleReviewTicket)
+	api.Get("/reviews/:id/code", s.handleReviewCode)
 	api.Post("/reviews/:id/compose", s.handleReviewCompose)
 	api.Post("/reviews/:id/decision", s.handleReviewDecision)
 	// anything else under /aiagent stays 404 (never the webinit SPA)
@@ -868,6 +872,16 @@ func (s *Service) handleReviewView(c fiber.Ctx) error {
 	c.Set("Cache-Control", "no-store")
 	c.Status(fiber.StatusOK).Type("html")
 	return c.Send(withReviewFrame(page))
+}
+
+// handleReviewCode answers the review's code tab: the diff of the commit the
+// page describes, read from the room's own checkout.
+func (s *Service) handleReviewCode(c fiber.Ctx) error {
+	v, err := s.Collector.ReviewCodeDiff(strings.Clone(c.Params("id")))
+	if err != nil {
+		return s.fail(c, err)
+	}
+	return c.JSON(okEnv(v))
 }
 
 func (s *Service) handleReviewCompose(c fiber.Ctx) error {

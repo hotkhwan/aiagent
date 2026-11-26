@@ -44,7 +44,7 @@ const usage = `aiagent — a village view of the AI coding agents running on thi
   aiagent disable           turn it off; the old token stops working
   aiagent status            say whether it is on, without revealing the token
   aiagent statusline        Claude Code status line command; also records plan usage
-  aiagent review --title "..." [--summary "..."] [--session ID] page.html
+  aiagent review --title "..." [--summary "..."] [--session ID] [--repo DIR] page.html
                             file an HTML page for the operator to review
   aiagent capture           (in a room) screenshots of the room's preview page
                             at 390 and 1440 px, saved in ~/work/.aiagent/captures
@@ -114,6 +114,7 @@ func serve(args []string) {
 	updateRepo := fs.String("update-repo", "", "git checkout the web page updates from (default: the one packaging/install.sh recorded)")
 	pushRelay := fs.String("push-relay", world.DefaultPushRelay, "relay for phone notifications (an https origin), or off")
 	osUsers := fs.Bool("os-users", false, "give each user token its own OS user and instance (Linux, systemd, root)")
+	dutiesConf := fs.String("room-duties", "/etc/aiagent/room-duties.conf", "each room's duty (frontend, backend, tester), with --os-users; written when the admin sets one")
 	previewConf := fs.String("preview-conf", "/etc/aiagent/preview.conf", "rooms' preview pages, with --os-users; a missing file or empty HOST leaves them off")
 	_ = fs.Parse(args)
 
@@ -200,6 +201,7 @@ func serve(args []string) {
 	}
 	if *osUsers {
 		svc.OSUsers = &world.OSUsers{SocketDir: "/run/aiagent-users", TokenDir: filepath.Join(dir, "instances"), ModelDir: "/run/aiagent-room", Runner: world.ExecRunner{}}
+		svc.Duties = &world.RoomDuties{Path: *dutiesConf}
 		startPreview(svc, *previewConf)
 	}
 	relay, err := world.ParsePushRelay(*pushRelay)
@@ -392,8 +394,9 @@ func review(args []string) {
 	title := fs.String("title", "", "what was done or changed (required)")
 	summary := fs.String("summary", "", "short summary shown in the list")
 	session := fs.String("session", "", "session id (default: $CLAUDE_CODE_SESSION_ID or $CODEX_SESSION_ID)")
+	repo := fs.String("repo", "", "the git checkout the page is about; its last commit is shown as a diff (default: the working directory, when it is a checkout)")
 	fs.Usage = func() {
-		fmt.Fprintln(os.Stderr, `usage: aiagent review --title "..." [--summary "..."] [--session ID] page.html`)
+		fmt.Fprintln(os.Stderr, `usage: aiagent review --title "..." [--summary "..."] [--session ID] [--repo DIR] page.html`)
 		fs.PrintDefaults()
 	}
 	_ = fs.Parse(args)
@@ -418,12 +421,13 @@ func review(args []string) {
 	}
 	home, _ := os.UserHomeDir()
 	cwd, _ := os.Getwd()
+	code := reviewCode(*repo, cwd)
 	id := ""
-	r, err := world.FileReview(home, *title, *summary, sid, runtime, cwd, page, time.Now())
+	r, err := world.FileReview(home, *title, *summary, sid, runtime, cwd, code, page, time.Now())
 	if err != nil && spoolable(err) {
 		// Inside Claude Code's command sandbox ~/.claude is read-only. The
 		// room's own instance files the page from the work folder instead.
-		id, err = spoolReview(home, world.SpoolRequest{Title: *title, Summary: *summary, SessionID: sid, Runtime: runtime, Cwd: cwd, Page: page})
+		id, err = spoolReview(home, world.SpoolRequest{Title: *title, Summary: *summary, SessionID: sid, Runtime: runtime, Cwd: cwd, Code: code, Page: page})
 	}
 	if err != nil {
 		log.Fatalf("review: %v", err)
@@ -435,6 +439,34 @@ func review(args []string) {
 	if sid == "" {
 		fmt.Println("note: no session id, so the reply can only be copied (pass --session to let the web send it back)")
 	}
+}
+
+// reviewCode names the commit a review page is about. An explicit --repo that
+// is not a usable checkout is an error; the working directory is only a guess.
+func reviewCode(repo, cwd string) *world.ReviewCode {
+	dir := repo
+	if dir == "" {
+		dir = cwd
+	} else if abs, err := filepath.Abs(dir); err == nil {
+		dir = abs
+	}
+	code, err := world.DetectReviewCode(world.RepoGit{R: world.ExecRunner{}}, dir)
+	if err != nil {
+		if repo != "" {
+			log.Fatalf("review: --repo %s: %v", repo, err)
+		}
+		fmt.Println("note: the page is not tied to a commit (pass --repo <checkout> so the reviewer sees the diff)")
+		return nil
+	}
+	fmt.Printf("code: %s %s..%s (%s)\n", code.Repo, short(code.Base), short(code.Commit), code.BaseRef)
+	return code
+}
+
+func short(sha string) string {
+	if len(sha) > 7 {
+		return sha[:7]
+	}
+	return sha
 }
 
 // spoolable: the review folder cannot be written here, but the work folder

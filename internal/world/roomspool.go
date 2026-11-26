@@ -72,12 +72,13 @@ var (
 
 // SpoolRequest is a review page as the CLI leaves it.
 type SpoolRequest struct {
-	Title     string `json:"title"`
-	Summary   string `json:"summary,omitempty"`
-	SessionID string `json:"sessionId,omitempty"`
-	Runtime   string `json:"runtime,omitempty"`
-	Cwd       string `json:"cwd,omitempty"`
-	Page      []byte `json:"page"` // base64 in the file
+	Title     string      `json:"title"`
+	Summary   string      `json:"summary,omitempty"`
+	SessionID string      `json:"sessionId,omitempty"`
+	Runtime   string      `json:"runtime,omitempty"`
+	Cwd       string      `json:"cwd,omitempty"`
+	Code      *ReviewCode `json:"code,omitempty"`
+	Page      []byte      `json:"page"` // base64 in the file
 }
 
 // SpoolReply is the instance's answer to one request.
@@ -504,7 +505,7 @@ func fileSpooledReview(home string, b []byte, now time.Time) (*Review, error) {
 	if rel, err := filepath.Rel(home, cwd); !filepath.IsAbs(req.Cwd) || err != nil || !filepath.IsLocal(rel) && rel != "." {
 		cwd = filepath.Join(home, "work")
 	}
-	return FileReview(home, req.Title, req.Summary, req.SessionID, req.Runtime, cwd, req.Page, now)
+	return FileReview(home, req.Title, req.Summary, req.SessionID, req.Runtime, cwd, req.Code, req.Page, now)
 }
 
 // handleCaptureWanted tells the admin service the oldest capture this room's

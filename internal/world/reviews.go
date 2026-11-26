@@ -46,7 +46,9 @@ type Review struct {
 	Size  int64  `json:"size"`
 	// Owner is the room a review was filed in, when the admin lists rooms' reviews.
 	Owner string `json:"owner,omitempty"`
-	home  string
+	// Code is the commit the page describes, when the agent named its checkout.
+	Code *ReviewCode `json:"code,omitempty"`
+	home string
 }
 
 const (
@@ -63,7 +65,7 @@ func reviewPath(home, id, ext string) string {
 
 // FileReview stores page under home and returns its record. Called by the
 // CLI as the agent's own user.
-func FileReview(home, title, summary, sessionID, runtime, cwd string, page []byte, now time.Time) (*Review, error) {
+func FileReview(home, title, summary, sessionID, runtime, cwd string, code *ReviewCode, page []byte, now time.Time) (*Review, error) {
 	title = strings.TrimSpace(title)
 	if title == "" {
 		return nil, fmt.Errorf("--title is required")
@@ -83,6 +85,7 @@ func FileReview(home, title, summary, sessionID, runtime, cwd string, page []byt
 		CreatedAt: now.UTC(),
 		Status:    "open",
 		Size:      int64(len(page)),
+		Code:      cleanReviewCode(home, code),
 	}
 	dir := filepath.Join(home, ".claude", reviewDir)
 	if err := os.MkdirAll(dir, 0o700); err != nil {

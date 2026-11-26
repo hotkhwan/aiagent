@@ -144,7 +144,13 @@
 
 <dialog id="reviewDlg" class="screenPop reviewDlg">
   <div class="spHead"><h2 id="reviewTitle">ตรวจงาน</h2><form method="dialog"><button class="ghost" aria-label="ปิด">✕</button></form></div>
+  <div class="rvTabs" role="tablist" aria-label="มุมมองงานตรวจ">
+    <button type="button" role="tab" id="rvTabPage" aria-selected="true">หน้าสรุป</button>
+    <button type="button" role="tab" id="rvTabCode" aria-selected="false">โค้ดที่แก้</button>
+    <button type="button" class="ghost rvPreview" id="rvPreview" hidden title="เปิดหน้าที่ห้องนี้รันอยู่จริง">🖥 เปิดพรีวิวห้องนี้</button>
+  </div>
   <div class="reviewWrap">
+    <div class="reviewCode" id="reviewCode" hidden></div>
     <iframe id="reviewFrame" title="หน้าตรวจงาน" sandbox="allow-scripts allow-popups" referrerpolicy="no-referrer"></iframe>
     <aside class="reviewSide" id="reviewSide"></aside>
   </div>

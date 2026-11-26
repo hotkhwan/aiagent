@@ -26,6 +26,32 @@ var EN = {
   'หน้าที่ agent ของห้องกำลังสร้าง': 'The page this room\'s agent is building',
   'เบราว์เซอร์กันหน้าต่างใหม่ไว้ อนุญาต popup แล้วกดอีกครั้ง': 'The browser blocked the new window; allow popups and press again',
 
+  'เปิดแท็บพรีวิวให้อัตโนมัติไม่ได้ กดลิงก์นี้เพื่อเปิดหน้าของห้อง ': 'The preview tab could not be opened for you. Click this link to open the page of room ',
+  ' (ใช้ได้ครั้งเดียว ภายใน 1 นาที)': ' (one use, within 1 minute)',
+  '🖥 เปิดพรีวิว': '🖥 Open preview',
+
+  // a room's duty, set by the admin with its token
+  'บทบาทของห้องใหม่': 'Duty of the new room',
+  'บทบาทของ ': 'Duty of ',
+  ' เป็น ': ' is now ',
+  'dev หน้าเว็บ': 'frontend dev',
+  'ยังไม่กำหนดบทบาท': 'no duty set',
+  'บทบาท: dev หน้าเว็บ = รัน dev server ให้ดูที่ dev/<ห้อง> · backend = ไม่มีหน้าพรีวิว ตรวจด้วยเทสต์ · tester = ไม่รันแอป ทดสอบบน UAT · agent ของห้องอ่านบทบาทนี้จากคู่มือห้อง': 'Duty: frontend dev = runs a dev server shown at dev/<room> · backend = no preview page, checked by tests · tester = runs no app, tests on UAT · the room\'s agent reads its duty from the room rules',
+
+  // review dialog: the code tab and the room's preview
+  'มุมมองงานตรวจ': 'Review views',
+  'หน้าสรุป': 'Summary',
+  'โค้ดที่แก้': 'Code changes',
+  '🖥 เปิดพรีวิวห้องนี้': '🖥 Open this room\'s preview',
+  'เปิดหน้าที่ห้องนี้รันอยู่จริง': 'Open the page this room is actually running',
+  'กำลังอ่านโค้ด…': 'Reading the code…',
+  'อ่านโค้ดไม่ได้: ': 'Could not read the code: ',
+  'เทียบ': 'compare',
+  'branch นี้มี commit ใหม่กว่าหน้าที่ส่งตรวจ (': 'This branch has a newer commit than the reviewed page (',
+  ') — ที่เห็นคือโค้ด ณ ตอนส่งตรวจ': ') — this is the code as it was sent for review',
+  'ไม่มีโค้ดให้ดู': 'No code to show',
+  'ให้ agent ส่งหน้าตรวจใหม่ด้วย aiagent review --repo <โฟลเดอร์ repo> แล้วแท็บนี้จะแสดง diff ของ commit นั้น': 'Ask the agent to file the page again with aiagent review --repo <repo folder>; this tab then shows that commit\'s diff',
+
   // agent and session state
   'กำลังเขียนโค้ด': 'Coding',
   'กำลังทดสอบ': 'Testing',

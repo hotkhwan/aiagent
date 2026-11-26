@@ -432,21 +432,26 @@ func (s *Service) handleTokens(c fiber.Ctx) error {
 		return s.fail(c, err)
 	}
 	out := []fiber.Map{}
+	duties := s.Duties.Load()
 	for _, u := range st.Users {
-		out = append(out, fiber.Map{"id": u.ID, "name": u.Name, "createdAt": u.CreatedAt, "osUser": u.OSUser, "removing": u.Hash == ""})
+		out = append(out, fiber.Map{"id": u.ID, "name": u.Name, "createdAt": u.CreatedAt, "osUser": u.OSUser, "removing": u.Hash == "", "duty": duties[u.OSUser]})
 	}
-	return c.JSON(okEnv(fiber.Map{"tokens": out, "osUsers": s.OSUsers != nil}))
+	return c.JSON(okEnv(fiber.Map{"tokens": out, "osUsers": s.OSUsers != nil, "duties": s.Duties != nil}))
 }
 
 func (s *Service) handleTokenCreate(c fiber.Ctx) error {
 	var body struct {
 		Name string `json:"name"`
+		Duty string `json:"duty"`
 	}
 	if err := c.Bind().Body(&body); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(failEnv("AIAGENT_BAD_REQUEST", "ข้อมูลที่ส่งมาไม่ใช่ JSON ที่ถูกต้อง"))
 	}
 	c.Set("Cache-Control", "no-store")
-	return s.mutate(c, "aiagent.tokenCreate", []string{body.Name}, func() (any, error) {
+	return s.mutate(c, "aiagent.tokenCreate", []string{body.Name, body.Duty}, func() (any, error) {
+		if !ValidDuty(body.Duty) {
+			return nil, ErrBadRequest("บทบาทต้องเป็น frontend, backend หรือ tester")
+		}
 		osUser := ""
 		if s.OSUsers != nil {
 			osUser = strings.TrimSpace(body.Name)
@@ -469,8 +474,13 @@ func (s *Service) handleTokenCreate(c fiber.Ctx) error {
 				_ = s.Store.RevokeUser(u.ID)
 				return nil, err
 			}
+			if body.Duty != "" {
+				if err := s.Duties.Set(osUser, body.Duty); err != nil {
+					return nil, err
+				}
+			}
 		}
-		return fiber.Map{"id": u.ID, "name": u.Name, "token": token}, nil
+		return fiber.Map{"id": u.ID, "name": u.Name, "token": token, "duty": body.Duty}, nil
 	})
 }
 
@@ -498,8 +508,38 @@ func (s *Service) handleTokenRevoke(c fiber.Ctx) error {
 				if err := s.OSUsers.unit(context.Background(), "del", u.OSUser); err != nil {
 					return nil, err
 				}
+				_ = s.Duties.Set(u.OSUser, "")
 			}
 		}
 		return fiber.Map{"id": id}, s.Store.RevokeUser(id)
+	})
+}
+
+// handleTokenDuty sets what a room is for; "" clears it.
+func (s *Service) handleTokenDuty(c fiber.Ctx) error {
+	id := strings.Clone(c.Params("id"))
+	var body struct {
+		Duty string `json:"duty"`
+	}
+	if err := c.Bind().Body(&body); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(failEnv("AIAGENT_BAD_REQUEST", "ข้อมูลที่ส่งมาไม่ใช่ JSON ที่ถูกต้อง"))
+	}
+	return s.mutate(c, "aiagent.tokenDuty", []string{id, body.Duty}, func() (any, error) {
+		if s.Duties == nil {
+			return nil, ErrConflict("บทบาทของห้องใช้ได้เมื่อแต่ละ token มีห้องของตัวเอง (--os-users)")
+		}
+		st, err := s.Store.Load()
+		if err != nil {
+			return nil, err
+		}
+		for _, u := range st.Users {
+			if u.ID == id && u.OSUser != "" {
+				if err := s.Duties.Set(u.OSUser, body.Duty); err != nil {
+					return nil, err
+				}
+				return fiber.Map{"id": id, "duty": body.Duty}, nil
+			}
+		}
+		return nil, ErrNotFound("ไม่พบ token นี้")
 	})
 }

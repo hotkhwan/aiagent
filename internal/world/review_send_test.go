@@ -54,7 +54,7 @@ func TestTrustErrorNamesTheFolder(t *testing.T) {
 
 func reviewFor(t *testing.T, e *env, sid, runtime string) *Review {
 	t.Helper()
-	r, err := FileReview(e.home, "WOBBLOO build 7", "", sid, runtime, "/root/repo", []byte("<h2>ข้อ 1</h2>"), e.now)
+	r, err := FileReview(e.home, "WOBBLOO build 7", "", sid, runtime, "/root/repo", nil, []byte("<h2>ข้อ 1</h2>"), e.now)
 	if err != nil {
 		t.Fatal(err)
 	}

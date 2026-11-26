@@ -64,3 +64,80 @@ func TestReviewSendClosesAndShowsTheSession(t *testing.T) {
 		}
 	}
 }
+
+// The review dialog shows the change the page describes next to the page, and
+// opens the room's running preview: a reviewer checks the real code and the
+// real page, not only the agent's summary of them.
+func TestReviewDialogHasCodeTabAndPreview(t *testing.T) {
+	html := readWebFile(t, "index.html")
+	for _, id := range []string{`id="rvTabPage"`, `id="rvTabCode"`, `id="rvPreview"`, `id="reviewCode"`} {
+		if !strings.Contains(html, id) {
+			t.Errorf("index.html is missing %s", id)
+		}
+	}
+	app := readWebFile(t, "app.js")
+	if !strings.Contains(jsFunc(t, app, "openReview"), "reviewTabs(r)") {
+		t.Errorf("openReview must set up the page/code tabs")
+	}
+	load := jsFunc(t, app, "loadReviewCode")
+	for _, want := range []string{"'/code'", "reviewFiles(v, box)", "reviewDiff(v)", "d.branchHead"} {
+		if !strings.Contains(load, want) {
+			t.Errorf("loadReviewCode is missing %q", want)
+		}
+	}
+	if !strings.Contains(jsFunc(t, app, "reviewTabs"), "openPreview(room)") {
+		t.Errorf("the review dialog must open the room's preview")
+	}
+	if !strings.Contains(jsFunc(t, app, "reviewRoom"), "st.me.preview") {
+		t.Errorf("the preview button must only show when previews are on")
+	}
+}
+
+// A room's session panel opens that room's preview: the admin should not
+// have to "enter" the room or go to the token list to see the running page.
+func TestSessionPanelOpensRoomPreview(t *testing.T) {
+	app := readWebFile(t, "app.js")
+	if !strings.Contains(jsFunc(t, app, "sessionPanel"), "openPreview(sessPreviewRoom(sess))") {
+		t.Errorf("the session panel must offer the room's preview")
+	}
+	room := jsFunc(t, app, "sessPreviewRoom")
+	for _, want := range []string{"st.me.preview", "'root'"} {
+		if !strings.Contains(room, want) {
+			t.Errorf("sessPreviewRoom is missing %q", want)
+		}
+	}
+}
+
+// A pre-opened preview tab that stays blank (the browser did not navigate it)
+// must not leave the user with nothing: the same link is offered to click.
+func TestPreviewFallsBackToALink(t *testing.T) {
+	app := readWebFile(t, "app.js")
+	open := jsFunc(t, app, "openPreview")
+	for _, want := range []string{"'about:blank'", "previewLink(room, to)", "!w.closed"} {
+		if !strings.Contains(open, want) {
+			t.Errorf("openPreview is missing %q", want)
+		}
+	}
+	link := jsFunc(t, app, "previewLink")
+	if !strings.Contains(link, "rel: 'noopener noreferrer'") || !strings.Contains(link, "target: '_blank'") {
+		t.Errorf("the fallback link must open a new tab without an opener or referrer")
+	}
+}
+
+// The admin picks a room's duty when creating its token and can change it in
+// the list; the create request carries it.
+func TestTokenFormHasDuty(t *testing.T) {
+	app := readWebFile(t, "app.js")
+	draw := jsFunc(t, app, "drawTokens")
+	for _, want := range []string{"dutySelect(", "duty: duties ? duty.value : ''", "'/duty'"} {
+		if !strings.Contains(draw, want) {
+			t.Errorf("drawTokens is missing %q", want)
+		}
+	}
+	sel := jsFunc(t, app, "dutySelect")
+	for _, want := range []string{"'frontend'", "'backend'", "'tester'"} {
+		if !strings.Contains(sel, want) {
+			t.Errorf("dutySelect is missing %q", want)
+		}
+	}
+}

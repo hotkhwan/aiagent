@@ -341,7 +341,7 @@ func (s *Service) handlePreviewReview(c fiber.Ctx) error {
 			where = "port " + strconv.Itoa(src.Port)
 		}
 		now := s.Collector.now()
-		r, err := FileReview(s.Collector.serviceHome(), "ภาพหน้าพรีวิว "+now.Local().Format("15:04"), truncateRunes(where+" "+strings.TrimSpace(body.Note), 300), sid, runtime, cwd, previewReviewPage(where, body, now), now)
+		r, err := FileReview(s.Collector.serviceHome(), "ภาพหน้าพรีวิว "+now.Local().Format("15:04"), truncateRunes(where+" "+strings.TrimSpace(body.Note), 300), sid, runtime, cwd, nil, previewReviewPage(where, body, now), now)
 		if err != nil {
 			return nil, err
 		}

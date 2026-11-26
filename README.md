@@ -377,8 +377,15 @@ State lives in `$AIAGENT_STATE_DIR`, else `$XDG_STATE_HOME/aiagent`, else
 Instead of pasting a wall of text, an agent can hand you a page to look at:
 
 ```sh
-aiagent review --title "What I changed" summary.html
+aiagent review --title "What I changed" --repo ~/work/myrepo summary.html
 ```
+
+`--repo` (default: the working directory, when it is a git checkout) records
+the checkout, its branch, HEAD and the merge base with `origin/develop`,
+`develop`, `origin/HEAD` or `main`, in that order. The review dialog then has a
+**โค้ดที่แก้** (code changes) tab with the files and the diff, read from that
+checkout by the room's own instance, and a button that opens the room's
+preview page. A recorded checkout outside the filer's home is dropped.
 
 It appears in the testing room. You open it in a sandboxed iframe behind a
 single-use ticket that expires in two minutes, then press **ตกลง ปิดงาน** or

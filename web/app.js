@@ -146,6 +146,13 @@ function viewAs (name) {
 }
 // A room's page, on its own host: a user's own room, or the one an admin is in.
 function previewRoom () { return !st.me || !st.me.preview ? '' : isUser() ? st.me.osUser : st.as }
+// The room a session's preview belongs to: a room's own session, when
+// previews are on. The admin's own sessions have no room page.
+function sessPreviewRoom (sess) {
+  // a room's session carries its OS user as both owner and repoId
+  if (!st.me || !st.me.preview || !sess || !sess.owner || sess.owner === 'root' || sess.repoId !== sess.owner) return ''
+  return isUser() ? st.me.osUser : sess.owner
+}
 function showPreview () { $('previewBtn').hidden = !previewRoom() }
 async function openPreview (room) {
   // opened before the request, or the browser takes it for a popup
@@ -154,8 +161,31 @@ async function openPreview (room) {
   try {
     const { url } = await api('/preview/ticket', { method: 'POST', body: { room } })
     const to = url + '&l=' + LANG
-    if (w) w.location.replace(to); else toast(tr('เบราว์เซอร์กันหน้าต่างใหม่ไว้ อนุญาต popup แล้วกดอีกครั้ง'), true)
+    if (!w) { previewLink(room, to); return }
+    w.location.replace(to)
+    // Some browsers leave the pre-opened tab blank instead of navigating it
+    // (seen on Chrome 157: a ticket was issued and the room was never
+    // loaded). A tab still on about:blank is ours to read; then hand the
+    // same one-use link over as a plain link the user clicks.
+    setTimeout(() => {
+      let blank = false
+      try { blank = !w.closed && w.location.href === 'about:blank' } catch (e) { /* it navigated away: fine */ }
+      if (blank) { try { w.close() } catch (e) { /* fine */ } previewLink(room, to) }
+    }, 2500)
   } catch (e) { if (w) w.close(); toast(tr('ไม่สำเร็จ: ') + e.message, true) }
+}
+// previewLink offers the one-use preview link as a link to click, for when
+// the tab could not be opened or navigated for the user.
+function previewLink (room, to) {
+  const dlg = h('dialog', { class: 'dlg previewLinkDlg' })
+  const close = () => { dlg.close(); dlg.remove() }
+  dlg.append(
+    h('p', null, tr('เปิดแท็บพรีวิวให้อัตโนมัติไม่ได้ กดลิงก์นี้เพื่อเปิดหน้าของห้อง ') + room + tr(' (ใช้ได้ครั้งเดียว ภายใน 1 นาที)')),
+    h('div', { class: 'dlgBtns' },
+      h('a', { href: to, target: '_blank', rel: 'noopener noreferrer', class: 'btnLink pri', onclick: () => setTimeout(close, 0) }, tr('🖥 เปิดพรีวิว')),
+      h('button', { type: 'button', class: 'ghost', onclick: close }, tr('ปิด'))))
+  document.body.append(dlg)
+  dlg.showModal()
 }
 async function api (path, opts) {
   const res = await fetch('/aiagent/api' + path, {
@@ -2154,7 +2184,7 @@ function sessionPanel (sess, tab) {
     sess.title ? h('p', null, sess.title) : null,
     h('dl', { class: 'kv' },
       h('dt', null, 'Session'), h('dd', { class: 'mono', title: sess.sessionId }, shortId(sess.sessionId)),
-      h('dt', null, tr('เจ้าของ')), h('dd', null, sess.owner),
+      h('dt', null, tr('เจ้าของ')), h('dd', null, sess.owner, sessPreviewRoom(sess) ? [' ', h('button', { type: 'button', class: 'ghost', title: tr('หน้าที่ agent ของห้องกำลังสร้าง'), onclick: () => openPreview(sessPreviewRoom(sess)) }, tr('🖥 พรีวิว'))] : null),
       h('dt', null, tr('โฟลเดอร์')), h('dd', { class: 'mono' }, sess.cwd || '—'),
       h('dt', null, 'Branch'), h('dd', { class: 'mono' }, sess.gitBranch || '—'),
       h('dt', null, tr('เริ่ม')), h('dd', null, sess.startedAt ? fmtTime(sess.startedAt) + ' · ' + ago(sess.startedAt) : '—'),
@@ -2767,6 +2797,7 @@ async function openReview (id) {
   let seq = 0
   $('reviewTitle').textContent = tr('🧪 ตรวจงาน · ') + r.title
   $('reviewFrame').removeAttribute('src')
+  reviewTabs(r)
 
   const note = h('textarea', { rows: 2 })
   // Pictures for the note: a screenshot with the mistake circled says more
@@ -3037,6 +3068,51 @@ async function openReview (id) {
   $('reviewDlg').showModal()
 }
 
+// The review dialog's two views: the page the agent wrote, and the change it
+// describes (the commit `aiagent review --repo` recorded), read from the
+// room's checkout. The preview button opens what the room is running now.
+function reviewRoom (r) {
+  if (!st.me || !st.me.preview) return ''
+  return r.owner || (isUser() ? st.me.osUser : st.as) || ''
+}
+function reviewTabs (r) {
+  const page = $('rvTabPage'); const code = $('rvTabCode'); const box = $('reviewCode')
+  let loaded = false
+  const show = which => {
+    page.setAttribute('aria-selected', String(which === 'page'))
+    code.setAttribute('aria-selected', String(which === 'code'))
+    $('reviewFrame').hidden = which !== 'page'
+    box.hidden = which !== 'code'
+    if (which === 'code' && !loaded) { loaded = true; loadReviewCode(r, box) }
+  }
+  page.onclick = () => show('page')
+  code.onclick = () => show('code')
+  const room = reviewRoom(r)
+  $('rvPreview').hidden = !room
+  $('rvPreview').onclick = () => openPreview(room)
+  box.replaceChildren()
+  show('page')
+}
+async function loadReviewCode (r, box) {
+  box.replaceChildren(h('p', { class: 'tmeta' }, tr('กำลังอ่านโค้ด…')))
+  let d
+  try { d = await api('/reviews/' + encodeURIComponent(r.id) + '/code') } catch (e) {
+    box.replaceChildren(h('div', { class: 'twarn' }, tr('อ่านโค้ดไม่ได้: ') + e.message)); return
+  }
+  const c = d.code
+  const head = c ? h('div', { class: 'rvCodeHead' },
+    h('div', null, h('small', null, tr('repo')), ' ', h('code', null, c.repo)),
+    c.branch ? h('div', null, h('small', null, tr('branch')), ' ', h('code', null, c.branch)) : null,
+    h('div', null, h('small', null, tr('เทียบ')), ' ', h('code', null, (c.baseRef || '') + ' ' + c.base.slice(0, 8)), ' → ', h('code', null, c.commit.slice(0, 8))),
+    d.branchHead ? h('div', { class: 'twarn' }, tr('branch นี้มี commit ใหม่กว่าหน้าที่ส่งตรวจ (') + d.branchHead.slice(0, 8) + tr(') — ที่เห็นคือโค้ด ณ ตอนส่งตรวจ')) : null) : null
+  if (!c) {
+    box.replaceChildren(h('div', { class: 'rvCard unknown wide' }, h('b', null, tr('ไม่มีโค้ดให้ดู')), h('div', { class: 'tmeta' }, tr('ให้ agent ส่งหน้าตรวจใหม่ด้วย aiagent review --repo <โฟลเดอร์ repo> แล้วแท็บนี้จะแสดง diff ของ commit นั้น'))))
+    return
+  }
+  const v = { files: d.files, diff: d.diff, diffTruncated: d.diffTruncated, diffError: d.error || '' }
+  box.replaceChildren(...[head, reviewFiles(v, box), reviewDiff(v)].filter(Boolean))
+}
+
 // ----- accounts: switch the Claude / Codex sign-in on this box -----
 const accountName = { claude: 'Claude Code', codex: 'Codex', agy: 'Google Antigravity' }
 async function openAccounts () {
@@ -3147,11 +3223,16 @@ $('connectDlg').addEventListener('close', () => {
 
 async function drawTokens (fresh) {
   if (!$('accountsDlg').open) return
-  let list, osUsers
-  try { const r = await api('/tokens'); list = r.tokens; osUsers = r.osUsers } catch (e) { $('tokenBody').replaceChildren(h('p', { class: 'note' }, tr('อ่านรายการ token ไม่ได้: ') + e.message)); return }
+  let list, osUsers, duties
+  try { const r = await api('/tokens'); list = r.tokens; osUsers = r.osUsers; duties = r.duties } catch (e) { $('tokenBody').replaceChildren(h('p', { class: 'note' }, tr('อ่านรายการ token ไม่ได้: ') + e.message)); return }
   const name = h('input', { type: 'text', id: 'tokenName', maxlength: '40', placeholder: osUsers ? tr('ชื่อผู้ใช้ (a-z, 0-9, -)') : tr('ชื่อผู้ใช้'), autocomplete: 'off' })
+  const duty = dutySelect('', tr('บทบาทของห้องใหม่'))
   const create = async () => {
-    try { drawTokens(await api('/tokens', { method: 'POST', body: { name: name.value.trim() } })) } catch (e) { toast(tr('ไม่สำเร็จ: ') + e.message, true) }
+    try { drawTokens(await api('/tokens', { method: 'POST', body: { name: name.value.trim(), duty: duties ? duty.value : '' } })) } catch (e) { toast(tr('ไม่สำเร็จ: ') + e.message, true) }
+  }
+  const setDuty = async (t, value) => {
+    try { await api('/tokens/' + t.id + '/duty', { method: 'POST', body: { duty: value } }); toast(t.name + tr(' เป็น ') + dutyLabel(value)) } catch (e) { toast(tr('ไม่สำเร็จ: ') + e.message, true) }
+    drawTokens()
   }
   const revoke = async t => {
     if (!await confirmBox(tr('เพิกถอน token'), t.osUser ? tr('ลบ OS user และหยุด agent ทุกตัวของผู้ใช้นี้ ไฟล์จะถูกเก็บสำรองไว้บนเครื่องก่อนลบ') : tr('ผู้ใช้นี้จะเข้าใช้งานไม่ได้ทันที'), t.name, tr('เพิกถอน'))) return
@@ -3170,9 +3251,19 @@ async function drawTokens (fresh) {
     fresh ? h('p', null, fresh.name + ': ', h('code', { class: 'devCode' }, fresh.token), ' ', h('button', { type: 'button', class: 'ghost', onclick: e => copyText(fresh.token, e.currentTarget) }, tr('คัดลอก'))) : null,
     fresh ? h('p', { class: 'note' }, tr('token นี้แสดงครั้งเดียว ส่งให้ผู้ใช้ทางช่องทางส่วนตัว')) : null,
     freshQR,
-    list.length ? h('ul', null, ...list.map(t => h('li', null, h('b', null, t.name), t.removing ? h('span', { class: 'note' }, ' · ' + tr('ลบไม่สำเร็จ กดเพิกถอนอีกครั้ง')) : null, ' ', t.osUser && !t.removing ? h('button', { type: 'button', class: 'ghost', onclick: () => viewAs(t.osUser) }, tr('เข้าห้อง / login')) : null, ' ', t.osUser && !t.removing && st.me.preview ? h('button', { type: 'button', class: 'ghost', onclick: () => openPreview(t.osUser) }, tr('พรีวิว')) : null, ' ', t.removing ? null : h('button', { type: 'button', class: 'ghost', title: tr('ใช้เมื่อลืม token: ดู token เดิมไม่ได้ เพราะระบบเก็บแค่ hash'), onclick: () => reissue(t) }, tr('ออก token ใหม่')), ' ', h('button', { type: 'button', class: 'warn', onclick: () => revoke(t) }, tr('เพิกถอน'))))) : h('p', { class: 'note' }, tr('ยังไม่มี token ของผู้ใช้')),
+    list.length ? h('ul', null, ...list.map(t => h('li', null, h('b', null, t.name), duties && t.osUser && !t.removing ? [' ', dutySelect(t.duty || '', tr('บทบาทของ ') + t.name, v => setDuty(t, v))] : null, t.removing ? h('span', { class: 'note' }, ' · ' + tr('ลบไม่สำเร็จ กดเพิกถอนอีกครั้ง')) : null, ' ', t.osUser && !t.removing ? h('button', { type: 'button', class: 'ghost', onclick: () => viewAs(t.osUser) }, tr('เข้าห้อง / login')) : null, ' ', t.osUser && !t.removing && st.me.preview ? h('button', { type: 'button', class: 'ghost', onclick: () => openPreview(t.osUser) }, tr('พรีวิว')) : null, ' ', t.removing ? null : h('button', { type: 'button', class: 'ghost', title: tr('ใช้เมื่อลืม token: ดู token เดิมไม่ได้ เพราะระบบเก็บแค่ hash'), onclick: () => reissue(t) }, tr('ออก token ใหม่')), ' ', h('button', { type: 'button', class: 'warn', onclick: () => revoke(t) }, tr('เพิกถอน'))))) : h('p', { class: 'note' }, tr('ยังไม่มี token ของผู้ใช้')),
     osUsers ? h('p', { class: 'note' }, tr('สร้าง token = สร้าง OS user และห้องทำงานแยกบนเครื่องนี้ ใช้เวลาราว 10 วินาที จากนั้นเข้าห้องเพื่อ login Claude ให้ผู้ใช้')) : null,
-    h('div', { class: 'accRow' }, name, h('button', { type: 'button', class: 'pri', onclick: create }, tr('สร้าง token')))))
+    duties ? h('p', { class: 'note' }, tr('บทบาท: dev หน้าเว็บ = รัน dev server ให้ดูที่ dev/<ห้อง> · backend = ไม่มีหน้าพรีวิว ตรวจด้วยเทสต์ · tester = ไม่รันแอป ทดสอบบน UAT · agent ของห้องอ่านบทบาทนี้จากคู่มือห้อง')) : null,
+    h('div', { class: 'accRow' }, name, duties ? duty : null, h('button', { type: 'button', class: 'pri', onclick: create }, tr('สร้าง token')))))
+}
+
+// A room's duty: what the person behind the token does (roomduties.go).
+function dutyLabel (v) {
+  return { frontend: tr('dev หน้าเว็บ'), backend: tr('backend'), tester: tr('tester') }[v] || tr('ยังไม่กำหนดบทบาท')
+}
+function dutySelect (value, label, onchange) {
+  return h('select', { 'aria-label': label, onchange: onchange ? e => onchange(e.target.value) : null },
+    ...['', 'frontend', 'backend', 'tester'].map(v => h('option', { value: v, selected: v === value }, dutyLabel(v))))
 }
 
 // ----- aiagent itself: see whether a newer release is out and install it -----
@@ -5226,13 +5317,13 @@ function advisoryCard (d) {
     h('div', { class: 'tmeta' }, tr('ความเห็นจาก AI ที่อ่าน diff อย่างเดียว ไม่ได้รันโค้ด · คุณเป็นคนตัดสิน')))
 }
 
-function reviewFiles (d) {
+function reviewFiles (d, root) {
   if (d.diffError) {
     return h('div', { class: 'rvCard unknown wide' }, h('small', null, tr('ไฟล์ที่เปลี่ยน')), h('b', null, tr('ไม่ทราบ — อ่าน diff ไม่ได้')), h('div', { class: 'tmeta' }, d.diffError))
   }
   const files = d.files || []
   const jump = path => {
-    for (const el of $('review').querySelectorAll('.rvDiff .f')) {
+    for (const el of (root || $('review')).querySelectorAll('.rvDiff .f')) {
       if (el.dataset.file === path) { el.scrollIntoView({ block: 'start' }); return }
     }
   }
