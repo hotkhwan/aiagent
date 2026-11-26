@@ -29,6 +29,9 @@ func TestThePhoneAppCanBeConnectedFromThePage(t *testing.T) {
 	if !strings.Contains(jsFunc(t, app, "drawTokens"), "connectQR(fresh.token)") {
 		t.Error("a freshly made token shows its connect code")
 	}
+	if !strings.Contains(readWebFile(t, "styles.css"), "dialog.screenPop.connectDlg, dialog.screenPop.connectDlg.full { width: min(460px") {
+		t.Error("the phone-app dialog is a small card in the middle, not a full-width panel")
+	}
 	if !strings.Contains(app, "$('connectDlg').addEventListener('close'") {
 		t.Error("closing the dialog must clear the code from the page")
 	}
