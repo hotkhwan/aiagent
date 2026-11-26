@@ -6,7 +6,7 @@
 // value bound to that phone and this server. It gives the handle to this
 // service with its own token (POST /push/devices). Every 15 seconds this
 // service works out what waits for each token's holder (an agent's question,
-// an agent blocked for instructions, an open review page), and posts each NEW
+// an agent blocked for instructions, an open review page, a finished turn), and posts each NEW
 // item once to the relay, which turns it into a notification with fixed text.
 //
 // What leaves this machine per item: the handle, the kind, the session or page
@@ -111,6 +111,10 @@ func pushItems(snap Snapshot, reviews []Review) []PushItem {
 			out = append(out, PushItem{Kind: "answer", Key: "a|" + ss.SessionID + "|" + digestHex(b.String())[:16], Name: ss.DisplayName, Ref: ss.SessionID})
 		case ss.AgentState == "blocked":
 			out = append(out, PushItem{Kind: "waiting", Key: "w|" + ss.SessionID, Name: ss.DisplayName, Ref: ss.SessionID})
+		case ss.Live && (ss.Status == StatusIdle || ss.Status == StatusCompleted) && ss.LastEventAt != nil:
+			// a finished turn: each one is its own item, keyed by when it ended,
+			// so the next finished turn notifies again
+			out = append(out, PushItem{Kind: "done", Key: "d|" + ss.SessionID + "|" + ss.LastEventAt.UTC().Format(time.RFC3339Nano), Name: ss.DisplayName, Ref: ss.SessionID})
 		}
 	}
 	for _, r := range reviews {
