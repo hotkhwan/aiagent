@@ -107,3 +107,19 @@ func TestSessionPanelOpensRoomPreview(t *testing.T) {
 		}
 	}
 }
+
+// A pre-opened preview tab that stays blank (the browser did not navigate it)
+// must not leave the user with nothing: the same link is offered to click.
+func TestPreviewFallsBackToALink(t *testing.T) {
+	app := readWebFile(t, "app.js")
+	open := jsFunc(t, app, "openPreview")
+	for _, want := range []string{"'about:blank'", "previewLink(room, to)", "!w.closed"} {
+		if !strings.Contains(open, want) {
+			t.Errorf("openPreview is missing %q", want)
+		}
+	}
+	link := jsFunc(t, app, "previewLink")
+	if !strings.Contains(link, "rel: 'noopener noreferrer'") || !strings.Contains(link, "target: '_blank'") {
+		t.Errorf("the fallback link must open a new tab without an opener or referrer")
+	}
+}

@@ -26,6 +26,10 @@ var EN = {
   'หน้าที่ agent ของห้องกำลังสร้าง': 'The page this room\'s agent is building',
   'เบราว์เซอร์กันหน้าต่างใหม่ไว้ อนุญาต popup แล้วกดอีกครั้ง': 'The browser blocked the new window; allow popups and press again',
 
+  'เปิดแท็บพรีวิวให้อัตโนมัติไม่ได้ กดลิงก์นี้เพื่อเปิดหน้าของห้อง ': 'The preview tab could not be opened for you. Click this link to open the page of room ',
+  ' (ใช้ได้ครั้งเดียว ภายใน 1 นาที)': ' (one use, within 1 minute)',
+  '🖥 เปิดพรีวิว': '🖥 Open preview',
+
   // review dialog: the code tab and the room's preview
   'มุมมองงานตรวจ': 'Review views',
   'หน้าสรุป': 'Summary',

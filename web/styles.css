@@ -1821,3 +1821,5 @@ textarea[aria-busy="true"] { opacity: .75 }
 @media (max-width: 900px) { .insp > .promptBox { max-height: 70dvh } }
 .insp > .askBox .askBtns { position: sticky; bottom: -12px; z-index: 1; margin: 0 -14px -12px; padding: 10px 14px 12px;
   background: var(--sky2); border-top: 1px solid var(--line) }
+
+.previewLinkDlg .btnLink { display: inline-flex; align-items: center; min-height: 40px; padding: 8px 16px; border-radius: 999px; background: var(--sky); color: inherit; font-weight: 700; text-decoration: none }

@@ -161,8 +161,31 @@ async function openPreview (room) {
   try {
     const { url } = await api('/preview/ticket', { method: 'POST', body: { room } })
     const to = url + '&l=' + LANG
-    if (w) w.location.replace(to); else toast(tr('เบราว์เซอร์กันหน้าต่างใหม่ไว้ อนุญาต popup แล้วกดอีกครั้ง'), true)
+    if (!w) { previewLink(room, to); return }
+    w.location.replace(to)
+    // Some browsers leave the pre-opened tab blank instead of navigating it
+    // (seen on Chrome 157: a ticket was issued and the room was never
+    // loaded). A tab still on about:blank is ours to read; then hand the
+    // same one-use link over as a plain link the user clicks.
+    setTimeout(() => {
+      let blank = false
+      try { blank = !w.closed && w.location.href === 'about:blank' } catch (e) { /* it navigated away: fine */ }
+      if (blank) { try { w.close() } catch (e) { /* fine */ } previewLink(room, to) }
+    }, 2500)
   } catch (e) { if (w) w.close(); toast(tr('ไม่สำเร็จ: ') + e.message, true) }
+}
+// previewLink offers the one-use preview link as a link to click, for when
+// the tab could not be opened or navigated for the user.
+function previewLink (room, to) {
+  const dlg = h('dialog', { class: 'dlg previewLinkDlg' })
+  const close = () => { dlg.close(); dlg.remove() }
+  dlg.append(
+    h('p', null, tr('เปิดแท็บพรีวิวให้อัตโนมัติไม่ได้ กดลิงก์นี้เพื่อเปิดหน้าของห้อง ') + room + tr(' (ใช้ได้ครั้งเดียว ภายใน 1 นาที)')),
+    h('div', { class: 'dlgBtns' },
+      h('a', { href: to, target: '_blank', rel: 'noopener noreferrer', class: 'btnLink pri', onclick: () => setTimeout(close, 0) }, tr('🖥 เปิดพรีวิว')),
+      h('button', { type: 'button', class: 'ghost', onclick: close }, tr('ปิด'))))
+  document.body.append(dlg)
+  dlg.showModal()
 }
 async function api (path, opts) {
   const res = await fetch('/aiagent/api' + path, {
