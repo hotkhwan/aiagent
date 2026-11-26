@@ -37,6 +37,22 @@ func TestInspectorRebuildsHeaderWhenCharacterChanges(t *testing.T) {
 	}
 }
 
+// A character picked before looks were saved on the server lives only in that
+// browser's localStorage, so the phone app showed another one. The web saves
+// such a pick on the server once, and only for an agent it may restyle.
+func TestABrowserOnlyPickIsSavedOnTheServerOnce(t *testing.T) {
+	app := readWebFile(t, "app.js")
+	if !strings.Contains(jsFunc(t, app, "charFor"), "liftLook(id, pick)") {
+		t.Fatalf("charFor must hand a browser-only pick to liftLook")
+	}
+	lift := jsFunc(t, app, "liftLook")
+	for _, want := range []string{"lifted.has(id)", "own.look", "own.readOnly", "own.protected && isUser()", "/look'"} {
+		if !strings.Contains(lift, want) {
+			t.Errorf("liftLook must check %q", want)
+		}
+	}
+}
+
 // A still character is a whole figure; the avatar must crop to the head the way
 // the walking sprites do, not fit the whole figure into the circle.
 func TestStillCharacterAvatarShowsTheHead(t *testing.T) {

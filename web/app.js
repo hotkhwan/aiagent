@@ -1133,8 +1133,24 @@ function charFor (id) {
   if (charPool.includes(sh)) return sh
   let pick = ''
   try { pick = localStorage.getItem(charKey(id)) || '' } catch (e) { pick = '' }
-  if (charPool.includes(pick)) return pick
+  if (charPool.includes(pick)) {
+    liftLook(id, pick)
+    return pick
+  }
   return chars[hash(id) % chars.length]
+}
+
+// A pick that lives only in this browser (made before looks were saved on the
+// server) is saved there once, so the phone app and other browsers show it too.
+const lifted = new Set()
+function liftLook (id, c) {
+  if (lifted.has(id)) return
+  const own = st.snap && st.snap.sessions && st.snap.sessions.find(x => x.sessionId === id)
+  if (!own || own.look || own.readOnly || (own.protected && isUser())) return
+  lifted.add(id)
+  own.look = c
+  api('/sessions/' + encodeURIComponent(id) + '/look', { method: 'POST', body: JSON.stringify({ look: c }) })
+    .catch(() => { own.look = '' })
 }
 
 function repaintActor (act) {
