@@ -64,3 +64,31 @@ func TestReviewSendClosesAndShowsTheSession(t *testing.T) {
 		}
 	}
 }
+
+// The review dialog shows the change the page describes next to the page, and
+// opens the room's running preview: a reviewer checks the real code and the
+// real page, not only the agent's summary of them.
+func TestReviewDialogHasCodeTabAndPreview(t *testing.T) {
+	html := readWebFile(t, "index.html")
+	for _, id := range []string{`id="rvTabPage"`, `id="rvTabCode"`, `id="rvPreview"`, `id="reviewCode"`} {
+		if !strings.Contains(html, id) {
+			t.Errorf("index.html is missing %s", id)
+		}
+	}
+	app := readWebFile(t, "app.js")
+	if !strings.Contains(jsFunc(t, app, "openReview"), "reviewTabs(r)") {
+		t.Errorf("openReview must set up the page/code tabs")
+	}
+	load := jsFunc(t, app, "loadReviewCode")
+	for _, want := range []string{"'/code'", "reviewFiles(v, box)", "reviewDiff(v)", "d.branchHead"} {
+		if !strings.Contains(load, want) {
+			t.Errorf("loadReviewCode is missing %q", want)
+		}
+	}
+	if !strings.Contains(jsFunc(t, app, "reviewTabs"), "openPreview(room)") {
+		t.Errorf("the review dialog must open the room's preview")
+	}
+	if !strings.Contains(jsFunc(t, app, "reviewRoom"), "st.me.preview") {
+		t.Errorf("the preview button must only show when previews are on")
+	}
+}

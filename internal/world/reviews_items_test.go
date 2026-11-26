@@ -12,7 +12,7 @@ func TestReviewItems(t *testing.T) {
 	e := newEnv(t)
 	e.now = time.Now()
 	tok, _ := e.store.Enable("test")
-	r, err := FileReview(e.home, "หน้า PM", "", "", "codexCli", "/w", []byte("<h2>ข้อ 1</h2><h2>ข้อ 2</h2>"), e.now)
+	r, err := FileReview(e.home, "หน้า PM", "", "", "codexCli", "/w", nil, []byte("<h2>ข้อ 1</h2><h2>ข้อ 2</h2>"), e.now)
 	if err != nil {
 		t.Fatal(err)
 	}

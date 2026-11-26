@@ -48,7 +48,7 @@ func reply(t *testing.T, home, id string) *SpoolReply {
 // sees it, next to one filed the old way.
 func TestSpoolReviewIsFiledByTheInstance(t *testing.T) {
 	e, home := spoolEnv(t)
-	old, err := FileReview(home, "old way", "", "", "", "", []byte("<p>x</p>"), e.now)
+	old, err := FileReview(home, "old way", "", "", "", "", nil, []byte("<p>x</p>"), e.now)
 	if err != nil {
 		t.Fatal(err)
 	}

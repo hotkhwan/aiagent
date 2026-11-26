@@ -28,7 +28,9 @@ It prints the paths of two JPEGs, 390 and 1440 px wide, in `~/work/.aiagent/capt
 
 When a piece of work is ready for the admin to look at, write a short HTML page (what changed and why, how it was tested, the version you bumped to, how to undo it) and file it:
 
-    aiagent review --title "<short title>" --summary "<one line>" page.html
+    aiagent review --title "<short title>" --summary "<one line>" --repo ~/work/<repo> page.html
+
+Commit the work first. `--repo` names the checkout the page is about: the review records its branch and last commit and shows the reviewer the diff from where the branch left `develop` (or the default branch) in a **Code changes** tab next to your page. One page per repo; for work in two repos, file two pages. Without `--repo` the reviewer sees only your page.
 
 Put the page in `~/work` (the HTML must be UTF-8, at most 3 MB; images as `data:` URLs). Your shell cannot write `~/.claude`, so the command leaves the page in `~/work/.aiagent/` and this room's service files it; wait for `filed review r…`. Do not file it a second time if it says the service has not picked it up yet, and do not touch `~/work/.aiagent/` yourself.
 

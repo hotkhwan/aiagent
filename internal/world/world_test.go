@@ -1184,7 +1184,7 @@ func TestReviewFlow(t *testing.T) {
 	e := newEnv(t)
 	e.now = time.Now()
 	tok, _ := e.store.Enable("test")
-	r, err := FileReview(e.home, "แก้หน้า policy", "สรุป", "", "codexCli", "/w", []byte("<h1>done</h1><script>alert(1)</script>"), e.now)
+	r, err := FileReview(e.home, "แก้หน้า policy", "สรุป", "", "codexCli", "/w", nil, []byte("<h1>done</h1><script>alert(1)</script>"), e.now)
 	if err != nil {
 		t.Fatal(err)
 	}

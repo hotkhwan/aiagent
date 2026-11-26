@@ -2767,6 +2767,7 @@ async function openReview (id) {
   let seq = 0
   $('reviewTitle').textContent = tr('🧪 ตรวจงาน · ') + r.title
   $('reviewFrame').removeAttribute('src')
+  reviewTabs(r)
 
   const note = h('textarea', { rows: 2 })
   // Pictures for the note: a screenshot with the mistake circled says more
@@ -3035,6 +3036,51 @@ async function openReview (id) {
     $('reviewFrame').src = t.url
   } catch (e) { toast(tr('เปิดหน้าตรวจไม่ได้: ') + e.message, true) }
   $('reviewDlg').showModal()
+}
+
+// The review dialog's two views: the page the agent wrote, and the change it
+// describes (the commit `aiagent review --repo` recorded), read from the
+// room's checkout. The preview button opens what the room is running now.
+function reviewRoom (r) {
+  if (!st.me || !st.me.preview) return ''
+  return r.owner || (isUser() ? st.me.osUser : st.as) || ''
+}
+function reviewTabs (r) {
+  const page = $('rvTabPage'); const code = $('rvTabCode'); const box = $('reviewCode')
+  let loaded = false
+  const show = which => {
+    page.setAttribute('aria-selected', String(which === 'page'))
+    code.setAttribute('aria-selected', String(which === 'code'))
+    $('reviewFrame').hidden = which !== 'page'
+    box.hidden = which !== 'code'
+    if (which === 'code' && !loaded) { loaded = true; loadReviewCode(r, box) }
+  }
+  page.onclick = () => show('page')
+  code.onclick = () => show('code')
+  const room = reviewRoom(r)
+  $('rvPreview').hidden = !room
+  $('rvPreview').onclick = () => openPreview(room)
+  box.replaceChildren()
+  show('page')
+}
+async function loadReviewCode (r, box) {
+  box.replaceChildren(h('p', { class: 'tmeta' }, tr('กำลังอ่านโค้ด…')))
+  let d
+  try { d = await api('/reviews/' + encodeURIComponent(r.id) + '/code') } catch (e) {
+    box.replaceChildren(h('div', { class: 'twarn' }, tr('อ่านโค้ดไม่ได้: ') + e.message)); return
+  }
+  const c = d.code
+  const head = c ? h('div', { class: 'rvCodeHead' },
+    h('div', null, h('small', null, tr('repo')), ' ', h('code', null, c.repo)),
+    c.branch ? h('div', null, h('small', null, tr('branch')), ' ', h('code', null, c.branch)) : null,
+    h('div', null, h('small', null, tr('เทียบ')), ' ', h('code', null, (c.baseRef || '') + ' ' + c.base.slice(0, 8)), ' → ', h('code', null, c.commit.slice(0, 8))),
+    d.branchHead ? h('div', { class: 'twarn' }, tr('branch นี้มี commit ใหม่กว่าหน้าที่ส่งตรวจ (') + d.branchHead.slice(0, 8) + tr(') — ที่เห็นคือโค้ด ณ ตอนส่งตรวจ')) : null) : null
+  if (!c) {
+    box.replaceChildren(h('div', { class: 'rvCard unknown wide' }, h('b', null, tr('ไม่มีโค้ดให้ดู')), h('div', { class: 'tmeta' }, tr('ให้ agent ส่งหน้าตรวจใหม่ด้วย aiagent review --repo <โฟลเดอร์ repo> แล้วแท็บนี้จะแสดง diff ของ commit นั้น'))))
+    return
+  }
+  const v = { files: d.files, diff: d.diff, diffTruncated: d.diffTruncated, diffError: d.error || '' }
+  box.replaceChildren(...[head, reviewFiles(v, box), reviewDiff(v)].filter(Boolean))
 }
 
 // ----- accounts: switch the Claude / Codex sign-in on this box -----
@@ -5138,13 +5184,13 @@ function advisoryCard (d) {
     h('div', { class: 'tmeta' }, tr('ความเห็นจาก AI ที่อ่าน diff อย่างเดียว ไม่ได้รันโค้ด · คุณเป็นคนตัดสิน')))
 }
 
-function reviewFiles (d) {
+function reviewFiles (d, root) {
   if (d.diffError) {
     return h('div', { class: 'rvCard unknown wide' }, h('small', null, tr('ไฟล์ที่เปลี่ยน')), h('b', null, tr('ไม่ทราบ — อ่าน diff ไม่ได้')), h('div', { class: 'tmeta' }, d.diffError))
   }
   const files = d.files || []
   const jump = path => {
-    for (const el of $('review').querySelectorAll('.rvDiff .f')) {
+    for (const el of (root || $('review')).querySelectorAll('.rvDiff .f')) {
       if (el.dataset.file === path) { el.scrollIntoView({ block: 'start' }); return }
     }
   }

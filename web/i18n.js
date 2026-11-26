@@ -26,6 +26,20 @@ var EN = {
   'หน้าที่ agent ของห้องกำลังสร้าง': 'The page this room\'s agent is building',
   'เบราว์เซอร์กันหน้าต่างใหม่ไว้ อนุญาต popup แล้วกดอีกครั้ง': 'The browser blocked the new window; allow popups and press again',
 
+  // review dialog: the code tab and the room's preview
+  'มุมมองงานตรวจ': 'Review views',
+  'หน้าสรุป': 'Summary',
+  'โค้ดที่แก้': 'Code changes',
+  '🖥 เปิดพรีวิวห้องนี้': '🖥 Open this room\'s preview',
+  'เปิดหน้าที่ห้องนี้รันอยู่จริง': 'Open the page this room is actually running',
+  'กำลังอ่านโค้ด…': 'Reading the code…',
+  'อ่านโค้ดไม่ได้: ': 'Could not read the code: ',
+  'เทียบ': 'compare',
+  'branch นี้มี commit ใหม่กว่าหน้าที่ส่งตรวจ (': 'This branch has a newer commit than the reviewed page (',
+  ') — ที่เห็นคือโค้ด ณ ตอนส่งตรวจ': ') — this is the code as it was sent for review',
+  'ไม่มีโค้ดให้ดู': 'No code to show',
+  'ให้ agent ส่งหน้าตรวจใหม่ด้วย aiagent review --repo <โฟลเดอร์ repo> แล้วแท็บนี้จะแสดง diff ของ commit นั้น': 'Ask the agent to file the page again with aiagent review --repo <repo folder>; this tab then shows that commit\'s diff',
+
   // agent and session state
   'กำลังเขียนโค้ด': 'Coding',
   'กำลังทดสอบ': 'Testing',

@@ -52,7 +52,7 @@ func TestRoomReviewOpensForAdminAndUser(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	direct, err := FileReview(inst.home, "direct page", "", "95126f47-94c8-456d-9334-ab3a9746951d", "claudeCode", inst.home, page, inst.now.Add(1))
+	direct, err := FileReview(inst.home, "direct page", "", "95126f47-94c8-456d-9334-ab3a9746951d", "claudeCode", inst.home, nil, page, inst.now.Add(1))
 	if err != nil {
 		t.Fatal(err)
 	}
