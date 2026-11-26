@@ -12,6 +12,22 @@ for work that is not happening.
 > model below is real and tested, but this has not had an outside audit, and
 > the UI defaults to Thai. See [Known gaps](#known-gaps).
 
+
+## Phone app
+
+**AI Agent World** for iPhone and Android: see what waits for you (an agent's
+question, a blocked agent, a review), answer it, and command your agents by text,
+picture or voice, with a notification when one needs you or finishes. It talks to
+your own aiagent server; nothing passes through anyone else's except the push
+relay, which carries a session name and never a token or a conversation.
+
+1. Run aiagent on your computer (below).
+2. On its web page press **📱 App**: it shows a QR.
+3. In the app press **Scan QR**.
+
+The app is in TestFlight beta (iOS). `--push-relay` picks the notification relay
+or turns notifications off.
+
 ## What you see
 
 - **Houses** group sessions by where they came from: a tmux/dispatcher house, a
