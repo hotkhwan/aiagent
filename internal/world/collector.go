@@ -228,6 +228,7 @@ func (c *Collector) collectLocked(ctx context.Context) Snapshot {
 	procs := codexProcesses(c.ProcRoot)
 	var reading *codexReading
 	seen := map[string]bool{}
+	at := map[string]int{}
 	for _, h := range c.homes() {
 		owner := filepath.Base(h)
 		for _, s := range c.collectClaude(h, owner, since, pt) {
@@ -235,10 +236,8 @@ func (c *Collector) collectLocked(ctx context.Context) Snapshot {
 			if emptyBackground(s) || (s.Cwd != "" && s.Cwd == c.suggestDir()) {
 				continue
 			}
-			if !seen[s.RuntimeType+s.SessionID] {
-				seen[s.RuntimeType+s.SessionID] = true
-				snap.Sessions = append(snap.Sessions, s)
-			}
+			seen[s.RuntimeType+s.SessionID] = true
+			snap.Sessions = keepSession(snap.Sessions, at, s)
 		}
 		ss, r := c.collectCodex(h, owner, since, open, procs)
 		for _, s := range ss {

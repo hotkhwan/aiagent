@@ -49,6 +49,23 @@ func emptyBackground(s Session) bool {
 	return s.Kind == "bg" && s.sourcePath == "" && len(s.SessionID) >= 8 && s.DisplayName == s.SessionID[:8]
 }
 
+// keepSession adds s to list unless a session with its id is there already
+// (at maps runtime+id to its index). Of two with one id, the one that is not
+// a parked terminal wins: a terminal whose conversation moved to the
+// background keeps that conversation's sessionId in its registry file, next
+// to the job's own file, and dropParked removes it afterwards.
+func keepSession(list []Session, at map[string]int, s Session) []Session {
+	k := s.RuntimeType + s.SessionID
+	if i, ok := at[k]; ok {
+		if list[i].parkedJob != "" && s.parkedJob == "" {
+			list[i] = s
+		}
+		return list
+	}
+	at[k] = len(list)
+	return append(list, s)
+}
+
 // dropParked removes a terminal whose conversation moved to a background job
 // that is itself listed: the same agent would show twice, the stale half
 // first. The terminal is kept when its job is not there to stand for it.
