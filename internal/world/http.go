@@ -17,12 +17,15 @@
 //	POST /aiagent/api/sessions/:id/answer   token — {option: n} one choice, or {ask: {tabs,
 //	                                    answers, submit, chat}} a whole AskUserQuestion (ask.go)
 //	                                   (agcmd dispatch, or relay for own bg sessions)
-//	POST /aiagent/api/connect/qr       token — {origin[, token]} → PNG of the phone app's connect code (connect.go)
 //	POST /aiagent/api/connect/pair     token — {origin} → one-time pairing code + QR for the phone app (pair.go)
 //	POST /aiagent/api/connect/pair/cancel token — ends the caller's pairing codes (pair.go)
 //	GET  /aiagent/api/connect/devices     token — paired phones in the caller's scope (devices.go)
 //	POST /aiagent/api/connect/devices/:id/revoke token — end one paired phone (devices.go)
 //	POST /aiagent/pair                 no token — {code} → the token, once, within 10 minutes (pair.go)
+//	POST /aiagent/api/tokens/:id/pair  admin — {token, origin} → one-time pairing QR for a user token it holds (pair.go)
+//	POST /aiagent/login-qr             no token — {origin} → a QR the app scans to sign this browser in (loginqr.go)
+//	GET  /aiagent/login-qr/:id         no token, nonce header — pending, or the browser's new token once (loginqr.go)
+//	POST /aiagent/api/login-qr/:id/info|approve token — the app sees who asks, then approves (loginqr.go)
 //	POST /aiagent/api/push/devices     token — {handle} from the phone app's relay (push.go)
 //	POST /aiagent/api/uploads          token — raw image or zip body → {path} for a message
 //	POST /aiagent/api/sessions/:id/model token — /model <opus|sonnet|haiku> via the session's channel
@@ -123,6 +126,8 @@ type Service struct {
 	sends sendOnce
 	// pair holds the phone app's one-time pairing tickets (pair.go)
 	pair pairState
+	// loginQR holds the browsers waiting to be signed in by the app (loginqr.go)
+	loginQR loginQRState
 
 	policyOnce sync.Once
 
@@ -344,15 +349,20 @@ func (s *Service) Mount(app *fiber.App) {
 	app.Post("/aiagent/pair", s.handlePairRedeem)
 	// a terminal or VS Code session's own `aiagent channel` (channels_http.go)
 	s.mountChannels(app)
+	// a browser on the login page asks to be signed in by the app, and
+	// polls with its own nonce (loginqr.go)
+	app.Post("/aiagent/login-qr", s.handleLoginQRCreate)
+	app.Get("/aiagent/login-qr/:id", s.handleLoginQRPoll)
 
 	api := app.Group("/aiagent/api", s.gate)
 	api.Get("/me", s.handleMe)
 	api.Post("/push/devices", s.handlePushDeviceAdd)
-	api.Post("/connect/qr", s.handleConnectQR)
 	api.Post("/connect/pair", s.handleConnectPair)
 	api.Post("/connect/pair/cancel", s.handleConnectPairCancel)
 	api.Get("/connect/devices", s.handleDeviceList)
 	api.Post("/connect/devices/:id/revoke", s.handleDeviceRevoke)
+	api.Post("/login-qr/:id/info", s.handleLoginQRInfo)
+	api.Post("/login-qr/:id/approve", s.handleLoginQRApprove)
 	api.Get("/update", s.handleUpdateCheck)
 	api.Get("/update/release", s.handleReleaseCheck)
 	api.Post("/update", s.handleUpdateApply)
@@ -369,6 +379,7 @@ func (s *Service) Mount(app *fiber.App) {
 	api.Post("/tokens/:id/revoke", s.handleTokenRevoke)
 	api.Post("/tokens/:id/reissue", s.handleTokenReissue)
 	api.Post("/tokens/:id/duty", s.handleTokenDuty)
+	api.Post("/tokens/:id/pair", s.handleTokenPair)
 	api.Post("/preview/ticket", s.handlePreviewTicket)
 	// a room's own instance; the admin service has no work folder to show
 	api.Get("/preview/state", s.handlePreviewState)

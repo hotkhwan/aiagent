@@ -3312,26 +3312,39 @@ async function drawRooms () {
     h('p', { class: 'note' }, tr('ปกติใช้ Opus รุ่นล่าสุด user เปลี่ยน model เองไม่ได้ ระบบสลับเมื่อห้องว่างและคุยต่อจากเดิม ถ้าไม่ทราบค่าจะใช้ Opus')),
     h('div', { class: 'accRow' }, h('button', { type: 'button', class: 'pri', onclick: save }, tr('บันทึก')))))
 }
-// ----- the phone app: a connect code holds this server's address and a token -----
-// The QR is drawn by this service, never by an outside one: the code is a key.
-async function connectQR (token) {
-  const body = token ? { origin: location.origin, token } : { origin: location.origin }
-  const res = await fetch('/aiagent/api/connect/qr', { method: 'POST', headers: { 'X-Aiagent-Token': st.token, 'Content-Type': 'application/json' }, body: JSON.stringify(body), cache: 'no-store' })
-  if (!res.ok) {
-    let j = null
-    try { j = await res.json() } catch (e) { j = null }
-    throw new Error((j && j.message) || ('HTTP ' + res.status))
+// ----- the phone app: a token just made is handed over as a pairing code -----
+// Never the token itself in a QR: the code holds a one-time ticket (pair.go,
+// POST /tokens/:id/pair), ten minutes, and the phone that scans it gets a
+// device token of its own in that user's scope. The QR is drawn by this
+// service, never by an outside one.
+async function freshPairCard (fresh) {
+  const p = await api('/tokens/' + encodeURIComponent(fresh.id) + '/pair', { method: 'POST', body: { token: fresh.token, origin: location.origin } })
+  // never count past ten minutes, even if this computer's clock runs behind
+  const ends = Math.min(Date.parse(p.expiresAt), Date.now() + 10 * 60 * 1000)
+  const img = h('img', { src: p.qr, alt: tr('QR รหัสจับคู่แอป'), class: 'connectQR' })
+  const left = h('p', { class: 'pairLeft' })
+  const save = h('a', { class: 'pairSave', download: 'aiagent-pair.png', href: p.qr }, tr('บันทึกภาพ'))
+  let timer = 0
+  const tick = () => {
+    const sec = Math.max(0, Math.round((ends - Date.now()) / 1000))
+    if (!left.isConnected && timer) { clearInterval(timer); return }
+    if (sec > 0) {
+      left.textContent = tr('ใช้ได้อีก ') + Math.floor(sec / 60) + ':' + String(sec % 60).padStart(2, '0')
+      return
+    }
+    clearInterval(timer)
+    img.classList.add('expired')
+    save.remove()
+    left.textContent = tr('รหัสนี้หมดอายุแล้ว กดออก token ใหม่')
   }
-  return URL.createObjectURL(await res.blob())
-}
-function connectCodeOf (token) { return 'aiagent://connect?u=' + encodeURIComponent(location.origin) + '&t=' + encodeURIComponent(token) }
-function connectCard (url, token) {
-  return h('div', { class: 'connectCard' },
-    h('img', { src: url, alt: tr('QR รหัสเชื่อมต่อ'), class: 'connectQR' }),
+  tick()
+  timer = setInterval(tick, 1000)
+  return h('div', { class: 'connectCard' }, img,
     h('div', null,
-      h('p', null, tr('เปิดแอป AI Agent World แล้วกดสแกน QR หรือคัดลอกรหัสไปวางในแอป')),
-      h('button', { type: 'button', class: 'ghost', onclick: e => copyText(connectCodeOf(token), e.currentTarget, true) }, tr('คัดลอกรหัสเชื่อมต่อ')),
-      h('p', { class: 'note' }, tr('รหัสนี้คือกุญแจเข้า server เท่ากับ token อย่าถ่ายภาพหน้าจอหรือส่งในที่สาธารณะ'))))
+      h('p', null, tr('ให้ผู้ใช้สแกน QR ด้วยแอป AI Agent World หรือบันทึกภาพแล้วส่งให้ทางช่องทางส่วนตัว')),
+      left,
+      h('div', { class: 'accRow pairRow' }, save),
+      h('p', { class: 'note' }, tr('รหัสนี้ใช้ได้ครั้งเดียว ภายใน 10 นาที แอปจะได้ token ของตัวเอง สิทธิ์เท่ากับผู้ใช้นี้'))))
 }
 // The header's phone dialog shows a one-time pairing code (pair.go), never the
 // token: the QR holds a ticket the app trades once for the token, within ten
@@ -3531,9 +3544,9 @@ async function drawTokens (fresh) {
     if (!await confirmBox(tr('ออก token ใหม่'), tr('token เดิมของผู้ใช้นี้จะใช้ไม่ได้ทันที ห้องและงานในห้องอยู่เหมือนเดิม token ใหม่แสดงครั้งเดียว'), t.name, tr('ออก token ใหม่'))) return
     try { drawTokens(await api('/tokens/' + t.id + '/reissue', { method: 'POST', body: {} })) } catch (e) { toast(tr('ไม่สำเร็จ: ') + e.message, true) }
   }
-  // a fresh token also shows its connect code, for the user's phone
+  // a fresh token also shows a one-time pairing code, for the user's phone
   const freshQR = fresh ? h('div', { class: 'connectSlot' }) : null
-  if (fresh) connectQR(fresh.token).then(u => freshQR.replaceChildren(connectCard(u, fresh.token)), () => {})
+  if (fresh) freshPairCard(fresh).then(card => freshQR.replaceChildren(card), e => freshQR.replaceChildren(h('p', { class: 'note' }, tr('สร้าง QR ไม่ได้: ') + e.message)))
   $('tokenBody').replaceChildren(h('div', { class: 'accCard' },
     h('div', { class: 'accTop' }, h('b', null, tr('Token ของผู้ใช้'))),
     fresh ? h('p', null, fresh.name + ': ', h('code', { class: 'devCode' }, fresh.token), ' ', h('button', { type: 'button', class: 'ghost', onclick: e => copyText(fresh.token, e.currentTarget, true) }, tr('คัดลอก'))) : null,
@@ -4253,13 +4266,15 @@ function showLogin (msg) {
       petals.append(p)
     }
   }
-  if (!d.open) d.showModal()
+  if (!d.open) {
+    d.showModal()
+    startLoginQR()
+  }
   $('loginToken').focus()
 }
-$('loginForm').addEventListener('submit', e => {
-  e.preventDefault()
-  const t = $('loginToken').value.trim()
-  if (!t) return
+function signIn (t) {
+  st.loginQRSeq = (st.loginQRSeq || 0) + 1 // any QR still polling stops
+  clearTimeout(st.loginQRTimer)
   st.token = t
   safeSet(roleKey, '')
   showMenu('')
@@ -4267,7 +4282,67 @@ $('loginForm').addEventListener('submit', e => {
   $('loginToken').value = ''
   $('login').close()
   poll()
+}
+$('loginForm').addEventListener('submit', e => {
+  e.preventDefault()
+  const t = $('loginToken').value.trim()
+  if (!t) return
+  signIn(t)
 })
+// QR login (loginqr.go): the page asks for a one-time request, shows its QR,
+// and polls with the nonce the server gave it. The nonce lives only in this
+// closure: never in the QR, the URL or storage, so a photo of the QR cannot
+// collect the token. The request lasts two minutes and opens once.
+async function startLoginQR () {
+  clearTimeout(st.loginQRTimer)
+  const seq = st.loginQRSeq = (st.loginQRSeq || 0) + 1
+  const box = $('loginQR')
+  const img = $('loginQRImg')
+  const left = $('loginQRLeft')
+  const again = $('loginQRNew')
+  let r
+  try {
+    const res = await fetch('/aiagent/login-qr', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ origin: location.origin }), cache: 'no-store' })
+    const body = await res.json().catch(() => null)
+    if (!res.ok || !body || body.code !== 'SUCCESS') throw new Error('login-qr ' + res.status)
+    r = body.details
+  } catch (e) {
+    // no QR on this address (plain http, an older server, too many asks): the token form still works
+    if (seq === st.loginQRSeq) box.hidden = true
+    return
+  }
+  if (seq !== st.loginQRSeq || !$('login').open) return
+  // never count past two minutes, even if this computer's clock runs behind
+  const ends = Math.min(Date.parse(r.expiresAt), Date.now() + 2 * 60 * 1000)
+  const over = text => {
+    img.classList.add('expired')
+    left.textContent = text
+    again.hidden = false
+  }
+  img.src = r.qr
+  img.classList.remove('expired')
+  again.hidden = true
+  box.hidden = false
+  const step = async () => {
+    if (seq !== st.loginQRSeq || !$('login').open) return
+    const sec = Math.max(0, Math.round((ends - Date.now()) / 1000))
+    if (!sec) { over(tr('QR นี้หมดอายุแล้ว กด QR ใหม่')); return }
+    left.textContent = tr('ใช้ได้อีก ') + Math.floor(sec / 60) + ':' + String(sec % 60).padStart(2, '0')
+    let res = null
+    let body = null
+    try {
+      res = await fetch('/aiagent/login-qr/' + encodeURIComponent(r.id), { headers: { 'X-Aiagent-Login-Nonce': r.nonce }, cache: 'no-store' })
+      body = await res.json().catch(() => null)
+    } catch (e) { res = null }
+    if (seq !== st.loginQRSeq || !$('login').open) return
+    const d = body && body.details
+    if (res && res.ok && d && d.status === 'approved' && d.token) { signIn(d.token); return }
+    if (res && res.status === 404) { over(tr('QR นี้ใช้ไม่ได้แล้ว กด QR ใหม่')); return }
+    st.loginQRTimer = setTimeout(step, 2000)
+  }
+  step()
+}
+$('loginQRNew').addEventListener('click', () => startLoginQR())
 $('login').addEventListener('cancel', e => e.preventDefault())
 // One row per view: its nav button, the name kept in localStorage, its pane.
 // web/assets_test.go checks every row against index.html.

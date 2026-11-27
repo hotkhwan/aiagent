@@ -70,12 +70,13 @@ codes and other secrets out of the report; describe how to obtain them instead. 
   bound to that token's SHA-256 in `push.json` (`0600`). Revoking, reissuing or
   rotating the token stops its pushes at the next tick and drops the device.
   A user's phone only hears about what that user may see on the web.
-- The connect code (`aiagent://connect?u=…&t=…`) holds a token. Its QR is drawn
-  by this service (`POST /connect/qr`, `Cache-Control: no-store`, not audited
-  so the token never reaches a log); a user can draw only their own, an admin
-  also one they just made. No outside QR service is ever used. The web page
-  shows it only on the tokens page, for a token just made; it is kept for
-  older app builds and the App Review demo.
+- No QR holds a token. The old connect code (`aiagent://connect?u=…&t=…`)
+  carried the page's own long-lived token; its route (`POST /connect/qr`) is
+  removed, and the app refuses the `t=` form and asks for a new code (the
+  token in it was not a revocable device token, and the app registers no
+  `aiagent` URL scheme, so a Camera scan could hand it to another app). A
+  token just made on the tokens page is shown as a pairing code instead
+  (below). Every QR is drawn by this service; no outside QR service is used.
 - The header's **📱 App** dialog shows a pairing code instead
   (`internal/world/pair.go`): `aiagent://pair?c=pair_<43 base64url>&u=<origin>`.
   `POST /api/connect/pair` (any valid token) stores, in memory only,
@@ -103,6 +104,46 @@ codes and other secrets out of the report; describe how to obtain them instead. 
   mint tokens that outlive its own revoke.
   Phones paired before this change hold the page's token and keep working
   until it is rotated.
+- **A user token handed over as a pairing QR** (`POST /api/tokens/:id/pair`,
+  admin only, `internal/world/pair.go`): right after creating or reissuing a
+  user token, the admin (web or app) sends that token back with the server's
+  origin and gets a one-time pairing code for it (same ticket, 10 minutes, one
+  use). The server answers only if the token is that user's current token
+  (not the admin's, not another user's, not a device's, not a reissued old
+  one: 404 otherwise). The reply never repeats the token; `aiagent.tokenPair`
+  is audited before the code is issued. The phone that redeems it gets a
+  device token in that user's scope, which reissue or revoke of the user ends.
+- **QR login for a browser** (`internal/world/loginqr.go`). The login page
+  (no token) asks `POST /aiagent/login-qr {origin}` and draws
+  `aiagent://login?i=<id>&s=<secret>&u=<origin>`; it keeps the returned nonce
+  in memory and polls `GET /aiagent/login-qr/:id` with
+  `X-Aiagent-Login-Nonce`. The signed-in app scans it, shows who is asking
+  (`POST /api/login-qr/:id/info {secret}`: origin, browser user agent,
+  address, and whether it is the phone's address), asks Face ID and approves
+  (`POST /api/login-qr/:id/approve {secret}`, audited `aiagent.loginQRApprove`,
+  any role). The next poll holding the nonce gets a NEW device token
+  (`Web QR`) with the approver's scope, looked up again at that moment;
+  `aiagent.loginQR` is audited before the token leaves. Properties:
+  - three secrets, each with one party: id (QR and poll URL), secret (QR
+    only; proves the approver saw it), nonce (page only; proves the poller
+    asked). A photo of the QR can approve but never collect.
+  - two minutes, single use (approve once, collect once; a wrong secret ends
+    the request), only SHA-256 kept, in memory; a restart empties it.
+  - creation 5 per address per minute and 100 live at most (429, a full
+    table refuses rather than evicting); 10 wrong polls per address per
+    minute lock the poll (429); every failure is the same 404.
+  - never an escalation: admin approval → admin device, a user's → a device
+    of that user's room. A device approving ties the browser to it
+    (`parentId`): revoking the phone ends the browser, so a stolen phone
+    cannot leave keys behind that outlive its revoke.
+  - a browser signed in this way holds a device token, so it cannot draw a
+    phone pairing code itself (the existing 403 above).
+  - the remaining risk is phishing: someone shows the owner THEIR QR and the
+    owner approves it. The app shows the requesting browser and address,
+    refuses a QR for a server other than the profile's, and asks Face ID
+    every time; approve only a QR on a screen in front of you.
+  - only these two routes are unauthenticated; a test walks every route and
+    checks every other `/aiagent/api` one answers 401 without a token.
 
 - **Photo faces** (`internal/world/faces.go`, any role, each token only its own;
   answered by the main service even in `--os-users` mode):
