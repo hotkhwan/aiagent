@@ -1,0 +1,3 @@
+{"_comment": "Hand-written fixture for internal/scan tests, not captured from a live govulncheck run. Shape follows govulncheck -json."}
+{"config": {"protocol_version": "v1.0.0", "scanner_name": "govulncheck", "scanner_version": "v1.10.0", "db": "https://vuln.go.dev", "db_last_modified": "2026-09-01T00:00:00Z", "scan_level": "symbol", "scan_mode": "source"}}
+{"progress": {"message": "Scanning your code and 12 packages across 1 dependent module for known vulnerabilities..."}}
