@@ -19,8 +19,7 @@ PrivateTmp=yes
 ProtectSystem=strict
 ; the rooms' homes (written as each room) and the names-only listing
 ReadWritePaths=/home /etc/aiagent
-ProtectKernelTunables=yes
-ProtectKernelModules=yes
-ProtectControlGroups=yes
-RestrictSUIDSGID=yes
-LockPersonality=yes
+; No ProtectKernel*/ProtectControlGroups/RestrictSUIDSGID/LockPersonality:
+; each installs a seccomp filter, and with it the writer's exec as the room's
+; user failed with EPERM on ata-core (systemd 257, 2026-11-28). The process
+; can only become a room's user (the capabilities above) and has no network.
