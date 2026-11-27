@@ -35,6 +35,9 @@ type claudeRegistry struct {
 	// Parked is set on a terminal whose own conversation moved to the
 	// background: it now only shows other sessions.
 	Parked string `json:"parkedJobId"`
+	// JobID is a background job's short id. It stays when the job's
+	// conversation moves to a new session id (sessionId changes).
+	JobID string `json:"jobId"`
 }
 
 type claudeLine struct {
@@ -328,6 +331,7 @@ func (c *Collector) collectClaude(home, owner string, since time.Time, pt procTa
 			Kind:         reg.Kind,
 			parked:       reg.Parked != "",
 			parkedJob:    reg.Parked,
+			jobID:        reg.JobID,
 			home:         home,
 			Status:       StatusRunning,
 			ActivityType: ActivityUnknown,

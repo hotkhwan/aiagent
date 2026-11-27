@@ -346,6 +346,10 @@ type protectedList struct {
 	Workspace []string `json:"workspace,omitempty"`
 	// Rooms holds, per room set to admin, the sessions seen in it.
 	Rooms map[string][]string `json:"rooms,omitempty"`
+	// Aliases maps a pinned or workspace id to the session id its background
+	// job runs under now: the job keeps its short id when its conversation
+	// moves on, and the guard sees the new session id.
+	Aliases map[string]string `json:"aliases,omitempty"`
 }
 
 func (s *Service) protections(ctx context.Context) protections {
@@ -370,7 +374,7 @@ func (s *Service) protectionsFor(sessions []Session) protections {
 	}
 	changed := false
 	if s.Duties != nil {
-		changed = s.explicitList(&list, seen, nil)
+		changed = s.explicitList(&list, seen, nil, jobSessions(sessions))
 	} else {
 		have := idSet(list.Sessions)
 		for _, id := range seen {
@@ -392,6 +396,9 @@ func (s *Service) protectionsFor(sessions []Session) protections {
 	for _, ids := range hidden {
 		for _, id := range ids {
 			p.ids[strings.ToLower(id)] = true
+			if a := list.Aliases[id]; a != "" {
+				p.ids[strings.ToLower(a)] = true
+			}
 		}
 	}
 	for room, ids := range list.Rooms {
