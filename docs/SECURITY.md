@@ -42,7 +42,13 @@ codes and other secrets out of the report; describe how to obtain them instead. 
   REPL. The session is matched exactly and the text goes to the pane id that
   was checked.
 - **Read-only by design:** sub-agents, and sessions you started yourself in a
-  terminal or VS Code, can be watched but not driven.
+  terminal or VS Code, can be watched but not driven. The one exception is
+  opt-in twice: with `aiagent serve --channels` (off by default) a session
+  started with Claude Code's channel flag and running `aiagent channel` takes
+  web messages and permission answers through Claude Code's own channel
+  contract; nothing is typed into its terminal. Channel routes accept only a
+  direct loopback caller holding the 0600 key file, then a per-session secret
+  (docs/IDE_SESSIONS.md).
 - Text is length-limited, stripped of control characters, and rejected if it is
   a reserved dispatcher keyword.
 

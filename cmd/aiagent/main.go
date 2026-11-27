@@ -50,6 +50,10 @@ const usage = `aiagent — a village view of the AI coding agents running on thi
                             file an HTML page for the operator to review
   aiagent capture           (in a room) screenshots of the room's preview page
                             at 390 and 1440 px, saved in ~/work/.aiagent/captures
+  aiagent channel [--url http://127.0.0.1:8890]
+                            (spawned by Claude Code as an MCP channel) lets the
+                            web message this terminal or VS Code session and
+                            answer its permission prompts; needs serve --channels
   aiagent trust-roots list | add DIR | remove DIR
                             folders under which Claude Code's folder-trust
                             question is answered Yes before a session starts
@@ -92,6 +96,8 @@ func main() {
 		captureBox(os.Args[2:])
 	case "review":
 		review(os.Args[2:])
+	case "channel":
+		channelCmd(os.Args[2:])
 	case "capture":
 		capture(os.Args[2:])
 	case "enable", "rotate-token", "disable", "status":
@@ -136,6 +142,7 @@ func serve(args []string) {
 	osUsers := fs.Bool("os-users", false, "give each user token its own OS user and instance (Linux, systemd, root)")
 	dutiesConf := fs.String("room-duties", "/etc/aiagent/room-duties.conf", "each room's duty (frontend, backend, fullstack, tester, admin), with --os-users; written when the admin sets one")
 	previewConf := fs.String("preview-conf", "/etc/aiagent/preview.conf", "rooms' preview pages, with --os-users; a missing file or empty HOST leaves them off")
+	channels := fs.Bool("channels", false, "let terminal and VS Code Claude Code sessions that run the aiagent channel command take messages and permission answers from the web (research preview; docs/IDE_SESSIONS.md)")
 	_ = fs.Parse(args)
 
 	trusted, err := world.ParseTrustedProxies(*proxies)
@@ -187,6 +194,20 @@ func serve(args []string) {
 		log.Fatalf("workspaces: %v", err)
 	}
 	col.Workspaces = ws
+	// Channels are off unless asked for: without the key file no channel can
+	// register, and a stale one from an earlier run is removed.
+	world.RemoveChannelKey(dir)
+	if *channels {
+		if *osUsers {
+			log.Fatal("--channels does not work with --os-users yet: a room's sessions register with the room's own instance")
+		}
+		key, err := world.WriteChannelKey(dir)
+		if err != nil {
+			log.Fatalf("channel key: %v", err)
+		}
+		col.Channels = world.NewChannelHub(key, nil)
+		log.Printf("channels are ON: sessions running `aiagent channel` can be messaged from the web (key in %s)", world.ChannelKeyPath(dir))
+	}
 
 	app := fiber.New(fiber.Config{
 		AppName: "aiagent",
