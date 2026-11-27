@@ -332,6 +332,7 @@ func (c *Collector) collectClaude(home, owner string, since time.Time, pt procTa
 			parked:       reg.Parked != "",
 			parkedJob:    reg.Parked,
 			jobID:        reg.JobID,
+			procStart:    start,
 			home:         home,
 			Status:       StatusRunning,
 			ActivityType: ActivityUnknown,

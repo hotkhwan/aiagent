@@ -1839,7 +1839,7 @@ function reduceMotion () {
 // view that does not run out of room, which the five-house map did as soon as a
 // sixth session started.
 // The role the admin gave: admin (on the guard's admin list) or the room's duty.
-const roleIcon = { admin: '🛡️', frontend: '🎨', backend: '⚙️', tester: '🧪' }
+const roleIcon = { admin: '🛡️', frontend: '🎨', backend: '⚙️', fullstack: '🧩', tester: '🧪' }
 function roleBadge (role) {
   if (!roleIcon[role]) return null
   return h('span', { class: 'roleBadge role-' + role, title: tr('บทบาท: ') + dutyLabel(role) }, roleIcon[role] + ' ' + dutyLabel(role))
@@ -1942,7 +1942,7 @@ function renderInspector () {
     const sess = st.snap.sessions.find(x => x.sessionId === sel.id)
     if (sess) {
       const tab = st.tab || 'chat'
-      const key = [sess.sessionId, charFor(sess.sessionId), tab, sess.prompt ? sess.prompt.question + sess.prompt.options.length + (sess.prompt.ask ? '|' + sess.prompt.ask.active + (sess.prompt.ask.review ? 'r' : '') + (sess.prompt.ask.questions || []).length + sess.prompt.ask.tabs.map(t => t.answered ? 1 : 0).join('') : '') : '', sess.status, sess.activityType, sess.messageVia, sess.stopVia, sess.live].join('|')
+      const key = [sess.sessionId, charFor(sess.sessionId), tab, sess.prompt ? sess.prompt.question + sess.prompt.options.length + (sess.prompt.ask ? '|' + sess.prompt.ask.active + (sess.prompt.ask.review ? 'r' : '') + (sess.prompt.ask.questions || []).length + sess.prompt.ask.tabs.map(t => t.answered ? 1 : 0).join('') : '') : '', sess.status, sess.activityType, sess.messageVia, sess.stopVia, sess.live, sess.role, sess.pinnable].join('|')
       if (tab === 'chat' && st.inspKey === key && box.querySelector('.chatLog')) {
         updateChat()
         return
@@ -2006,6 +2006,24 @@ function subList (sess) {
     subs.map(sa => h('div', null, h('span', null, sa.status === 'done' ? '✓' : '●'), h('span', null, (sa.type ? sa.type + ' · ' : '') + sa.description + (sa.lastTool ? ' — ' + sa.lastTool : '')))))
 }
 
+// The admin puts one of the main service's own sessions on the guard's admin
+// list by hand, or takes it off (adminlist.go). Room sessions get admin from
+// their room's duty, so the service marks only its own as pinnable; a user
+// never sees this.
+function adminToggle (sess) {
+  if (isUser() || st.as || !sess.pinnable) return null
+  const on = sess.role !== 'admin'
+  return h('button', { type: 'button', class: on ? 'pill work' : 'pill ask', title: tr('รายชื่อ admin ที่ guard ของเครื่องอ่าน (protected.json)'), onclick: () => setSessionAdmin(sess, on) }, on ? tr('ตั้งเป็น admin') : tr('เลิกเป็น admin'))
+}
+async function setSessionAdmin (sess, on) {
+  const body = on
+    ? tr('session นี้จะอยู่ในรายชื่อ admin (protected.json) ที่ guard ของเครื่องอ่าน ผู้ใช้จะเห็นแค่ว่ามี session นี้ และ /clear ใน session เดิมจะยังเป็น admin ต่อ')
+    : tr('session นี้จะออกจากรายชื่อ admin ที่ guard อ่าน')
+  if (!await confirmBox(on ? tr('ตั้งเป็น admin') : tr('เลิกเป็น admin'), body, nameOf(sess), on ? tr('ตั้งเป็น admin') : tr('เลิกเป็น admin'))) return
+  act('/sessions/' + encodeURIComponent(sess.sessionId) + '/admin', { on },
+    r => r.admin === on ? nameOf(sess) + (on ? tr(' เป็น admin แล้ว') : tr(' ไม่เป็น admin แล้ว')) : nameOf(sess) + tr(' ยังเป็น admin เพราะอยู่ใน workspace ที่ป้องกันไว้ และบทบาทของคุณคือ admin'))
+}
+
 function sessionHeader (sess) {
   const ava = h('button', { type: 'button', class: 'ava avaPick', title: tr('เปลี่ยนตัวละคร'), 'aria-label': tr('เปลี่ยนตัวละคร'), onclick: () => openCharPicker(sess) }, avatarFace(sess))
   ava.style.background = 'color-mix(in srgb, ' + agentColor(sess) + ' 18%, transparent)'
@@ -2020,6 +2038,7 @@ function sessionHeader (sess) {
         h('p', null, runtimeName[sess.runtimeType] + ' · ' + (sess.repoId || '—')))),
       h('div', { class: 'state' }, stateDot, stateText(sess),
         !sess.live && sess.runtimeType === 'claudeCode' && sess.cwd ? h('button', { type: 'button', class: 'pill work', title: tr('เปิดบทสนทนานี้ต่อ โดยไม่พิมพ์ข้อความเข้าไป'), onclick: () => doResume(sess) }, tr('เปิดต่อ')) : null,
+        adminToggle(sess),
         (sess.subAgents || []).length
         ? h('button', { type: 'button', class: 'pill work subToggle' + (st.subsOpen ? ' on' : ''), 'aria-expanded': String(!!st.subsOpen), onclick: () => { st.subsOpen = !st.subsOpen; st.inspKey = ''; renderInspector() } }, '+' + sess.subAgents.length + ' sub-agent ' + (st.subsOpen ? '▴' : '▾'))
         : null),
@@ -3441,18 +3460,18 @@ async function drawTokens (fresh) {
     self ? h('ul', { class: 'selfToken' }, h('li', null, h('b', null, tr('token ของคุณ (admin)')), ' ', h('span', { class: 'note' }, self.room), ' ', dutySelect(self.duty, tr('บทบาทของ token ของคุณ'), v => setDuty({ id: 'self', name: tr('token ของคุณ') }, v), true))) : null,
     list.length ? h('ul', null, ...list.map(t => h('li', null, h('b', null, t.name), duties && t.osUser && !t.removing ? [' ', dutySelect(t.duty || '', tr('บทบาทของ ') + t.name, v => setDuty(t, v))] : null, t.removing ? h('span', { class: 'note' }, ' · ' + tr('ลบไม่สำเร็จ กดเพิกถอนอีกครั้ง')) : null, ' ', t.osUser && !t.removing ? h('button', { type: 'button', class: 'ghost', onclick: () => viewAs(t.osUser) }, tr('เข้าห้อง / login')) : null, ' ', t.osUser && !t.removing && st.me.preview ? h('button', { type: 'button', class: 'ghost', onclick: () => openPreview(t.osUser) }, tr('พรีวิว')) : null, ' ', t.removing ? null : h('button', { type: 'button', class: 'ghost', title: tr('ใช้เมื่อลืม token: ดู token เดิมไม่ได้ เพราะระบบเก็บแค่ hash'), onclick: () => reissue(t) }, tr('ออก token ใหม่')), ' ', h('button', { type: 'button', class: 'warn', onclick: () => revoke(t) }, tr('เพิกถอน'))))) : h('p', { class: 'note' }, tr('ยังไม่มี token ของผู้ใช้')),
     osUsers ? h('p', { class: 'note' }, tr('สร้าง token = สร้าง OS user และห้องทำงานแยกบนเครื่องนี้ ใช้เวลาราว 10 วินาที จากนั้นเข้าห้องเพื่อ login Claude ให้ผู้ใช้')) : null,
-    duties ? h('p', { class: 'note' }, tr('บทบาท: dev หน้าเว็บ = รัน dev server ให้ดูที่ dev/<ห้อง> · backend = ไม่มีหน้าพรีวิว ตรวจด้วยเทสต์ · tester = ไม่รันแอป ทดสอบบน UAT · admin = session ของห้องอยู่ในรายชื่อ admin ที่ guard อ่าน · agent ของห้องอ่านบทบาทนี้จากคู่มือห้อง')) : null,
+    duties ? h('p', { class: 'note' }, tr('บทบาท: dev หน้าเว็บ = รัน dev server ให้ดูที่ dev/<ห้อง> · backend = มีพรีวิวด้วย: dev server ของตัวเองที่ dev/<ห้อง> แสดง Swagger/OpenAPI หรือหน้าเล็ก ๆ ของตัวเอง พร้อมเทสต์ · fullstack = frontend + backend + service ที่ใช้ บน dev/UAT · tester = ไม่รันแอป ทดสอบบน UAT · admin = อยู่ในรายชื่อ admin ที่ guard อ่าน · ทุกบทบาทส่ง merge request ผ่าน admin · agent ของห้องอ่านบทบาทนี้จากคู่มือห้อง')) : null,
     h('div', { class: 'accRow' }, name, duties ? duty : null, h('button', { type: 'button', class: 'pri', onclick: create }, tr('สร้าง token')))))
 }
 
 // A room's duty: what the person behind the token does (roomduties.go).
 function dutyLabel (v) {
-  return { frontend: tr('dev หน้าเว็บ'), backend: tr('backend'), tester: tr('tester'), admin: tr('admin') }[v] || tr('ยังไม่กำหนดบทบาท')
+  return { frontend: tr('dev หน้าเว็บ'), backend: tr('backend'), fullstack: tr('fullstack'), tester: tr('tester'), admin: tr('admin') }[v] || tr('ยังไม่กำหนดบทบาท')
 }
 // required: the admin's own token always has a duty (unset reads as admin)
 function dutySelect (value, label, onchange, required) {
   return h('select', { 'aria-label': label, onchange: onchange ? e => onchange(e.target.value) : null },
-    ...(required ? [] : ['']).concat(['frontend', 'backend', 'tester', 'admin']).map(v => h('option', { value: v, selected: v === value }, dutyLabel(v))))
+    ...(required ? [] : ['']).concat(['frontend', 'backend', 'fullstack', 'tester', 'admin']).map(v => h('option', { value: v, selected: v === value }, dutyLabel(v))))
 }
 
 // ----- aiagent itself: see whether a newer release is out and install it -----

@@ -68,7 +68,10 @@ type Session struct {
 	Owner        string `json:"owner"`
 	// Role is what the admin sees on the card: "admin" for a session on the
 	// guard's admin list (protected.json), else its room's duty. Admin only.
-	Role      string `json:"role,omitempty"`
+	Role string `json:"role,omitempty"`
+	// Pinnable marks a session of the main service itself, which the admin
+	// can put on the guard's list by hand (POST /sessions/:id/admin). Admin only.
+	Pinnable  bool   `json:"pinnable,omitempty"`
 	Cwd       string `json:"cwd"`
 	RepoID    string `json:"repoId"`
 	Workspace string `json:"workspace,omitempty"`
@@ -125,6 +128,9 @@ type Session struct {
 	sourcePath string
 	// jobID is a background job's short id (registry jobId); see adminlist.go.
 	jobID string
+	// procStart is the live process's start time (registry procStart); with
+	// Pid it names one Claude Code process across /clear (adminlist.go).
+	procStart string
 	// the transcript ends inside a turn (see transcriptState.turnInProgress)
 	turnInProgress bool
 	home           string

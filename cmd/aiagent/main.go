@@ -128,7 +128,7 @@ func serve(args []string) {
 	pushRelay := fs.String("push-relay", world.DefaultPushRelay, "relay for phone notifications (an https origin), or off")
 	proxies := fs.String("trusted-proxies", os.Getenv("AIAGENT_TRUSTED_PROXIES"), "reverse proxies in front of aiagent (CIDRs, comma-separated) whose X-Forwarded-For names the visitor; the Cloudflare tunnel on loopback needs none")
 	osUsers := fs.Bool("os-users", false, "give each user token its own OS user and instance (Linux, systemd, root)")
-	dutiesConf := fs.String("room-duties", "/etc/aiagent/room-duties.conf", "each room's duty (frontend, backend, tester), with --os-users; written when the admin sets one")
+	dutiesConf := fs.String("room-duties", "/etc/aiagent/room-duties.conf", "each room's duty (frontend, backend, fullstack, tester, admin), with --os-users; written when the admin sets one")
 	previewConf := fs.String("preview-conf", "/etc/aiagent/preview.conf", "rooms' preview pages, with --os-users; a missing file or empty HOST leaves them off")
 	_ = fs.Parse(args)
 

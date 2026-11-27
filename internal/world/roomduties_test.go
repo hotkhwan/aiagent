@@ -14,7 +14,7 @@ func TestRoomDutiesFile(t *testing.T) {
 	if got := d.Load(); len(got) != 0 {
 		t.Fatalf("missing file = %v", got)
 	}
-	for room, duty := range map[string]string{"tiew": DutyFrontend, "lew": DutyTester, "khwan": DutyBackend} {
+	for room, duty := range map[string]string{"tiew": DutyFrontend, "lew": DutyTester, "khwan": DutyBackend, "mo": DutyFullstack} {
 		if err := d.Set(room, duty); err != nil {
 			t.Fatal(err)
 		}
@@ -23,14 +23,14 @@ func TestRoomDutiesFile(t *testing.T) {
 		t.Fatal(err)
 	}
 	b, _ := os.ReadFile(d.Path)
-	if !strings.HasSuffix(string(b), "lew=tester\ntiew=frontend\n") || strings.Contains(string(b), "khwan") {
+	if !strings.HasSuffix(string(b), "lew=tester\nmo=fullstack\ntiew=frontend\n") || strings.Contains(string(b), "khwan") {
 		t.Fatalf("file = %q", b)
 	}
 	if err := os.WriteFile(d.Path, append(b, []byte("bad line\nx=boss\nGon=frontend\n  gon = frontend  \n")...), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	got := d.Load()
-	if len(got) != 3 || got["gon"] != DutyFrontend || got["lew"] != DutyTester {
+	if len(got) != 4 || got["gon"] != DutyFrontend || got["lew"] != DutyTester || got["mo"] != DutyFullstack {
 		t.Fatalf("load = %v", got)
 	}
 	if d.Set("gon", "boss") == nil || d.Set("../x", DutyTester) == nil {
@@ -72,6 +72,13 @@ func TestTokenDuty(t *testing.T) {
 	}
 	if _, _, body := e.do(t, "GET", apiPrefix+"/tokens", admin, ""); !strings.Contains(body, `"duty":"tester"`) {
 		t.Fatalf("list = %s", body)
+	}
+	next()
+	if code, _, body := e.do(t, "POST", apiPrefix+"/tokens/"+id+"/duty", admin, `{"duty":"fullstack"}`); code != 200 {
+		t.Fatalf("set fullstack = %d %s", code, body)
+	}
+	if got := e.svc.Duties.Load()["vibe-b"]; got != DutyFullstack {
+		t.Fatalf("duty = %q", got)
 	}
 	next()
 	if code, _, _ := e.do(t, "POST", apiPrefix+"/tokens/"+id+"/duty", user, `{"duty":"frontend"}`); code != 403 {

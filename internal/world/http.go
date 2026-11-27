@@ -237,12 +237,13 @@ func (s *Service) route(c fiber.Ctx, who Identity) error {
 			// never let a user without an account reach the admin's own agents
 			return c.Status(fiber.StatusForbidden).JSON(failEnv("AIAGENT_ADMIN_ONLY", "token นี้ไม่มีห้อง ให้ขอ token ใหม่จาก admin"))
 		}
-		if target != "" && !localPath(strings.TrimPrefix(c.Path(), apiPrefix)) {
+		local := localPath(strings.TrimPrefix(c.Path(), apiPrefix))
+		if target != "" && !local {
 			return s.forwardAudited(c, target)
 		}
 		// an admin acts on a room's session straight from the list: the
 		// request goes to the room that session lives in
-		if target == "" {
+		if target == "" && !local {
 			if m := sessionPathRE.FindStringSubmatch(strings.TrimPrefix(c.Path(), apiPrefix)); m != nil {
 				if mate := s.teammateOf(c.Context(), "", m[1]); mate != "" {
 					return s.forwardAudited(c, strings.Clone(mate))
@@ -392,6 +393,7 @@ func (s *Service) Mount(app *fiber.App) {
 	api.Post("/sessions/:id/answer", s.handleSessionAnswer)
 	api.Post("/sessions/:id/name", s.handleSessionName)
 	api.Post("/sessions/:id/look", s.handleSessionLook)
+	api.Post("/sessions/:id/admin", s.handleSessionAdmin)
 	s.mountFaces(api)
 	api.Post("/messages", s.handleMessage)
 	api.Post("/runs/:id/answer", s.handleAnswer)

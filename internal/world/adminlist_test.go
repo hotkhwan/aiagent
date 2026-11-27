@@ -168,12 +168,17 @@ func TestAdminListFollowsAJob(t *testing.T) {
 		t.Fatal(err)
 	}
 	svc := e.svc
-	p := svc.protectionsFor([]Session{{SessionID: now, jobID: "3ef9360e"}, {SessionID: "other-1", jobID: "aaaa0000"}})
+	p := svc.protectionsFor([]Session{
+		{SessionID: now, jobID: "3ef9360e", home: e.home},
+		{SessionID: "other-1", jobID: "aaaa0000", home: e.home},
+		// a room's registry (another home) naming the pinned job's short id
+		{SessionID: "room-1", jobID: "3ef9360e", home: "/home/tiew"},
+	})
 	l := readList(t, e.store.dir)
 	if !slices.Equal(l.Sessions, []string{old, now}) || l.Aliases[old] != now {
 		t.Fatalf("list = %+v", l)
 	}
-	if !p.covers(now) || p.covers("other-1") {
+	if !p.covers(now) || p.covers("other-1") || p.covers("room-1") {
 		t.Fatal("the job's new session must be hidden from users like the pinned one, and nothing else")
 	}
 	// the job is not running: the alias stays
@@ -183,7 +188,7 @@ func TestAdminListFollowsAJob(t *testing.T) {
 	}
 	// a room set to admin never names the admin's jobs: only the main
 	// service's own registry feeds jobs
-	if got := jobSessions([]Session{{SessionID: "x", jobID: ""}}); len(got) != 0 {
+	if got := svc.ownRegistry([]Session{{SessionID: "x", jobID: "", home: e.home}, {SessionID: "y", jobID: "1234abcd", home: "/home/tiew"}}).jobs; len(got) != 0 {
 		t.Fatalf("jobs = %v", got)
 	}
 }
@@ -216,5 +221,139 @@ func TestMarkRoles(t *testing.T) {
 	}
 	if want := []string{"admin", "", "frontend", "tester", ""}; !slices.Equal(got, want) {
 		t.Fatalf("roles = %v, want %v", got, want)
+	}
+}
+
+// regFile writes one Claude Code registry entry (an interactive terminal or
+// VS Code session: no jobId) and its process.
+func regFile(t *testing.T, e *env, home, pid, start, session string) {
+	t.Helper()
+	fakeProc(t, e.proc, pid, start)
+	writeFile(t, filepath.Join(home, ".claude", "sessions", pid+".json"), `{"pid":`+pid+`,"sessionId":"`+session+`","cwd":"/x","procStart":"`+start+`","kind":"interactive","entrypoint":"claude-vscode","status":"idle"}`)
+}
+
+// TestAdminListFollowsAProcess: an interactive session has no jobId; after
+// /clear the same Claude Code process (same pid and procStart) runs under a
+// new session id. The pinned id is followed by process. A pid reused by a
+// different process (procStart differs) is not followed, and a room's
+// registry (another home) can never claim a listed id, by pid or by job.
+func TestAdminListFollowsAProcess(t *testing.T) {
+	e, _, _ := osUserEnv(t)
+	e.svc.Duties = &RoomDuties{Path: filepath.Join(t.TempDir(), "room-duties.conf")}
+	if _, err := e.store.Enable("t"); err != nil {
+		t.Fatal(err)
+	}
+	room := filepath.Join(e.dir, "home", "tiew")
+	e.col.Homes = []string{e.home, room}
+	const pinned, other, claim = "aaaa1111-0000-4000-8000-000000000001", "bbbb2222-0000-4000-8000-000000000002", "cccc3333-0000-4000-8000-000000000003"
+	if err := os.WriteFile(filepath.Join(e.store.dir, protectedFile), []byte(`{"sessions":["`+pinned+`","`+other+`","`+claim+`"]}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	snap := func() []Session { return e.col.Snapshot(context.Background()).Sessions }
+	regFile(t, e, e.home, "4242", "777", pinned)
+	regFile(t, e, e.home, "4343", "888", other)
+	// a room writes a registry entry naming a listed id, under its own pid
+	regFile(t, e, room, "5050", "999", claim)
+	e.svc.protectionsFor(snap())
+	l := readList(t, e.store.dir)
+	if l.Procs[pinned] != "4242:777" || l.Procs[other] != "4343:888" {
+		t.Fatalf("procs = %v", l.Procs)
+	}
+	if _, ok := l.Procs[claim]; ok {
+		t.Fatal("a room's registry fed the process map")
+	}
+
+	// /clear in the pinned terminal: same process, new session id
+	const cleared = "dddd4444-0000-4000-8000-000000000004"
+	regFile(t, e, e.home, "4242", "777", cleared)
+	// pid 4343 reused by a different process with another session
+	const stranger = "eeee5555-0000-4000-8000-000000000005"
+	regFile(t, e, e.home, "4343", "123", stranger)
+	// the room moves its fake entry on, and also claims a pinned id's job
+	const evil = "ffff6666-0000-4000-8000-000000000006"
+	regFile(t, e, room, "5050", "999", evil)
+	fakeProc(t, e.proc, "5151", "1")
+	writeFile(t, filepath.Join(room, ".claude", "sessions", "5151.json"), `{"pid":5151,"sessionId":"`+evil+`x","procStart":"1","kind":"bg","jobId":"aaaa1111"}`)
+	p := e.svc.protectionsFor(snap())
+	l = readList(t, e.store.dir)
+	if l.Aliases[pinned] != cleared || !slices.Contains(l.Sessions, cleared) || !p.covers(cleared) {
+		t.Fatalf("not followed after /clear: %+v", l)
+	}
+	if slices.Contains(l.Sessions, stranger) || l.Aliases[other] != "" || p.covers(stranger) {
+		t.Fatalf("a reused pid was followed: %+v", l)
+	}
+	if slices.Contains(l.Sessions, evil) || slices.Contains(l.Sessions, evil+"x") || l.Aliases[claim] != "" {
+		t.Fatalf("a room claimed a listed id: %+v", l)
+	}
+
+	// the terminal closes: the alias stays (as for jobs)
+	if err := os.Remove(filepath.Join(e.home, ".claude", "sessions", "4242.json")); err != nil {
+		t.Fatal(err)
+	}
+	e.svc.protectionsFor(snap())
+	if l = readList(t, e.store.dir); l.Aliases[pinned] != cleared {
+		t.Fatalf("alias forgotten: %+v", l)
+	}
+}
+
+// TestSessionAdminToggle: the admin pins one of the main service's own
+// sessions and unpins it; a room's session or an unknown one is refused, a
+// user token gets 403, and the request is never forwarded to a room.
+func TestSessionAdminToggle(t *testing.T) {
+	e, _, _ := osUserEnv(t)
+	e.svc.Duties = &RoomDuties{Path: filepath.Join(t.TempDir(), "room-duties.conf")}
+	admin, err := e.store.Enable("t")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, user, _ := e.store.AddUser("tiew", "tiew")
+	room := filepath.Join(e.dir, "home", "tiew")
+	e.col.Homes = []string{e.home, room}
+	const mine, cleared, theirs = "aaaa1111-0000-4000-8000-000000000001", "dddd4444-0000-4000-8000-000000000004", "bbbb2222-0000-4000-8000-000000000002"
+	regFile(t, e, e.home, "4242", "777", mine)
+	regFile(t, e, room, "5050", "999", theirs)
+	next := func() { e.svc.lastWrite = e.svc.lastWrite.Add(-writeSpacing) }
+	path := apiPrefix + "/sessions/" + mine + "/admin"
+
+	if code, _, _ := e.do(t, "POST", path, user, `{"on":true}`); code != 403 {
+		t.Fatalf("a user token pinned a session: %d", code)
+	}
+	if code, _, body := e.do(t, "POST", path, admin, `{"on":true}`); code != 200 {
+		t.Fatalf("pin = %d %s", code, body)
+	}
+	l := readList(t, e.store.dir)
+	if !slices.Contains(l.Pinned, mine) || !slices.Contains(l.Sessions, mine) || l.Procs[mine] != "4242:777" {
+		t.Fatalf("after pin: %+v", l)
+	}
+	if _, _, body := e.do(t, "GET", apiPrefix+"/snapshot", admin, ""); !strings.Contains(body, `"role":"admin","pinnable":true`) || strings.Count(body, `"pinnable":true`) != 1 {
+		t.Fatalf("card badge (only the main service's own session is pinnable): %s", body)
+	}
+	// /clear, then unpin by the id the card shows now: the alias goes too
+	regFile(t, e, e.home, "4242", "777", cleared)
+	e.svc.syncAdminList(context.Background())
+	if l = readList(t, e.store.dir); !slices.Contains(l.Sessions, cleared) {
+		t.Fatalf("not followed: %+v", l)
+	}
+	next()
+	if code, _, body := e.do(t, "POST", apiPrefix+"/sessions/"+cleared+"/admin", admin, `{"on":false}`); code != 200 {
+		t.Fatalf("unpin = %d %s", code, body)
+	}
+	l = readList(t, e.store.dir)
+	if slices.Contains(l.Pinned, mine) || slices.Contains(l.Sessions, mine) || slices.Contains(l.Sessions, cleared) || l.Aliases[mine] != "" {
+		t.Fatalf("after unpin: %+v", l)
+	}
+	next()
+	if code, _, _ := e.do(t, "POST", apiPrefix+"/sessions/"+theirs+"/admin", admin, `{"on":true}`); code != 409 {
+		t.Fatalf("a room's session was pinned: %d", code)
+	}
+	next()
+	if code, _, _ := e.do(t, "POST", apiPrefix+"/sessions/nosuch-1/admin", admin, `{"on":true}`); code != 404 {
+		t.Fatalf("unknown session = %d", code)
+	}
+	if !localPath("/sessions/" + theirs + "/admin") {
+		t.Fatal("the toggle must be answered by the main service, never forwarded to a room")
+	}
+	if l = readList(t, e.store.dir); slices.Contains(l.Sessions, theirs) {
+		t.Fatalf("room session listed: %+v", l)
 	}
 }
