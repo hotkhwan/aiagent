@@ -2,7 +2,7 @@
 
 Thanks for looking. This is a small, single-maintainer project; please open an
 issue before a large change so you do not build something that will not be
-merged.
+merged. Taking part means following the [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## Before you start
 
