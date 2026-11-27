@@ -3162,6 +3162,10 @@ async function loadReviewCode (r, box) {
 
 // ----- accounts: switch the Claude / Codex sign-in on this box -----
 const accountName = { claude: 'Claude Code', codex: 'Codex', agy: 'Google Antigravity' }
+$('accJump').addEventListener('click', e => {
+  const id = e.target && e.target.dataset && e.target.dataset.jump
+  if (id && $(id)) $(id).scrollIntoView({ behavior: 'smooth', block: 'start' })
+})
 async function openAccounts () {
   $('accountsDlg').showModal()
   drawUpdate()
@@ -4270,7 +4274,9 @@ function showLogin (msg) {
   }
   if (!d.open) {
     d.showModal()
-    startLoginQR()
+    // the token form is the default; a QR is made only when asked for
+    $('loginQR').hidden = true
+    $('loginQRAsk').hidden = false
   }
   $('loginToken').focus()
 }
@@ -4285,6 +4291,10 @@ function signIn (t) {
   $('login').close()
   poll()
 }
+$('loginQRAsk').addEventListener('click', () => {
+  $('loginQRAsk').hidden = true
+  startLoginQR()
+})
 $('loginForm').addEventListener('submit', e => {
   e.preventDefault()
   const t = $('loginToken').value.trim()

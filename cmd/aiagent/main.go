@@ -255,6 +255,12 @@ func serve(args []string) {
 		svc.OSUsers = &world.OSUsers{SocketDir: "/run/aiagent-users", TokenDir: filepath.Join(dir, "instances"), ModelDir: "/run/aiagent-room", Runner: world.ExecRunner{}}
 		svc.Duties = &world.RoomDuties{Path: *dutiesConf}
 		startPreview(svc, *previewConf)
+	} else {
+		// No rooms, but the admin's own token still has a role, sessions can
+		// be put on the admin list, and the web shows both (a single-user
+		// install was left without them). The file lives in the state dir:
+		// /etc/aiagent is the rooms' host-wide one.
+		svc.Duties = &world.RoomDuties{Path: filepath.Join(dir, "room-duties.conf")}
 	}
 	relay, err := world.ParsePushRelay(*pushRelay)
 	if err != nil {
