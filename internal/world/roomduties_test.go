@@ -26,14 +26,14 @@ func TestRoomDutiesFile(t *testing.T) {
 	if !strings.HasSuffix(string(b), "lew=tester\ntiew=frontend\n") || strings.Contains(string(b), "khwan") {
 		t.Fatalf("file = %q", b)
 	}
-	if err := os.WriteFile(d.Path, append(b, []byte("bad line\nx=admin\nGon=frontend\n  gon = frontend  \n")...), 0o644); err != nil {
+	if err := os.WriteFile(d.Path, append(b, []byte("bad line\nx=boss\nGon=frontend\n  gon = frontend  \n")...), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	got := d.Load()
 	if len(got) != 3 || got["gon"] != DutyFrontend || got["lew"] != DutyTester {
 		t.Fatalf("load = %v", got)
 	}
-	if d.Set("gon", "admin") == nil || d.Set("../x", DutyTester) == nil {
+	if d.Set("gon", "boss") == nil || d.Set("../x", DutyTester) == nil {
 		t.Fatal("a bad duty or room name was accepted")
 	}
 	var none *RoomDuties

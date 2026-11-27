@@ -298,6 +298,10 @@ func (s *Service) userMay(c fiber.Ctx) bool {
 type protections struct {
 	all bool // the list could not be read: fail closed
 	ids map[string]bool
+	// adminRoom maps a session of a room set to admin to that room. Those
+	// are on the guard's list but are not the main service's: their own room
+	// keeps them, the admin sees them, other rooms do not (teammates).
+	adminRoom map[string]string
 }
 
 // covers also matches a shortened id, which some lookups accept.
@@ -319,8 +323,24 @@ func (p protections) covers(id string) bool {
 
 var protectedMu sync.Mutex
 
+// protectedList is protected.json. Sessions is the list the host's guard
+// reads as its admins, and what users are kept out of. Without room duties it
+// grows by itself: every session seen in a protected workspace is added. With
+// room duties (--os-users) it is explicit (adminlist.go): Sessions is made
+// only of Pinned, the admin's own protected-workspace sessions while the
+// admin's own room is "admin", and Rooms, the sessions of rooms set to admin.
 type protectedList struct {
 	Sessions []string `json:"sessions"`
+	// Explicit marks a file kept by the explicit rules; a file without it is
+	// the old self-growing list, and its ids are kept as Pinned.
+	Explicit bool `json:"explicit,omitempty"`
+	// Pinned are ids put on the list by hand; aiagent never removes them.
+	Pinned []string `json:"pinned,omitempty"`
+	// Workspace are this service's sessions seen in a protected workspace:
+	// always hidden from users, admins only while the own room is admin.
+	Workspace []string `json:"workspace,omitempty"`
+	// Rooms holds, per room set to admin, the sessions seen in it.
+	Rooms map[string][]string `json:"rooms,omitempty"`
 }
 
 func (s *Service) protections(ctx context.Context) protections {
@@ -333,39 +353,83 @@ func (s *Service) protections(ctx context.Context) protections {
 func (s *Service) protectionsFor(sessions []Session) protections {
 	protectedMu.Lock()
 	defer protectedMu.Unlock()
-	path := filepath.Join(s.Store.dir, protectedFile)
-	var list protectedList
-	b, err := os.ReadFile(path)
-	if err == nil {
-		err = json.Unmarshal(b, &list)
-	} else if errors.Is(err, os.ErrNotExist) {
-		err = nil
-	}
+	list, err := s.readProtected()
 	if err != nil {
 		return protections{all: true}
 	}
-	p := protections{ids: map[string]bool{}}
-	for _, id := range list.Sessions {
-		p.ids[strings.ToLower(id)] = true
-	}
-	added := false
+	var seen []string
 	for _, ss := range sessions {
-		id := strings.ToLower(ss.SessionID)
-		if w, ok := s.Collector.lookupWorkspace(ss.DispatchVia); ok && w.protected && !p.ids[id] {
-			p.ids[id] = true
-			list.Sessions = append(list.Sessions, ss.SessionID)
-			added = true
+		if w, ok := s.Collector.lookupWorkspace(ss.DispatchVia); ok && w.protected {
+			seen = append(seen, ss.SessionID)
 		}
 	}
-	if added {
-		if b, err := json.MarshalIndent(list, "", "  "); err == nil {
-			tmp := path + ".tmp"
-			if os.WriteFile(tmp, append(b, '\n'), 0o600) == nil {
-				_ = os.Rename(tmp, path)
+	changed := false
+	if s.Duties != nil {
+		changed = s.explicitList(&list, seen, nil)
+	} else {
+		have := idSet(list.Sessions)
+		for _, id := range seen {
+			if !have[strings.ToLower(id)] {
+				have[strings.ToLower(id)] = true
+				list.Sessions = append(list.Sessions, id)
+				changed = true
 			}
 		}
 	}
+	if changed {
+		s.writeProtected(list)
+	}
+	p := protections{ids: map[string]bool{}, adminRoom: map[string]string{}}
+	hidden := [][]string{list.Pinned, list.Workspace}
+	if s.Duties == nil {
+		hidden = append(hidden, list.Sessions)
+	}
+	for _, ids := range hidden {
+		for _, id := range ids {
+			p.ids[strings.ToLower(id)] = true
+		}
+	}
+	for room, ids := range list.Rooms {
+		for _, id := range ids {
+			p.adminRoom[strings.ToLower(id)] = room
+		}
+	}
 	return p
+}
+
+func (s *Service) protectedPath() string { return filepath.Join(s.Store.dir, protectedFile) }
+
+// readProtected reads protected.json; a missing file is an empty list.
+func (s *Service) readProtected() (protectedList, error) {
+	var list protectedList
+	b, err := os.ReadFile(s.protectedPath())
+	if errors.Is(err, os.ErrNotExist) {
+		return list, nil
+	}
+	if err == nil {
+		err = json.Unmarshal(b, &list)
+	}
+	return list, err
+}
+
+func (s *Service) writeProtected(list protectedList) {
+	b, err := json.MarshalIndent(list, "", "  ")
+	if err != nil {
+		return
+	}
+	path := s.protectedPath()
+	tmp := path + ".tmp"
+	if os.WriteFile(tmp, append(b, '\n'), 0o600) == nil {
+		_ = os.Rename(tmp, path)
+	}
+}
+
+func idSet(ids []string) map[string]bool {
+	m := make(map[string]bool, len(ids))
+	for _, id := range ids {
+		m[strings.ToLower(id)] = true
+	}
+	return m
 }
 
 // forRole marks protected sessions and, for a user, strips everything about
@@ -444,7 +508,12 @@ func (s *Service) handleTokens(c fiber.Ctx) error {
 	for _, u := range st.Users {
 		out = append(out, fiber.Map{"id": u.ID, "name": u.Name, "createdAt": u.CreatedAt, "osUser": u.OSUser, "removing": u.Hash == "", "duty": duties[u.OSUser]})
 	}
-	return c.JSON(okEnv(fiber.Map{"tokens": out, "osUsers": s.OSUsers != nil, "duties": s.Duties != nil}))
+	res := fiber.Map{"tokens": out, "osUsers": s.OSUsers != nil, "duties": s.Duties != nil}
+	if s.Duties != nil {
+		// the admin's own token: its room is the service's own account
+		res["self"] = fiber.Map{"room": s.ownRoom(), "duty": s.ownDuty(duties)}
+	}
+	return c.JSON(okEnv(res))
 }
 
 func (s *Service) handleTokenCreate(c fiber.Ctx) error {
@@ -458,7 +527,7 @@ func (s *Service) handleTokenCreate(c fiber.Ctx) error {
 	c.Set("Cache-Control", "no-store")
 	return s.mutate(c, "aiagent.tokenCreate", []string{body.Name, body.Duty}, func() (any, error) {
 		if !ValidDuty(body.Duty) {
-			return nil, ErrBadRequest("บทบาทต้องเป็น frontend, backend หรือ tester")
+			return nil, ErrBadRequest(dutyErr)
 		}
 		osUser := ""
 		if s.OSUsers != nil {
@@ -541,6 +610,17 @@ func (s *Service) handleTokenDuty(c fiber.Ctx) error {
 		if s.Duties == nil {
 			return nil, ErrConflict("บทบาทของห้องใช้ได้เมื่อแต่ละ token มีห้องของตัวเอง (--os-users)")
 		}
+		if id == "self" {
+			// the admin's own room always has a duty; unset reads as admin
+			if body.Duty == "" {
+				return nil, ErrBadRequest(dutyErr)
+			}
+			if err := s.Duties.Set(s.ownRoom(), body.Duty); err != nil {
+				return nil, err
+			}
+			s.syncAdminList(context.Background())
+			return fiber.Map{"id": id, "duty": body.Duty}, nil
+		}
 		st, err := s.Store.Load()
 		if err != nil {
 			return nil, err
@@ -550,6 +630,7 @@ func (s *Service) handleTokenDuty(c fiber.Ctx) error {
 				if err := s.Duties.Set(u.OSUser, body.Duty); err != nil {
 					return nil, err
 				}
+				s.syncAdminList(context.Background())
 				return fiber.Map{"id": id, "duty": body.Duty}, nil
 			}
 		}

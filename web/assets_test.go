@@ -487,3 +487,26 @@ func TestAStalledTaskSaysSo(t *testing.T) {
 		}
 	}
 }
+
+// TestEverySelectIsReadable guards the role picker that showed light text on
+// the browser's white box: the page's text is light, so a select that sets
+// no background of its own was unreadable. One base rule gives every select
+// the dark field and its options the dark list.
+func TestEverySelectIsReadable(t *testing.T) {
+	b, err := fs.ReadFile(FS, "styles.css")
+	if err != nil {
+		t.Fatalf("read styles.css: %v", err)
+	}
+	css := string(b)
+	base := regexp.MustCompile(`(?m)^select \{([^}]*)\}`).FindStringSubmatch(css)
+	if base == nil || !strings.Contains(base[1], "background: var(--sky)") || !strings.Contains(base[1], "color: var(--ink)") {
+		t.Fatal("styles.css needs a base `select { background: var(--sky); color: var(--ink) }` rule")
+	}
+	opt := regexp.MustCompile(`(?m)^select option \{([^}]*)\}`).FindStringSubmatch(css)
+	if opt == nil || !strings.Contains(opt[1], "background:") || !strings.Contains(opt[1], "color: var(--ink)") {
+		t.Fatal("styles.css needs a `select option` rule with a dark background and light text")
+	}
+	if !strings.Contains(css, "color-scheme: dark") {
+		t.Fatal("the page is dark only: :root should say color-scheme: dark so native controls match")
+	}
+}

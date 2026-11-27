@@ -8,7 +8,7 @@
 #   RULES=/path/to/CLAUDE.md         a project's rules, appended
 #   SKILLS=/root/.claude/skills      every skill here is shared
 #   MEMORY=/path/to/memory           only files whose frontmatter has "share: rooms"
-#   DUTIES=/etc/aiagent/room-duties.conf  each room's duty (room=frontend|backend|tester),
+#   DUTIES=/etc/aiagent/room-duties.conf  each room's duty (room=frontend|backend|tester|admin),
 #                                    written by aiagent when the admin sets one
 # A file that looks like it holds a secret is skipped and reported.
 import os, re, shutil, sys
@@ -84,11 +84,11 @@ duties = []
 try:
     for line in open(conf["DUTIES"]):
         k, eq, v = line.strip().partition("=")
-        if eq and re.match(r"^[a-z][a-z0-9-]{1,30}$", k.strip()) and v.strip() in ("frontend", "backend", "tester"):
+        if eq and re.match(r"^[a-z][a-z0-9-]{1,30}$", k.strip()) and v.strip() in ("frontend", "backend", "tester", "admin"):
             duties.append((k.strip(), v.strip()))
 except OSError: pass
 if duties:
-    label = {"frontend": "frontend (dev env: run the dev server behind dev/<room>)", "backend": "backend (no preview page; check with tests)", "tester": "tester (runs no app; tests on the shared UAT)"}
+    label = {"frontend": "frontend (dev env: run the dev server behind dev/<room>)", "backend": "backend (no preview page; check with tests)", "tester": "tester (runs no app; tests on the shared UAT)", "admin": "admin (the admin's own room: its sessions are on the guard's admin list)"}
     out += ("\n\n# Room duties (set by the admin in aiagent; your room is `whoami`)\n\n| room | duty |\n|---|---|\n" +
             "".join("| %s | %s |\n" % (k, label[v]) for k, v in sorted(duties)) +
             "\nA room not listed: ask the user what it is for before choosing how to work.\n")

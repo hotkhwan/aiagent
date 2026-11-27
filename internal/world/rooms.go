@@ -207,6 +207,7 @@ func (s *Service) StartRooms(ctx context.Context) {
 		return
 	}
 	s.StartRoomCaptures(ctx)
+	s.StartAdminList(ctx)
 	go func() {
 		t := time.NewTicker(time.Minute)
 		defer t.Stop()
