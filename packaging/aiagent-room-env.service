@@ -1,0 +1,26 @@
+; packaging/aiagent-room-env.service — give each room its dev/uat environment
+; files (docs/ENVIRONMENTS.md). Started by the admin service after a change
+; (systemctl start --no-block) and by aiagent-room-env.timer every minute.
+; Root reads the values; each room's files are written by a child process
+; running as that room's user, so root never writes into a room's home.
+[Unit]
+Description=give the rooms their dev and uat environment files
+
+[Service]
+Type=oneshot
+User=root
+ExecStart=/usr/local/bin/aiagent room-env-sync --state-dir /root/.local/state/aiagent
+TimeoutStartSec=120
+NoNewPrivileges=yes
+; only to become each room's user
+CapabilityBoundingSet=CAP_SETUID CAP_SETGID
+PrivateNetwork=yes
+PrivateTmp=yes
+ProtectSystem=strict
+; the rooms' homes (written as each room) and the names-only listing
+ReadWritePaths=/home /etc/aiagent
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes

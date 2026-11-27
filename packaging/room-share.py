@@ -92,6 +92,22 @@ if duties:
     out += ("\n\n# Room duties (set by the admin in aiagent; your room is `whoami`)\n\n| room | duty |\n|---|---|\n" +
             "".join("| %s | %s |\n" % (k, label[v]) for k, v in sorted(duties)) +
             "\nA room not listed: ask the user what it is for before choosing how to work.\n")
+# Environments: names and tiers only, from aiagent room-env-sync (docs/ENVIRONMENTS.md).
+# The values are only in each room's own files, never in this text.
+envs = []
+try:
+    for line in open("/etc/aiagent/room-environments.conf"):
+        k, eq, v = line.strip().partition("=")
+        if eq and re.match(r"^[a-z0-9][a-z0-9-]{0,39}$", k) and v in ("dev", "uat", "prod"):
+            envs.append((k, v))
+except OSError: pass
+if envs:
+    where = {"dev": "`~/.config/aiagent/env/%s.env`", "uat": "`~/.config/aiagent/env/%s.env`", "prod": "never in a room: prod work goes through the admin (a merge request)"}
+    out += ("\n\n# Environments (set by the admin in aiagent)\n\n| environment | tier | credentials |\n|---|---|---|\n" +
+            "".join("| %s | %s | %s |\n" % (k, v, where[v].replace("%s", k)) for k, v in sorted(envs)) +
+            "\nOnly rooms whose duty is frontend, backend, fullstack or admin get the dev and uat files; a tester room gets none. "
+            "Load one for a single command: `set -a; . ~/.config/aiagent/env/NAME.env; set +a; <command>`. "
+            "Never print, echo, log, commit or paste a value, and never copy the file into the work folder, a review page or a message.\n")
 if idx: out += "\n\n# Shared memory from the admin (read a file when it is relevant)\n\n" + "\n".join(idx) + "\n"
 put(ROOM + "/CLAUDE.md", out)
 # Codex and Antigravity read AGENTS.md (and GEMINI.md) in their work folder.

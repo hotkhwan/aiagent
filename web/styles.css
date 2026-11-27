@@ -1780,6 +1780,15 @@ button.rtChip:hover { background: #1D2440 }
 .vaultErr { color: var(--rose); margin: 0 }
 .vaultErr:empty { display: none }
 
+/* environments (drawEnvironments): dev green, uat amber, prod red */
+.envTier { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; vertical-align: middle; border: 1px solid var(--line) }
+.envTier.tier-dev { background: rgba(0,220,130,.14); color: var(--brand); border-color: rgba(0,220,130,.45) }
+.envTier.tier-uat { background: rgba(245,184,75,.16); color: var(--amber); border-color: rgba(245,184,75,.45) }
+.envTier.tier-prod { background: rgba(242,114,127,.14); color: var(--rose); border-color: rgba(242,114,127,.5) }
+.envList > li { margin: 6px 0 }
+.envVars { margin: 6px 0 10px 12px; padding-left: 10px; border-left: 2px solid var(--line) }
+.envSet { font-size: 12px } .envSet.on { color: var(--brand) } .envSet.off { color: var(--muted) }
+
 .topToast { position: fixed; inset: 18px auto auto 50%; transform: translateX(-50%); margin: 0; max-width: min(720px, 92vw); padding: 12px 20px; border-radius: 12px; border: 2px solid var(--brand); background: #10203A; color: #E6FFF4; font-size: 15px; box-shadow: 0 14px 34px rgba(0,0,0,.55); overflow-wrap: anywhere }
 .topToast.bad { border-color: var(--rose); background: #3A1420; color: #FFE4EA }
 

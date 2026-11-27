@@ -68,7 +68,7 @@ Linux)
 			$s systemctl disable --now aiagent-preview-routes.timer >/dev/null 2>&1 || true
 			$s /usr/local/lib/aiagent/preview-routes.py --remove || true
 		fi
-		$s systemctl disable --now "aiagent-keep@$me.timer" "aiagent-quota@$me.timer" aiagent-room-share.timer \
+		$s systemctl disable --now "aiagent-keep@$me.timer" "aiagent-quota@$me.timer" aiagent-room-share.timer aiagent-room-env.timer \
 			"aiagent-agents@$me" "aiagent@$me" "aiagent-tmux@$me" >/dev/null 2>&1 || true
 		if [ -n "$session" ]; then tmux kill-session -t "=$session" 2>/dev/null || true; fi
 		for t in $(tmux list-sessions -F '#S' 2>/dev/null | grep -E '^aiagent-' || true); do

@@ -62,6 +62,8 @@ const usage = `aiagent — a village view of the AI coding agents running on thi
   aiagent gitlab-mr --name VAULT_NAME GROUP/PROJECT IID
                             read one GitLab merge request's state with a vault
                             token; prints the state, never the token
+  aiagent room-env-sync     (root, aiagent-room-env.service) give each room its
+                            dev/uat environment files; never a prod value
 
 Run "aiagent serve --help" for the serve flags.
 `
@@ -100,6 +102,10 @@ func main() {
 		selfUpdateCmd(os.Args[2:])
 	case "verify-release":
 		verifyReleaseCmd(os.Args[2:])
+	case "room-env-sync":
+		roomEnvSync(os.Args[2:])
+	case "room-env-write":
+		roomEnvWrite(os.Args[2:])
 	case "-h", "--help", "help":
 		fmt.Print(usage)
 	default:

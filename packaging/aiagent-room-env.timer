@@ -1,0 +1,9 @@
+[Unit]
+Description=give the rooms their dev and uat environment files
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=1min
+
+[Install]
+WantedBy=timers.target
