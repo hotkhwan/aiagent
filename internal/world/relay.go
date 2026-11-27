@@ -23,8 +23,11 @@ package world
 
 import (
 	"context"
+	"encoding/json"
+	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -409,6 +412,59 @@ func (c *Collector) relayHoldsSession(ctx context.Context, name string) bool {
 	return err == nil && strings.Contains(cmd, "--resume") && !strings.Contains(cmd, " attach ")
 }
 
+// heldElsewhere reports a live Claude Code process, other than this relay's own
+// pane, that holds the session. The registry (<home>/.claude/sessions/<pid>.json)
+// names each process and its kind: a terminal or VS Code CLI is "interactive",
+// while a daemon job the relay may attach to is "bg". Only a registry entry
+// whose process is still the one recorded (pid and procStart both match) counts,
+// so a stale file from a dead CLI does not block a send.
+//
+// It only refuses; it never signals or types into the holder. The snapshot
+// keeps one row per session id, so the registry is read again here rather
+// than trusting that row.
+func (c *Collector) heldElsewhere(ctx context.Context, ss *Session, name string) bool {
+	home := ss.home
+	if home == "" {
+		home = c.serviceHome()
+	}
+	regs, _ := filepath.Glob(filepath.Join(home, ".claude", "sessions", "*.json"))
+	if len(regs) == 0 {
+		return false
+	}
+	pt := c.readProcTable(ctx)
+	pane := c.relayPanePid(ctx, name)
+	for _, p := range regs {
+		b, err := os.ReadFile(p)
+		if err != nil {
+			continue
+		}
+		var reg claudeRegistry
+		if json.Unmarshal(b, &reg) != nil || reg.SessionID != ss.SessionID || reg.Pid <= 0 || reg.Kind == "bg" {
+			continue
+		}
+		start, alive := pt.startTime(reg.Pid)
+		if !alive || (reg.ProcStart != "" && start != reg.ProcStart) {
+			continue
+		}
+		if pane > 0 && pt.descendsFrom(reg.Pid, pane) {
+			continue
+		}
+		return true
+	}
+	return false
+}
+
+// relayPanePid is the pid of the relay's pane process, or 0 when there is no
+// such pane. Its descendants are ours, not another holder.
+func (c *Collector) relayPanePid(ctx context.Context, name string) int {
+	out, err := c.tmux(ctx, "list-panes", "-t", "="+name, "-F", "#{pane_pid}")
+	if err != nil {
+		return 0
+	}
+	pid, _ := strconv.Atoi(strings.TrimSpace(out))
+	return pid
+}
+
 // relaySend types into the session, opening a relay for it if there is none.
 //
 // The way in is always `claude attach <id>`: it joins the daemon's job, waking
@@ -422,6 +478,10 @@ func (c *Collector) relaySend(ctx context.Context, ss *Session, message string) 
 	short := shortID(ss.SessionID)
 	name := relayName(short)
 	defer c.lockSend("relay:" + name)()
+	if c.heldElsewhere(ctx, ss, name) {
+		return &APIError{409, "AIAGENT_RELAY_HELD", "session นี้เปิดอยู่ใน Claude Code ที่เทอร์มินัลหรือ VS Code อยู่แล้ว " +
+			"ถ้าเปิด relay ซ้ำ เครื่องนั้นจะเปิด session ต่อไม่ได้ ให้ส่งข้อความจากที่นั่น หรือปิดที่นั่นก่อนแล้วส่งใหม่"}
+	}
 	dir := c.resumeDir(ss)
 	// A relay left on the trust question by an earlier try blocked every later
 	// send (owner, 2026-11-22: "ส่งให้ agent" did nothing). It never loaded the
