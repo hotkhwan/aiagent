@@ -72,7 +72,7 @@ func deliverTo(duty, tier string) bool {
 		return false
 	}
 	switch duty {
-	case DutyFrontend, DutyBackend, "fullstack", DutyAdmin:
+	case DutyFrontend, DutyBackend, DutyFullstack, DutyAdmin:
 		return true
 	}
 	return false
