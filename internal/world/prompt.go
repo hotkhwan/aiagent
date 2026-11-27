@@ -11,6 +11,7 @@ package world
 import (
 	"context"
 	"encoding/json"
+	"os"
 	"regexp"
 	"strconv"
 	"strings"
@@ -60,6 +61,26 @@ func readPrompt(screen string) *Prompt {
 		}
 	}
 	return p
+}
+
+// panePrompt reads the question on the agent pane of a workspace (a tmuxKey)
+// that shows the session. A question on its screen (a permission prompt, a
+// menu) is invisible in the transcript; without this the web shows an idle
+// agent that takes no messages.
+func (c *Collector) panePrompt(ctx context.Context, ss *Session, key string) {
+	screen, _ := c.tmux(ctx, "capture-pane", "-e", "-p", "-t", tmuxPane(key))
+	if !onDialog(sgrRE.ReplaceAllString(screen, "")) {
+		return
+	}
+	ss.Prompt = readPrompt(screen)
+	if p := ss.Prompt; p != nil && p.Ask != nil && ss.RuntimeType == "claudeCode" {
+		if tp := c.claudeTranscript(ss.home, ss.SessionID); tp != "" {
+			if fi, err := os.Stat(tp); err == nil {
+				p.Ask.withQuestions(pendingAsk(readTail(tp, fi.Size(), askTailBytes)))
+			}
+		}
+	}
+	ss.Status, ss.Title = StatusNeedsInput, "รอคำตอบที่หน้าจอ agent (ถามสิทธิ์หรือเมนู) — admin เปิด tmux ตอบ หรือกด หยุด แล้วส่งใหม่"
 }
 
 var (
@@ -121,8 +142,10 @@ func parsePrompt(screen string) *Prompt {
 	return p
 }
 
-// answerPane is the agcmd workspace whose pane shows the session.
-func (c *Collector) answerPane(ctx context.Context, id string) (workspaceEntry, error) {
+// answerTarget is the pane that shows the session's question, locked against
+// any other send to it until unlock: the agcmd workspace whose pane shows the
+// session, or for a background session the relay pane (relayForAnswer).
+func (c *Collector) answerTarget(ctx context.Context, id string) (pane string, unlock func(), err error) {
 	c.invalidate()
 	var target *Session
 	snap := c.Snapshot(ctx)
@@ -131,25 +154,51 @@ func (c *Collector) answerPane(ctx context.Context, id string) (workspaceEntry, 
 			target = &snap.Sessions[i]
 		}
 	}
-	if target == nil || !target.Live || target.DispatchVia == "" {
-		return workspaceEntry{}, ErrConflict("session นี้ไม่มีหน้าต่างที่เว็บเข้าถึงได้")
+	if target == nil || !target.Live {
+		return "", nil, ErrConflict("session นี้ไม่มีหน้าต่างที่เว็บเข้าถึงได้")
 	}
-	w, ok := c.lookupWorkspace(target.DispatchVia)
-	if !ok {
-		return workspaceEntry{}, ErrConflict("session นี้ไม่มีหน้าต่างที่เว็บเข้าถึงได้")
+	if target.DispatchVia != "" {
+		w, ok := c.lookupWorkspace(target.DispatchVia)
+		if !ok {
+			return "", nil, ErrConflict("session นี้ไม่มีหน้าต่างที่เว็บเข้าถึงได้")
+		}
+		return tmuxPane(w.session), c.lockSend("ws:" + w.session), nil
 	}
-	return w, nil
+	if target.MessageVia == "relay" {
+		name := relayName(shortID(target.SessionID))
+		// the same lock as relaySend: a message and an answer never interleave
+		unlock := c.lockSend("relay:" + name)
+		pane, err := c.relayForAnswer(ctx, target, name)
+		if err != nil {
+			unlock()
+			return "", nil, err
+		}
+		return pane, unlock, nil
+	}
+	return "", nil, ErrConflict("session นี้ไม่มีหน้าต่างที่เว็บเข้าถึงได้")
 }
 
-// AnswerPrompt picks choice n of the question the session's pane shows.
+// AnswerPrompt picks choice n of the question the session's pane shows. An
+// AskUserQuestion dialog of one question goes through the ask driver
+// (ask.go), which sees each key land and submits a multiSelect; any other
+// question gets the cursor moved to the choice and Enter.
 func (c *Collector) AnswerPrompt(ctx context.Context, id string, n int) error {
-	w, err := c.answerPane(ctx, id)
+	pane, unlock, err := c.answerTarget(ctx, id)
 	if err != nil {
 		return err
 	}
-	defer c.lockSend("ws:" + w.session)()
+	defer unlock()
 	// read it again under the lock: the answer is for what is on screen now
-	p := parsePrompt(c.paneScreen(ctx, w.session))
+	screen, _ := c.tmux(ctx, "capture-pane", "-e", "-p", "-t", pane)
+	if a := parseAsk(screen); a != nil {
+		req, err := a.optionAnswer(n)
+		if err != nil {
+			return err
+		}
+		defer c.invalidate()
+		return c.askDriver(ctx, pane, req).run()
+	}
+	p := parsePrompt(sgrRE.ReplaceAllString(screen, ""))
 	if p == nil {
 		return ErrConflict("agent ไม่ได้แสดงคำถามแล้ว")
 	}
@@ -169,7 +218,6 @@ func (c *Collector) AnswerPrompt(ctx context.Context, id string, n int) error {
 	if pick.NeedsText {
 		return ErrConflict("ตัวเลือกนี้ต้องพิมพ์ข้อความ ให้ตอบในเทอร์มินัล")
 	}
-	pane := tmuxPane(w.session)
 	key := "Down"
 	steps := n - cur
 	if steps < 0 {

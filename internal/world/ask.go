@@ -81,6 +81,10 @@ type AskDialog struct {
 	// the session's transcript, present only when they match the tabs and the
 	// question on screen.
 	Questions []AskQuestion `json:"questions,omitempty"`
+	// Source is "transcript" when no screen was read: the dialog is the tool
+	// call as the transcript has it, the first question in front, nothing
+	// answered yet (a background session nobody has attached, askPrompt).
+	Source string `json:"source,omitempty"`
 
 	cursor string // "opt:N" | "next" | "chat" | ""
 	items  []string
@@ -528,6 +532,65 @@ func (d *AskDialog) withQuestions(qs []AskQuestion) {
 		}
 	}
 	d.Questions = qs
+}
+
+// askPrompt is the dialog of a pending tool call as Claude Code draws it when
+// it opens: the first question in front, its options numbered as on screen
+// (with "Type something" last unless the question has previews), a Submit tab
+// when there is more than one question or the first is a multiSelect, and
+// nothing answered. It stands in for the screen of a background session that
+// no pane shows; answering still reads the real screen first (AnswerAsk).
+func askPrompt(qs []AskQuestion) *Prompt {
+	if len(qs) == 0 {
+		return nil
+	}
+	q := qs[0]
+	d := &AskDialog{
+		Active:      0,
+		HasSubmit:   len(qs) > 1 || q.MultiSelect,
+		Header:      q.Header,
+		Question:    q.Question,
+		MultiSelect: q.MultiSelect,
+		Chat:        true,
+		Questions:   qs,
+		Source:      "transcript",
+		labels:      map[int]string{},
+	}
+	for _, x := range qs {
+		d.Tabs = append(d.Tabs, AskTab{Header: x.Header})
+	}
+	for i, o := range q.Options {
+		d.opts = append(d.opts, PromptOption{N: i + 1, Label: o.Label, Detail: o.Detail})
+		if o.Preview != "" {
+			d.Preview = true
+		}
+	}
+	if q.FreeText {
+		d.TextOption, d.TextEmpty = len(d.opts)+1, true
+		d.opts = append(d.opts, PromptOption{N: d.TextOption, Label: askPlaceholder, NeedsText: true})
+	}
+	return &Prompt{Question: q.Question, Options: append([]PromptOption(nil), d.opts...), Ask: d}
+}
+
+// optionAnswer turns {option: n}, the one choice the phone sends, into a whole
+// answer to the dialog on screen. Only a dialog of one question can be
+// answered that way, and never with the free-text option.
+func (d *AskDialog) optionAnswer(n int) (AskRequest, error) {
+	if len(d.Tabs) != 1 || d.Review || d.Active != 0 {
+		return AskRequest{}, ErrConflict("คำถามนี้มีหลายข้อ ให้ตอบบนหน้าเว็บ")
+	}
+	o := d.opt(n)
+	if o.N == 0 {
+		return AskRequest{}, ErrBadRequest("ไม่มีตัวเลือกนี้")
+	}
+	if o.NeedsText {
+		return AskRequest{}, ErrConflict("ตัวเลือกนี้ต้องพิมพ์ข้อความ ให้ตอบบนหน้าเว็บ")
+	}
+	return AskRequest{
+		Tabs:    []string{d.Tabs[0].Header},
+		Answers: []AskAnswer{{Tab: 0, Question: d.Question, Options: []string{o.Label}}},
+		Submit:  d.HasSubmit,
+	}, nil
 }
 
 // sameText compares two texts as drawn: white space (where the screen wraps)
@@ -1114,21 +1177,24 @@ func (c *Collector) AnswerAsk(ctx context.Context, id string, req AskRequest) er
 	if err := req.check(); err != nil {
 		return err
 	}
-	w, err := c.answerPane(ctx, id)
+	pane, unlock, err := c.answerTarget(ctx, id)
 	if err != nil {
 		return err
 	}
-	defer c.lockSend("ws:" + w.session)()
-	pane := tmuxPane(w.session)
-	d := &askDriver{
+	defer unlock()
+	defer c.invalidate()
+	return c.askDriver(ctx, pane, req).run()
+}
+
+// askDriver drives the dialog on a tmux pane target.
+func (c *Collector) askDriver(ctx context.Context, pane string, req AskRequest) *askDriver {
+	return &askDriver{
 		read:  func() (string, error) { return c.tmux(ctx, "capture-pane", "-e", "-p", "-t", pane) },
 		key:   func(k string) error { _, err := c.tmux(ctx, "send-keys", "-t", pane, k); return err },
 		typ:   func(s string) error { _, err := c.tmux(ctx, "send-keys", "-t", pane, "-l", "--", s); return err },
 		sleep: c.sleep,
 		req:   req,
 	}
-	defer c.invalidate()
-	return d.run()
 }
 
 // tmuxPane is the agent window of a workspace's tmux key.
