@@ -102,6 +102,7 @@ type Service struct {
 	// empty means the one packaging/install.sh recorded.
 	UpdateRepo string
 	update     updateState
+	release    releaseUpdate
 	pushSource func(context.Context, Identity) ([]PushItem, error)
 	push       pushState
 	// Duties records what each room is for (roomduties.go); nil without rooms.
@@ -344,6 +345,7 @@ func (s *Service) Mount(app *fiber.App) {
 	api.Post("/connect/qr", s.handleConnectQR)
 	api.Post("/connect/pair", s.handleConnectPair)
 	api.Get("/update", s.handleUpdateCheck)
+	api.Get("/update/release", s.handleReleaseCheck)
 	api.Post("/update", s.handleUpdateApply)
 	api.Post("/push/devices/remove", s.handlePushDeviceRemove)
 	api.Get("/guides/:name", s.handleGuide)

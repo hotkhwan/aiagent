@@ -112,6 +112,29 @@ issue. There is one maintainer, so expect a human-speed reply, not an SLA.
   systemd unit keeps the service read-only outside its state directory, so the
   check works but the update fails there with that reason; update by hand.
 
+- **Updating from a release** (`internal/world/selfupdate_release.go`,
+  `internal/release`, admin only, audited as `aiagent.update.release`): the
+  🔔 asks `api.github.com` for the latest release at most every 6 hours (an
+  admin may ask now). `POST /aiagent/api/update {"release":"vX.Y.Z"}` accepts
+  only the current latest release, and only when it is newer than the running
+  version, so an old signed release cannot be replayed to downgrade. Downloads
+  go only over https to `github.com`, `objects.githubusercontent.com` and
+  `release-assets.githubusercontent.com`, redirects included, from the
+  release's own download URLs, with size caps. Nothing is installed or run until
+  `SHA256SUMS` verifies against the ed25519 release key compiled into aiagent
+  (`internal/world/release_pubkey.go`), the archive's sha256 is the one listed,
+  and the archive holds exactly `aiagent` and `agcmd` as plain top-level files.
+  `aiagent self-update --release-dir` verifies the folder again itself (it sits
+  in the writable state directory), stages and optionally codesigns the
+  binaries beside the live ones, keeps `.prev` copies, renames them into place
+  and restarts the service. What this trusts: the owner's release key, and only
+  that; whoever controls the GitHub account or the network cannot pass a
+  release without it. The private key lives off the repo on the release Mac
+  (`packaging/release.sh`). On Linux, as root under systemd, the installer runs
+  as a transient unit (`systemd-run`), outside the service's read-only sandbox;
+  a non-root systemd instance still cannot write its binary and fails with that
+  reason.
+
 ## The browser surface
 
 - Strict CSP: `default-src 'self'`, `script-src 'self'`, `frame-ancestors

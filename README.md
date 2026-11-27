@@ -183,6 +183,56 @@ them, `--no-clis` skips them, `--skills DIR` copies a folder of skills into
 switch, and **`agcmd`**, the small tool that talks to the agents through tmux.
 Until you run `enable`, **every route answers 404**.
 
+### Install from a release (no Go, no checkout)
+
+Every version is published on
+[GitHub Releases](https://github.com/hotkhwan/aiagent/releases) as
+`aiagent_<ver>_<os>_<arch>.tar.gz` (darwin/linux, arm64/amd64; each holds only
+`aiagent` and `agcmd`), with `SHA256SUMS` and `SHA256SUMS.sig`, an ed25519
+signature of `SHA256SUMS` made with the owner's release key. The public key is
+compiled into aiagent and is [`packaging/release-pubkey.pem`](packaging/release-pubkey.pem).
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/hotkhwan/aiagent/main/packaging/install-release.sh | sh
+# or a given version, into /usr/local/bin:
+curl -fsSL https://raw.githubusercontent.com/hotkhwan/aiagent/main/packaging/install-release.sh | PREFIX=/usr/local sh -s v0.36.0
+```
+
+It downloads this machine's archive, checks the signature (with OpenSSL 3, or
+with an `aiagent` already installed) and the checksum, and only then installs
+the two binaries. It does not set up the service or the agent CLIs: for those
+run `packaging/install.sh` from a checkout once, or set up the unit by hand.
+
+To check a download yourself instead (OpenSSL 3; macOS: `brew install openssl@3`):
+
+```sh
+base64 -d < SHA256SUMS.sig > sig.bin
+openssl pkeyutl -verify -pubin -inkey release-pubkey.pem -rawin -in SHA256SUMS -sigfile sig.bin
+shasum -a 256 -c SHA256SUMS --ignore-missing     # Linux: sha256sum -c --ignore-missing
+```
+
+or, from an aiagent you already trust, `aiagent verify-release DIR` (a folder
+holding the three files).
+
+**Updating:** once installed, the admin sees a 🔔 in the header when a newer
+release is out; one click downloads it, verifies the signature and checksum,
+replaces both binaries next to the running one (the old ones stay as
+`aiagent.prev` / `agcmd.prev`) and restarts the service. A machine installed
+from a checkout keeps the git update in 👤 Accounts as well.
+
+**Cutting a release (owner):** set `Version` in `internal/world/version.go`,
+merge to main, then on the release Mac:
+
+```sh
+./packaging/release.sh 0.36.0
+```
+
+It refuses unless the tree is clean, on `main` and at that version; builds the
+four platforms, writes and signs `SHA256SUMS` with
+`~/littledays-keys/aiagent-release-ed25519.pem`, checks every archive the way an
+installed aiagent will, tags `v0.36.0`, pushes the tag and publishes the release
+with `gh`.
+
 ### Remove it
 
 ```sh

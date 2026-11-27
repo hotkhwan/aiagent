@@ -129,7 +129,8 @@ function nameOf (sess) {
   return sess.protected && !isUser() ? 'admin · ' + sess.displayName.replace(/\s*\(admin\)$/, '') : sess.displayName
 }
 function showMenu (role) {
-  for (const id of ['viewPM', 'viewTasks', 'accountsBtn']) $(id).hidden = role !== 'admin'
+  for (const id of ['viewPM', 'viewTasks', 'accountsBtn', 'releaseBtn']) $(id).hidden = role !== 'admin'
+  if (role === 'admin') checkRelease()
 }
 // a vibe user: own agents only, no PM, no task board (the server refuses both)
 function isUser () { return !!st.me && st.me.role === 'user' }
@@ -3417,6 +3418,8 @@ async function drawUpdate (fresh) {
     if ((u.commits || []).length) lines.push(h('ul', null, ...u.commits.map(c => h('li', null, h('code', null, c.sha), ' ' + c.subject))))
     lines.push(h('button', { type: 'button', class: 'pri', onclick: run }, tr('อัปเดตเป็น v') + (u.latest || '?')))
   } else if (u.reason) lines.push(h('p', { class: 'note' }, u.reason))
+  const rel = u.release || {}
+  if (rel.newer && !status.running) lines.push(h('p', null, h('button', { type: 'button', class: 'ghost', onclick: () => { $('accountsDlg').close(); openRelease() } }, tr('🔔 มี release ใหม่ ') + rel.latest)))
   if (!status.running && status.at && !status.ok && status.log) lines.push(h('details', null, h('summary', null, tr('การอัปเดตครั้งล่าสุดไม่สำเร็จ')), h('pre', { class: 'mono' }, status.log)))
   box.replaceChildren(h('div', { class: 'accCard' }, head, ...lines))
   if (status.running) { clearTimeout(st.updTimer); st.updTimer = setTimeout(() => drawUpdate(), 4000) }
@@ -3434,6 +3437,55 @@ function waitForNewVersion (from) {
     setTimeout(tick, 4000)
   }
   setTimeout(tick, 6000)
+}
+
+// ----- the 🔔: a newer published release, installed from its signed files -----
+// The server asks GitHub at most every few hours; the dot shows when the latest
+// release is newer than this one. Installing needs no Go and no checkout: the
+// service downloads the release, checks its signature and checksums, swaps the
+// binaries and restarts. The notes are the release's own text, shown as text.
+async function checkRelease () {
+  clearTimeout(st.relTimer)
+  st.relTimer = setTimeout(checkRelease, 60 * 60 * 1000)
+  let u
+  try { u = await api('/update/release') } catch (e) { return }
+  const r = u.release || {}
+  $('releaseDot').hidden = !r.newer
+  $('releaseBtn').title = r.newer ? tr('มีเวอร์ชันใหม่: ') + r.latest : tr('เวอร์ชันใหม่ของ aiagent')
+}
+function openRelease () {
+  $('releaseDlg').showModal()
+  drawRelease()
+}
+async function drawRelease (fresh) {
+  const box = $('releaseBody')
+  clearTimeout(st.relDrawTimer)
+  if (!box || !$('releaseDlg').open) return
+  let u
+  try { u = await api('/update/release' + (fresh ? '?fresh=1' : '')) } catch (e) { box.replaceChildren(h('p', { class: 'note' }, tr('ตรวจเวอร์ชันไม่ได้: ') + e.message)); return }
+  const r = u.release || {}
+  const status = u.status || {}
+  $('releaseDot').hidden = !r.newer
+  const run = async () => {
+    if (!await confirmBox(tr('อัปเดต aiagent เป็น ') + r.latest, tr('ดาวน์โหลด release ตรวจลายเซ็นและ checksum ติดตั้ง แล้วเริ่ม service ใหม่ หน้านี้จะโหลดใหม่เองเมื่อเสร็จ'), r.notes || '', tr('อัปเดตเลย'))) return
+    try { await api('/update', { method: 'POST', body: { release: r.latest } }) } catch (e) { toast(tr('อัปเดตไม่ได้: ') + e.message, true); drawRelease(true); return }
+    waitForNewVersion(u.current)
+    drawRelease()
+  }
+  const lines = [h('p', null, tr('เวอร์ชันนี้ v') + u.current + (r.latest ? tr(' · ล่าสุด ') + r.latest : ''))]
+  if (status.running) {
+    lines.push(h('p', { class: 'note' }, tr('กำลังอัปเดต… หน้านี้จะโหลดใหม่เองเมื่อเสร็จ')))
+    if (status.log) lines.push(h('pre', { class: 'mono' }, status.log))
+  } else if (r.error) lines.push(h('p', { class: 'note' }, r.error))
+  else if (r.newer) {
+    if (r.notes) lines.push(h('pre', { class: 'relNotes' }, r.notes))
+    lines.push(h('button', { type: 'button', class: 'pri', onclick: run }, tr('อัปเดตเป็น ') + r.latest))
+  } else lines.push(h('p', { class: 'note' }, tr('เป็นเวอร์ชันล่าสุดแล้ว')))
+  if (r.url) lines.push(h('p', { class: 'note' }, h('a', { href: r.url, target: '_blank', rel: 'noopener noreferrer' }, tr('ดู release บน GitHub'))))
+  if (!status.running && status.at && !status.ok && status.log) lines.push(h('details', null, h('summary', null, tr('การอัปเดตครั้งล่าสุดไม่สำเร็จ')), h('pre', { class: 'mono' }, status.log)))
+  lines.push(h('button', { type: 'button', class: 'ghost', disabled: status.running, onclick: () => drawRelease(true) }, tr('ตรวจอีกครั้ง')))
+  box.replaceChildren(...lines)
+  if (status.running) st.relDrawTimer = setTimeout(() => drawRelease(), 4000)
 }
 
 // ----- agent CLIs: one button updates every installed CLI, the model menu follows -----
@@ -3567,6 +3619,7 @@ function helpMenu () {
 $('helpBtn').addEventListener('click', e => { e.stopPropagation(); helpMenu() })
 document.addEventListener('click', e => { const p = document.querySelector('.helpPop'); if (p && !p.contains(e.target)) p.remove() })
 $('accountsBtn').addEventListener('click', openAccounts)
+$('releaseBtn').addEventListener('click', openRelease)
 $('connectBtn').addEventListener('click', openConnect)
 $('previewBtn').addEventListener('click', () => openPreview(previewRoom()))
 $('asBack').addEventListener('click', () => viewAs(''))
