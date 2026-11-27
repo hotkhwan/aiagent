@@ -40,6 +40,13 @@
 html, body { height: 100%; overflow-x: hidden }
 body { min-height: 100%; display: flex; flex-direction: column; background: radial-gradient(1200px 700px at 40% 30%, #1A2342 0%, var(--sky) 60%) var(--sky); color: var(--ink); font: 14px/1.5 var(--font) }
 button, input, select { font: inherit; color: inherit }
+/* A select with no rule of its own kept the browser's white box under the
+   page's light text, so its value could not be read (the role picker). Every
+   select and its list are dark here; the more specific rules below still win. */
+:root { color-scheme: dark }
+select { background: var(--sky); color: var(--ink); border: 1px solid var(--line); border-radius: 8px; padding: 4px 8px }
+select option { background: var(--sky2); color: var(--ink) }
+select:disabled { opacity: .55 }
 button { cursor: pointer; border: 1px solid var(--line); background: transparent; border-radius: 10px; padding: 8px 14px }
 button.pri { background: var(--brand); color: var(--brandInk); border-color: var(--brand); font-weight: 600 }
 button.warn { border-color: var(--rose); color: var(--rose) }

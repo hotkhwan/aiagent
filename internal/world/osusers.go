@@ -295,6 +295,11 @@ func (s *Service) teammates(ctx context.Context, name string) ([]Session, map[st
 			if taken[ss.SessionID] || ss.SessionID == "" || p.covers(ss.SessionID) {
 				continue
 			}
+			// a room set to admin is on the guard's admin list: other rooms
+			// do not read it; the admin does
+			if name != "" && p.adminRoom[strings.ToLower(ss.SessionID)] != "" {
+				continue
+			}
 			taken[ss.SessionID] = true
 			owner[ss.SessionID] = u.OSUser
 			why := "ห้องของ " + u.OSUser + " — อ่านบทสนทนาได้ ส่งข้อความไม่ได้"

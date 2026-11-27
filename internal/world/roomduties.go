@@ -2,7 +2,9 @@
 //
 // A room's duty: what the person behind a user token does — builds pages
 // (frontend, with a dev server behind the room's preview), works on services
-// (backend, no preview), or tests on the shared UAT (tester, runs no app).
+// (backend, no preview), or tests on the shared UAT (tester, runs no app),
+// or is an admin (admin: the room's sessions are on the admin list in
+// protected.json, which the host's guard reads; see adminlist.go).
 // The admin picks it when creating the token and can change it later.
 //
 // The duties live in one small file, /etc/aiagent/room-duties.conf by
@@ -25,9 +27,13 @@ const (
 	DutyFrontend = "frontend"
 	DutyBackend  = "backend"
 	DutyTester   = "tester"
+	DutyAdmin    = "admin"
 )
 
-var validDuties = map[string]bool{DutyFrontend: true, DutyBackend: true, DutyTester: true}
+var validDuties = map[string]bool{DutyFrontend: true, DutyBackend: true, DutyTester: true, DutyAdmin: true}
+
+// dutyErr is the refusal for a duty that is not one of validDuties.
+const dutyErr = "บทบาทต้องเป็น frontend, backend, tester หรือ admin"
 
 // ValidDuty reports whether d is a duty; "" (not set) is valid too.
 func ValidDuty(d string) bool { return d == "" || validDuties[d] }
@@ -74,7 +80,7 @@ func (r *RoomDuties) Set(room, duty string) error {
 		return ErrBadRequest("ชื่อห้องไม่ถูกต้อง")
 	}
 	if !ValidDuty(duty) {
-		return ErrBadRequest("บทบาทต้องเป็น frontend, backend หรือ tester")
+		return ErrBadRequest(dutyErr)
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -90,7 +96,7 @@ func (r *RoomDuties) Set(room, duty string) error {
 	}
 	sort.Strings(rooms)
 	var b strings.Builder
-	b.WriteString("# room=duty (frontend | backend | tester). Written by aiagent when the admin\n# sets a room's duty; room-share.py tells each room's agent its duty.\n")
+	b.WriteString("# room=duty (frontend | backend | tester | admin). Written by aiagent when the admin\n# sets a room's duty; room-share.py tells each room's agent its duty.\n")
 	for _, k := range rooms {
 		b.WriteString(k + "=" + m[k] + "\n")
 	}

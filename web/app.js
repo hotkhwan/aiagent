@@ -3355,14 +3355,15 @@ $('connectDlg').addEventListener('close', () => {
 
 async function drawTokens (fresh) {
   if (!$('accountsDlg').open) return
-  let list, osUsers, duties
-  try { const r = await api('/tokens'); list = r.tokens; osUsers = r.osUsers; duties = r.duties } catch (e) { $('tokenBody').replaceChildren(h('p', { class: 'note' }, tr('อ่านรายการ token ไม่ได้: ') + e.message)); return }
+  let list, osUsers, duties, self
+  try { const r = await api('/tokens'); list = r.tokens; osUsers = r.osUsers; duties = r.duties; self = r.self } catch (e) { $('tokenBody').replaceChildren(h('p', { class: 'note' }, tr('อ่านรายการ token ไม่ได้: ') + e.message)); return }
   const name = h('input', { type: 'text', id: 'tokenName', maxlength: '40', placeholder: osUsers ? tr('ชื่อผู้ใช้ (a-z, 0-9, -)') : tr('ชื่อผู้ใช้'), autocomplete: 'off' })
   const duty = dutySelect('', tr('บทบาทของห้องใหม่'))
   const create = async () => {
     try { drawTokens(await api('/tokens', { method: 'POST', body: { name: name.value.trim(), duty: duties ? duty.value : '' } })) } catch (e) { toast(tr('ไม่สำเร็จ: ') + e.message, true) }
   }
   const setDuty = async (t, value) => {
+    if (value === 'admin' && !await confirmBox(tr('ตั้ง ') + t.name + tr(' เป็น admin'), tr('session ของห้องนี้จะอยู่ในรายชื่อ admin (protected.json) ที่ guard ของเครื่องอ่าน และห้องอื่นจะอ่านบทสนทนาของห้องนี้ไม่ได้'), t.name, tr('ตั้งเป็น admin'))) { drawTokens(); return }
     try { await api('/tokens/' + t.id + '/duty', { method: 'POST', body: { duty: value } }); toast(t.name + tr(' เป็น ') + dutyLabel(value)) } catch (e) { toast(tr('ไม่สำเร็จ: ') + e.message, true) }
     drawTokens()
   }
@@ -3383,19 +3384,21 @@ async function drawTokens (fresh) {
     fresh ? h('p', null, fresh.name + ': ', h('code', { class: 'devCode' }, fresh.token), ' ', h('button', { type: 'button', class: 'ghost', onclick: e => copyText(fresh.token, e.currentTarget, true) }, tr('คัดลอก'))) : null,
     fresh ? h('p', { class: 'note' }, tr('token นี้แสดงครั้งเดียว ส่งให้ผู้ใช้ทางช่องทางส่วนตัว')) : null,
     freshQR,
+    self ? h('ul', { class: 'selfToken' }, h('li', null, h('b', null, tr('token ของคุณ (admin)')), ' ', h('span', { class: 'note' }, self.room), ' ', dutySelect(self.duty, tr('บทบาทของ token ของคุณ'), v => setDuty({ id: 'self', name: tr('token ของคุณ') }, v), true))) : null,
     list.length ? h('ul', null, ...list.map(t => h('li', null, h('b', null, t.name), duties && t.osUser && !t.removing ? [' ', dutySelect(t.duty || '', tr('บทบาทของ ') + t.name, v => setDuty(t, v))] : null, t.removing ? h('span', { class: 'note' }, ' · ' + tr('ลบไม่สำเร็จ กดเพิกถอนอีกครั้ง')) : null, ' ', t.osUser && !t.removing ? h('button', { type: 'button', class: 'ghost', onclick: () => viewAs(t.osUser) }, tr('เข้าห้อง / login')) : null, ' ', t.osUser && !t.removing && st.me.preview ? h('button', { type: 'button', class: 'ghost', onclick: () => openPreview(t.osUser) }, tr('พรีวิว')) : null, ' ', t.removing ? null : h('button', { type: 'button', class: 'ghost', title: tr('ใช้เมื่อลืม token: ดู token เดิมไม่ได้ เพราะระบบเก็บแค่ hash'), onclick: () => reissue(t) }, tr('ออก token ใหม่')), ' ', h('button', { type: 'button', class: 'warn', onclick: () => revoke(t) }, tr('เพิกถอน'))))) : h('p', { class: 'note' }, tr('ยังไม่มี token ของผู้ใช้')),
     osUsers ? h('p', { class: 'note' }, tr('สร้าง token = สร้าง OS user และห้องทำงานแยกบนเครื่องนี้ ใช้เวลาราว 10 วินาที จากนั้นเข้าห้องเพื่อ login Claude ให้ผู้ใช้')) : null,
-    duties ? h('p', { class: 'note' }, tr('บทบาท: dev หน้าเว็บ = รัน dev server ให้ดูที่ dev/<ห้อง> · backend = ไม่มีหน้าพรีวิว ตรวจด้วยเทสต์ · tester = ไม่รันแอป ทดสอบบน UAT · agent ของห้องอ่านบทบาทนี้จากคู่มือห้อง')) : null,
+    duties ? h('p', { class: 'note' }, tr('บทบาท: dev หน้าเว็บ = รัน dev server ให้ดูที่ dev/<ห้อง> · backend = ไม่มีหน้าพรีวิว ตรวจด้วยเทสต์ · tester = ไม่รันแอป ทดสอบบน UAT · admin = session ของห้องอยู่ในรายชื่อ admin ที่ guard อ่าน · agent ของห้องอ่านบทบาทนี้จากคู่มือห้อง')) : null,
     h('div', { class: 'accRow' }, name, duties ? duty : null, h('button', { type: 'button', class: 'pri', onclick: create }, tr('สร้าง token')))))
 }
 
 // A room's duty: what the person behind the token does (roomduties.go).
 function dutyLabel (v) {
-  return { frontend: tr('dev หน้าเว็บ'), backend: tr('backend'), tester: tr('tester') }[v] || tr('ยังไม่กำหนดบทบาท')
+  return { frontend: tr('dev หน้าเว็บ'), backend: tr('backend'), tester: tr('tester'), admin: tr('admin') }[v] || tr('ยังไม่กำหนดบทบาท')
 }
-function dutySelect (value, label, onchange) {
+// required: the admin's own token always has a duty (unset reads as admin)
+function dutySelect (value, label, onchange, required) {
   return h('select', { 'aria-label': label, onchange: onchange ? e => onchange(e.target.value) : null },
-    ...['', 'frontend', 'backend', 'tester'].map(v => h('option', { value: v, selected: v === value }, dutyLabel(v))))
+    ...(required ? [] : ['']).concat(['frontend', 'backend', 'tester', 'admin']).map(v => h('option', { value: v, selected: v === value }, dutyLabel(v))))
 }
 
 // ----- aiagent itself: see whether a newer release is out and install it -----
