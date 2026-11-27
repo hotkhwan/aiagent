@@ -288,7 +288,17 @@ func (c *Collector) collectLocked(ctx context.Context) Snapshot {
 				ss.DispatchVia = ws
 			}
 		}
-		if ss.DispatchVia != "" || !ss.Live || ss.Pid <= 0 {
+		if ss.DispatchVia != "" {
+			// an attach client in an agcmd pane draws the session's
+			// questions there too
+			for _, w := range snap.Workspaces {
+				if w.Name == ss.DispatchVia {
+					c.panePrompt(ctx, ss, w.TmuxSession)
+				}
+			}
+			continue
+		}
+		if !ss.Live || ss.Pid <= 0 {
 			continue
 		}
 		for _, w := range snap.Workspaces {
@@ -298,20 +308,7 @@ func (c *Collector) collectLocked(ctx context.Context) Snapshot {
 				if ss.RuntimeType == "agyCli" {
 					break // agySessions has read its screen
 				}
-				// A question on its screen (a permission prompt, a menu) is
-				// invisible in the transcript; without this the web shows an
-				// idle agent that takes no messages.
-				if screen, _ := c.tmux(ctx, "capture-pane", "-e", "-p", "-t", tmuxPane(w.TmuxSession)); onDialog(sgrRE.ReplaceAllString(screen, "")) {
-					ss.Prompt = readPrompt(screen)
-					if p := ss.Prompt; p != nil && p.Ask != nil && ss.RuntimeType == "claudeCode" {
-						if tp := c.claudeTranscript(ss.home, ss.SessionID); tp != "" {
-							if fi, err := os.Stat(tp); err == nil {
-								p.Ask.withQuestions(pendingAsk(readTail(tp, fi.Size(), askTailBytes)))
-							}
-						}
-					}
-					ss.Status, ss.Title = StatusNeedsInput, "รอคำตอบที่หน้าจอ agent (ถามสิทธิ์หรือเมนู) — admin เปิด tmux ตอบ หรือกด หยุด แล้วส่งใหม่"
-				}
+				c.panePrompt(ctx, ss, w.TmuxSession)
 				break
 			}
 		}
@@ -319,6 +316,7 @@ func (c *Collector) collectLocked(ctx context.Context) Snapshot {
 	for i := range snap.Sessions {
 		c.decideStop(&snap.Sessions[i])
 		c.decideMessage(&snap.Sessions[i])
+		c.relayPrompt(ctx, &snap.Sessions[i])
 	}
 	sort.SliceStable(snap.Sessions, func(i, j int) bool {
 		a, b := snap.Sessions[i], snap.Sessions[j]
