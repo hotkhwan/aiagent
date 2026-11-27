@@ -440,3 +440,50 @@ func TestApprovingATaskIsWithinReach(t *testing.T) {
 		t.Error("opening a card does not bring the task's panel into view; it opens below the board")
 	}
 }
+
+// TestAStalledTaskSaysSo guards what the board says when an agent goes quiet.
+//
+// A running task moves when its agent reports, or when the user cancels it;
+// nothing requeues it by itself. So when the agent's session was stopped from
+// a terminal, the card went on saying "running" for two days, with nothing to
+// tell it from a task being worked on. The lease is what tells them apart: the
+// orchestrator renews it while the session's transcript moves.
+func TestAStalledTaskSaysSo(t *testing.T) {
+	b, err := fs.ReadFile(FS, "app.js")
+	if err != nil {
+		t.Fatalf("read app.js: %v", err)
+	}
+	src := string(b)
+
+	stalled := jsFunc(t, src, "stalledAttempt")
+	if !strings.Contains(stalled, "'running'") || !strings.Contains(stalled, "leaseExpiresAt") {
+		t.Error("stalledAttempt() does not judge a running task by its attempt's lease")
+	}
+	// An attempt confirmed by hand names no session: nothing renews its lease,
+	// so "quiet since" would be a guess about an agent that may be at work.
+	if !strings.Contains(jsFunc(t, src, "quietLine"), "!a.sessionId") {
+		t.Error("quietLine() claims an agent went quiet even when no session was ever watched")
+	}
+	for _, fn := range []string{"taskCard", "taskDetail"} {
+		if !strings.Contains(jsFunc(t, src, fn), "stalledAttempt(t)") {
+			t.Errorf("%s() does not say when the task's agent has gone quiet", fn)
+		}
+	}
+
+	dict, err := fs.ReadFile(FS, "i18n.js")
+	if err != nil {
+		t.Fatalf("read i18n.js: %v", err)
+	}
+	for _, thai := range []string{
+		"agent เงียบตั้งแต่ ", " — อาจหยุดไปแล้ว",
+		"ไม่รู้ว่า agent ยังทำอยู่หรือไม่ — งานนี้ไม่ได้ผูกกับ session",
+		" · คลิกเพื่อยกเลิกหรือรอ", "งานนี้ไม่ย้ายเอง: ยกเลิกงาน หรือรอ agent กลับมารายงาน",
+	} {
+		if !strings.Contains(src, "tr('"+thai+"')") {
+			t.Errorf("app.js does not say %q", thai)
+		}
+		if !strings.Contains(string(dict), "'"+thai+"':") {
+			t.Errorf("i18n.js has no English for %q", thai)
+		}
+	}
+}
