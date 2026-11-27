@@ -16,7 +16,7 @@ func TestVaultKeepsValuesOutOfTheListAndOutOfReach(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, user, _ := e.store.AddUser("anna", "")
-	const tok = "glpat-EXAMPLE_0123456789abcdef"
+	const tok = "glpat-EXAMPLE_0123456789abcdef" // gitleaks:allow — a made-up EXAMPLE token: the test checks a user cannot store one
 	if code, _, _ := e.do(t, "POST", apiPrefix+"/vault", user, `{"name":"x","provider":"gitlab","purpose":"push","value":"`+tok+`"}`); code != 403 {
 		t.Fatalf("a user saved a token: %d", code)
 	}
