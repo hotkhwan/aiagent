@@ -3346,6 +3346,8 @@ async function drawPair () {
 }
 $('connectDlg').addEventListener('close', () => {
   clearInterval(st.pairTimer)
+  // the code on screen is a key to this page's token: end it with the dialog
+  api('/connect/pair/cancel', { method: 'POST' }).catch(() => {})
   st.pairSeq = (st.pairSeq || 0) + 1
   $('connectBody').replaceChildren()
   $('connectReach').replaceChildren()
