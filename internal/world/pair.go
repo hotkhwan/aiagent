@@ -4,6 +4,7 @@
 // drawn on the screen.
 //
 //	POST /aiagent/api/connect/pair  token — {origin} → {code, expiresAt, qr}
+//	(redeeming a code gives the phone its own token with the page's scope)
 //	POST /aiagent/pair              no token — {code: "pair_…"} → {token}
 //
 // The page asks for a code; the QR holds only a one-time ticket and this
@@ -178,6 +179,11 @@ func (s *Service) handleConnectPair(c fiber.Ctx) error {
 	if _, err := pairCode(body.Origin, pairPrefix); err != nil {
 		return s.fail(c, err)
 	}
+	// a phone pairs no further phones: a stolen one could otherwise mint
+	// tokens that outlive its own revoke (devices.go)
+	if identity(c).DeviceID != "" {
+		return s.fail(c, &APIError{403, "AIAGENT_FORBIDDEN", "จับคู่อุปกรณ์ใหม่ได้จากหน้าเว็บเท่านั้น"})
+	}
 	// the header points into a reused buffer; the ticket outlives the request
 	token := strings.Clone(c.Get(TokenHeader))
 	ticket, expires, err := s.pair.issue(token, s.pair.clock())
@@ -227,15 +233,18 @@ func (s *Service) handlePairRedeem(c fiber.Ctx) error {
 	}
 	var body struct {
 		Code string `json:"code"`
+		// Name labels the phone in the device list; optional.
+		Name string `json:"name"`
 	}
 	if json.Unmarshal(c.Body(), &body) != nil || !pairCodeRE.MatchString(body.Code) {
 		s.pair.failed(ip, now)
 		return pairInvalid(c)
 	}
 	token, ok := s.pair.take(body.Code, now)
+	var page Identity
 	if ok {
 		// a token revoked or reissued since the code was made opens nothing
-		_, ok = s.Store.IdentifyHash(sha256.Sum256([]byte(token)))
+		page, ok = s.Store.IdentifyHash(sha256.Sum256([]byte(token)))
 	}
 	if !ok {
 		s.pair.failed(ip, now)
@@ -246,7 +255,13 @@ func (s *Service) handlePairRedeem(c fiber.Ctx) error {
 	if err := s.auditPair(ip, "ok"); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(failEnv("AIAGENT_AUDIT_FAILED", "audit log unavailable — action not performed"))
 	}
-	return c.JSON(okEnv(fiber.Map{"token": token}))
+	// the phone gets a token of its own with the page's scope, never the
+	// page's token: a lost phone is then one revoke (devices.go)
+	_, phone, err := s.Store.AddDevice(page, body.Name)
+	if err != nil {
+		return s.fail(c, err)
+	}
+	return c.JSON(okEnv(fiber.Map{"token": phone}))
 }
 
 // auditPair records a redeem by where it came from, never the code or token.

@@ -24,8 +24,10 @@ then on the aiagent token is the **only** thing between them and typing into
 your agents. That token is long and random, failed guesses are rate limited,
 and it never travels in a URL, so guessing it is not the risk; **losing** it
 is. Keep it in a password manager, never paste it in a chat, and run
-`aiagent rotate-token` if it may have leaked. A pairing code on screen is the
-token too, until the phone redeems it or the dialog closes.
+`aiagent rotate-token` if it may have leaked. A pairing code on screen can
+pair one phone, with that page's rights, until it is used or the dialog
+closes. Each phone gets a token of its own: revoke a lost one in the
+**📱 App** dialog.
 
 aiagent refuses to listen on anything but loopback without TLS. A tunnel does
 not change that: `cloudflared` connects to `127.0.0.1` from the same machine,
