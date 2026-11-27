@@ -274,6 +274,15 @@ version, including what is **not** protected, is in
 - **Like it?** A star helps other people find the project. So does telling us
   what you use it for, or what got in your way while installing it.
 
+## Support the project
+
+If AI Agent World helps you, consider giving the repository a star,
+sharing feedback, or sponsoring open-source development.
+
+[Become a sponsor](https://github.com/sponsors/hotkhwan)
+
+Sponsorship is optional and does not unlock Mobile Pro features.
+
 ## More documentation
 
 | Document | What is in it |

@@ -1,8 +1,9 @@
 # GitHub Sponsors — setup notes for the owner
 
-**Status: not set up.** There is no sponsor profile yet, so this repository has
-no `.github/FUNDING.yml` and the README has no sponsor link. Add them only
-after the profile below is live and its public URL opens.
+**Status: live for `hotkhwan`** (public page checked 2026-11-27:
+<https://github.com/sponsors/hotkhwan>). `.github/FUNDING.yml` and the README's
+"Support the project" section point there. Keep the profile text and tiers
+below in step with what the dashboard shows.
 
 GitHub Sponsors is optional support for open-source maintenance. It is
 separate from the phone app's Pro subscription: it does not unlock Pro, the
