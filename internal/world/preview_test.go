@@ -925,7 +925,7 @@ func TestPreviewCapture(t *testing.T) {
 	browser := filepath.Join(t.TempDir(), "chrome")
 	_ = os.WriteFile(browser, nil, 0o755)
 	v.p.cfg.Chromium = browser
-	dir := t.TempDir()
+	dir := shortTempDir(t) // a capture listens on a socket in it
 	run := &captureRunner{t: t, dir: dir}
 	if !v.p.EnableCapture(dir, run) {
 		t.Fatal("a browser is there")

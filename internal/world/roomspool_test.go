@@ -392,7 +392,7 @@ func roomCaptureEnv(t *testing.T) *roomCapRig {
 	browser := filepath.Join(t.TempDir(), "chrome")
 	_ = os.WriteFile(browser, nil, 0o755)
 	v.p.cfg.Chromium = browser
-	dir := t.TempDir()
+	dir := shortTempDir(t) // a capture listens on a socket in it
 	rg.run = &captureRunner{t: t, dir: dir}
 	if !v.p.EnableCapture(dir, rg.run) {
 		t.Fatal("no capture")

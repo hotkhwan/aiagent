@@ -6,8 +6,9 @@ Read the [threat model](#threat-model) before you expose it to anything.
 
 ## Reporting a vulnerability
 
-Open a private security advisory on the GitHub repository rather than a public
-issue. There is one maintainer, so expect a human-speed reply, not an SLA.
+Open a [private security advisory](https://github.com/hotkhwan/aiagent/security/advisories/new)
+on the GitHub repository rather than a public issue. Leave tokens, pairing QR
+codes and other secrets out of the report; describe how to obtain them instead. There is one maintainer, so expect a human-speed reply, not an SLA.
 
 ## Access
 

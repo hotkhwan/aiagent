@@ -1,0 +1,62 @@
+name: Bug report
+description: Something in aiagent does not work the way the docs say it does
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Never paste a token, a pairing QR code, credentials, cookies or an unredacted log.**
+        This service can type into your agents; anything that lets someone in is a secret.
+        Security problems go to a [private advisory](https://github.com/hotkhwan/aiagent/security/advisories/new), not here.
+  - type: input
+    id: version
+    attributes:
+      label: aiagent version
+      description: "`aiagent version`, or the version shown in the web header"
+      placeholder: "0.36.2"
+    validations:
+      required: true
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options:
+        - macOS arm64
+        - macOS amd64
+        - Linux amd64
+        - Linux arm64
+        - Other
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: How it was installed
+      options:
+        - install-release.sh (prebuilt release)
+        - packaging/install.sh (viewer from a checkout)
+        - packaging/setup.sh (Linux server with rooms)
+        - Built by hand
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what you expected
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. ...
+        2. ...
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant output (redacted)
+      description: Remove tokens, host names, paths and anything from your conversations you do not want public.
+      render: text

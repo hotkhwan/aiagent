@@ -1,0 +1,61 @@
+name: Installation problem
+description: The install, enable, serve or phone pairing steps did not work
+labels: [install]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Install reports help the most: tell us where you got stuck, even if you found a way round it.
+
+        **Never paste a token, a pairing QR code, credentials or an unredacted log.**
+  - type: dropdown
+    id: step
+    attributes:
+      label: Where it went wrong
+      options:
+        - Downloading or verifying the release (signature / checksum)
+        - Installing the binaries
+        - aiagent enable
+        - aiagent serve / opening the page
+        - Reaching it from another device (https address)
+        - Pairing the phone app
+        - Agents do not show up in the village
+        - Sending a message to an agent
+        - Something else
+    validations:
+      required: true
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options:
+        - macOS arm64
+        - macOS amd64
+        - Linux amd64
+        - Linux arm64
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: aiagent version (or release you tried)
+      placeholder: "0.36.2"
+  - type: input
+    id: agents
+    attributes:
+      label: Agent CLIs and versions
+      placeholder: "Claude Code 2.x, Codex CLI 0.x"
+  - type: textarea
+    id: what
+    attributes:
+      label: What you ran and what you saw
+      description: Commands and their output, redacted.
+      render: text
+    validations:
+      required: true
+  - type: input
+    id: time
+    attributes:
+      label: Roughly how long the install took you
+      description: Optional. It helps us keep the Quick Start honest.
