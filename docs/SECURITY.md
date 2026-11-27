@@ -222,16 +222,23 @@ users, and it widens the blast radius of any bug to all of them.
 
 **NOT defended against**
 
-- **Anyone who has the token.** There is one role. A token holder can read
-  every watched conversation and type into any dispatchable session. Treat it
-  as equivalent to a shell as that user.
+- **Anyone who has the admin token.** It can read every watched conversation
+  and type into any dispatchable session. Treat it as equivalent to a shell as
+  that user. A user token (a room) is narrower — its own sessions, read-only
+  elsewhere, see the admin/user table under *Rooms* — but it still types
+  into that room's agent, which runs commands as the room's OS user.
 - **Anyone with local read access to the state directory or the agent homes.**
   File permissions are the only boundary there.
 - **A malicious or compromised agent.** This service faithfully relays what
   agents write. Prompt injection reaching an agent is outside its control; it
   can only reduce what that reaches *you*.
-- **Multi-tenant use.** It is a single-operator tool. There are no roles, no
-  per-user scoping, and no audit separation between operators.
+- **Mutually distrustful tenants.** There are two roles, admin and user, and a
+  user's requests go to their own room's instance, but it is still one
+  operator's machine: the admin sees every room, and rooms share the host.
+- **A room opening the service to the internet.** A room's agent runs on the
+  same machine, so it can reach the service's loopback port and could start a
+  tunnel to it on its user's say-so. Outbound network limits for rooms are the
+  host's job.
 - **Traffic interception.** There is no transport security of its own on
   loopback. Anything beyond this machine must be wrapped by you.
 
@@ -296,6 +303,11 @@ Two lessons worth keeping:
 
 - [ ] `aiagent status` shows enabled, and you hold the token privately.
 - [ ] `lsof -nP -iTCP:8890 -sTCP:LISTEN` shows `127.0.0.1`, never `0.0.0.0`.
-- [ ] A private network or authenticating proxy is in front of it.
+- [ ] A private network or authenticating proxy is in front of it — or you
+      have decided, as in the posture above, that the token is the only gate,
+      and you keep it private and rotate it if it may have leaked.
+- [ ] Pairing codes: only the newest code per token works, closing the 📱 App
+      dialog ends it, and every redeem is in the audit log
+      (`aiagent.pairRedeem`). A code on screen is the token until then.
 - [ ] The state directory is `0700` and owned by the service user.
 - [ ] You have read what the token actually grants, above.

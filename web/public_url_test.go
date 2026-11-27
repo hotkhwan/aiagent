@@ -119,6 +119,14 @@ func TestThePublicURLPlaybookKeepsItsSafetyRules(t *testing.T) {
 	}
 	doc := string(b)
 	for _, want := range []string{
+		// the human must know the token is then the only gate, and why
+		// aiagent's own TLS rule does not cover a tunnel
+		"## What protects it once it is public",
+		"the aiagent token is the **only** thing",
+		"Cloudflare Access",
+		// the account-wide Cloudflare certificate must not stay where every
+		// agent running as this user can use it
+		"If `~/.cloudflared/cert.pem` was **not** there before step 1",
 		"  - service: http_status:404",
 		"the **last rule is `service: http_status:404`**",
 		"**STOP and\n   ask the human to finish the browser login**",
