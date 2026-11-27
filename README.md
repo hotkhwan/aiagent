@@ -1,5 +1,11 @@
 # aiagent — AI Agent World
 
+**Your AI team. In your pocket. On your own infrastructure.**
+
+A personal command center for the real AI coding agents running on your own
+machine: see their work, answer their questions and manage your sessions from
+anywhere. One person, many agents, one world.
+
 A pastel village in your browser that shows the AI coding agents actually
 running on your machine — Claude Code and Codex — and lets you send them work
 through a narrow, audited channel.
@@ -28,6 +34,54 @@ relay, which carries a session name and never a token or a conversation.
 
 The app is in TestFlight beta (iOS). `--push-relay` picks the notification relay
 or turns notifications off.
+
+### Pricing — planned launch
+
+| | Community | Pro Monthly | Pro Annual |
+|---|---|---|---|
+| Price | Free | $1.99 / ฿69 a month | $16.99 / ฿599 a year |
+| Self-hosted server, web dashboard and PWA | Yes | Yes | Yes |
+| Connect the phone app and look around | Yes | Yes | Yes |
+| Command agents from the phone (text, picture, voice) | — | Yes | Yes |
+| Push notifications | — | Yes | Yes |
+| Profiles and agent sessions | No limit | No limit | No limit |
+| Free trial | — | 7 days | 7 days |
+
+Prices and availability depend on the store region and the release. AI
+provider charges are separate: you bring your own account. Restore purchases
+in the app. The server stays open source; donations
+help its development. App terms: [docs/APP_TERMS.md](docs/APP_TERMS.md).
+
+## Personal use — one human, many agent roles
+
+AI Agent World is for **one human owner** managing their own agent sessions
+and work. A room is a role for an agent, not a seat for another person.
+
+- **Bring your own AI account**, and use it only as its provider allows.
+- We do not resell AI subscriptions or tokens, pool accounts, share credentials
+  between people, or work around usage limits.
+- People on a provider's team or business plan use their own assigned login.
+- AI Agent World is independent of Anthropic, OpenAI and Google.
+
+## Infrastructure and privacy
+
+```mermaid
+flowchart LR
+  CLI[Your AI agents] --> Server[Your aiagent server]
+  Server <-->|HTTPS, direct| App[Phone app]
+  Server -->|kind, name, character| Relay[Push relay]
+  App -->|purchase check| Relay
+  Relay --> Push[APNs / FCM]
+  Push --> App
+```
+
+Agents, credentials, conversations and source code stay on the machine you
+control. The only managed service is the push relay (Cloudflare Workers): it
+knows a device's push token and your server's address, and per notification
+the kind of event, the session name and its character, never a token or a
+conversation. Names can be hidden on the phone (*Hide agents' names in
+notifications*). Notifications are best effort; the web dashboard never
+depends on the relay.
 
 ## What you see
 
