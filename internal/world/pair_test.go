@@ -334,14 +334,97 @@ func walkContains(t *testing.T, dir string, needles []string) {
 // With a room per user, a user's request is sent on to their room unless the
 // path is answered here: the tickets live in this service, so issuing must be.
 func TestPairIssueIsAnsweredHere(t *testing.T) {
-	if !localPath("/connect/pair") {
-		t.Error("/connect/pair must be answered by the main service")
+	for _, p := range []string{"/connect/pair", "/connect/pair/cancel"} {
+		if !localPath(p) {
+			t.Errorf("%s must be answered by the main service", p)
+		}
+		allowed := false
+		for _, re := range userRoutes["POST"] {
+			allowed = allowed || re.MatchString(p)
+		}
+		if !allowed {
+			t.Errorf("a user token may call %s", p)
+		}
 	}
-	allowed := false
-	for _, re := range userRoutes["POST"] {
-		allowed = allowed || re.MatchString("/connect/pair")
+}
+
+// A code on the screen is a key to the token behind it. Only the newest one
+// for a token works: asking again (the dialog's "new code") ends the code
+// shown before, so a photo of an old screen opens nothing. Codes of other
+// tokens are not touched.
+func TestPairNewCodeEndsTheOldOne(t *testing.T) {
+	e := newEnv(t)
+	admin, _ := e.store.Enable("test")
+	_, user, _ := e.store.AddUser("nok", "")
+	_, old := issuePair(t, e, admin)
+	_, other := issuePair(t, e, user)
+	_, fresh := issuePair(t, e, admin)
+	if code, _, _ := redeem(t, e, old, "192.0.2.30"); code != 404 {
+		t.Fatalf("the replaced code still works: %d", code)
 	}
-	if !allowed {
-		t.Error("a user token may ask for a pairing code")
+	if code, _, body := redeem(t, e, fresh, "192.0.2.30"); code != 200 || redeemedToken(t, body) != admin {
+		t.Fatalf("the new code: %d %s", code, body)
+	}
+	if code, _, body := redeem(t, e, other, "192.0.2.30"); code != 200 || redeemedToken(t, body) != user {
+		t.Fatalf("another token's code was ended: %d %s", code, body)
+	}
+}
+
+// Closing the dialog ends the code it showed; nobody else's.
+func TestPairCancelEndsTheCallersCode(t *testing.T) {
+	e := newEnv(t)
+	admin, _ := e.store.Enable("test")
+	_, user, _ := e.store.AddUser("nok", "")
+	_, mine := issuePair(t, e, admin)
+	_, theirs := issuePair(t, e, user)
+	if code, _, body := pairCall(t, e, "/aiagent/api/connect/pair/cancel", admin, "{}", ""); code != 200 {
+		t.Fatalf("cancel: %d %s", code, body)
+	}
+	if code, _, _ := pairCall(t, e, "/aiagent/api/connect/pair/cancel", "", "{}", ""); code == 200 {
+		t.Fatal("cancel without a token was answered")
+	}
+	if code, _, _ := redeem(t, e, mine, "192.0.2.31"); code != 404 {
+		t.Fatalf("a cancelled code still works: %d", code)
+	}
+	if code, _, _ := redeem(t, e, theirs, "192.0.2.31"); code != 200 {
+		t.Fatalf("cancel ended another token's code: %d", code)
+	}
+}
+
+// Every redeem leaves a line in the audit log, so a phone that paired is on
+// record, and so is a guess; neither line holds the code or the token.
+func TestPairRedeemIsAudited(t *testing.T) {
+	e := newEnv(t)
+	admin, _ := e.store.Enable("test")
+	_, ticket := issuePair(t, e, admin)
+	redeem(t, e, ticket, "192.0.2.32")
+	redeem(t, e, ticket, "192.0.2.33")
+	b, err := os.ReadFile(e.auditFP)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var ok, denied int
+	for _, line := range strings.Split(strings.TrimSpace(string(b)), "\n") {
+		var r struct{ RPC, Result, AdminSub string }
+		if json.Unmarshal([]byte(line), &r) != nil || r.RPC != "aiagent.pairRedeem" {
+			continue
+		}
+		// the address is the caller's as clientAddr sees it (a test request
+		// is not from loopback, so Cf-Connecting-Ip is not believed)
+		if !strings.HasPrefix(r.AdminSub, "aiagent-pair@") {
+			continue
+		}
+		switch r.Result {
+		case "ok":
+			ok++
+		case "denied":
+			denied++
+		}
+	}
+	if ok != 1 || denied != 1 {
+		t.Fatalf("pair redeems in the audit log: %d ok, %d denied\n%s", ok, denied, b)
+	}
+	if bytes.Contains(b, []byte(admin)) || bytes.Contains(b, []byte(ticket)) {
+		t.Fatal("the audit log holds the token or the code")
 	}
 }

@@ -245,7 +245,7 @@ var userRoutes = map[string][]*regexp.Regexp{
 	"PUT":    compileAll(`/faces/(account|settings)`, `/faces/sessions/[A-Za-z0-9-]+`),
 	"DELETE": compileAll(`/faces/account`, `/faces/sessions/[A-Za-z0-9-]+`),
 	"POST": compileAll(
-		`/messages`, `/uploads`, `/preview/ticket`, `/push/devices`, `/push/devices/remove`, `/connect/qr`, `/connect/pair`,
+		`/messages`, `/uploads`, `/preview/ticket`, `/push/devices`, `/push/devices/remove`, `/connect/qr`, `/connect/pair`, `/connect/pair/cancel`,
 		`/sessions/[A-Za-z0-9-]+/(message|stop|name|look|answer)`,
 		`/reviews/[A-Za-z0-9._-]+/(view|compose|decision)`,
 	),

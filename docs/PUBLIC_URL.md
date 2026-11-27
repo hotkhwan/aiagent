@@ -17,6 +17,30 @@ can follow it the same way: every command is here.
 | [C. Cloud server](#c-a-cloud-server-with-a-public-ip) | `https://your-server-name`, permanent | a VM with a public IP and a DNS name |
 | [D. Private](#d-private--tailscale) | `https://machine.tailnet.ts.net`, only your devices | Tailscale on the computer and the phone |
 
+## What protects it once it is public
+
+With options A, B and C, anyone on the internet can open the address. From
+then on the aiagent token is the **only** thing between them and typing into
+your agents. That token is long and random, failed guesses are rate limited,
+and it never travels in a URL, so guessing it is not the risk; **losing** it
+is. Keep it in a password manager, never paste it in a chat, and run
+`aiagent rotate-token` if it may have leaked. A pairing code on screen is the
+token too, until the phone redeems it or the dialog closes.
+
+aiagent refuses to listen on anything but loopback without TLS. A tunnel does
+not change that: `cloudflared` connects to `127.0.0.1` from the same machine,
+and the https certificate is Cloudflare's, at Cloudflare's edge. Traffic
+between the phone and Cloudflare is encrypted; between Cloudflare and aiagent
+it stays on this computer.
+
+If only your own devices need it, **D (Tailscale)** keeps it off the public
+internet altogether, and is the safer choice. With option B you can also put a
+**Cloudflare Access** policy (Zero Trust → Access → Applications) in front of
+the hostname, so a browser must sign in to Cloudflare before aiagent sees a
+request. The phone app does not sign in to Cloudflare Access, so a policy that
+covers the whole hostname stops the app as well; use it only if you reach
+aiagent from a browser, and check the app after any change.
+
 To reach this computer's **shell** remotely, that is a different job with a
 different gate: see [REMOTE_ACCESS.md](REMOTE_ACCESS.md). Nothing on this page
 exposes ssh.
@@ -168,6 +192,20 @@ cloudflared tunnel route dns aiagent-phone phone.example.com
 `create` prints the tunnel's UUID and writes its credentials to
 `~/.cloudflared/<UUID>.json`. Do not print that file. If `route dns` says the
 name already exists, stop: something else uses it, ask the human.
+
+If `~/.cloudflared/cert.pem` was **not** there before step 1, delete it now:
+
+```sh
+rm ~/.cloudflared/cert.pem
+```
+
+`cert.pem` is the login from step 1. It can create tunnels and DNS records for
+the human's whole Cloudflare account, and every program running as this user,
+every agent included, can read it. The running tunnel needs only
+`~/.cloudflared/<UUID>.json`. If `cert.pem` was already there before step 1,
+leave it (something else of the human's uses it) and tell the human what it
+allows. Either way, the undo below needs a fresh `cloudflared tunnel login`
+first when `cert.pem` is gone.
 
 ### 3. Its own config file — only this hostname, then 404
 

@@ -3243,16 +3243,21 @@ function phoneCannotReach () {
 }
 // Instructions an agent can follow (docs/PUBLIC_URL.md). They name this
 // page's address and nothing secret: never the token, never a credential.
-const PUBLIC_URL_DOC = 'docs/PUBLIC_URL.md (https://github.com/hotkhwan/aiagent/blob/main/docs/PUBLIC_URL.md)'
+// The link is the copy tagged with the running version, not main: the agent
+// runs what it says, so a later change to the branch must not reach it.
+function publicUrlDoc () {
+  const v = st.snap && st.snap.version
+  return v ? 'docs/PUBLIC_URL.md (https://github.com/hotkhwan/aiagent/blob/v' + v + '/docs/PUBLIC_URL.md)' : 'docs/PUBLIC_URL.md'
+}
 function reachWays () {
   const where = tr('\naiagent นี้เปิดอยู่ที่ ') + location.origin + '/aiagent/'
   return [
     { id: 'try', label: tr('ลองตอนนี้'), about: tr('Cloudflare Quick Tunnel ไม่ต้องมีบัญชี ได้ที่อยู่สุ่ม *.trycloudflare.com ที่เปลี่ยนทุกครั้งที่เริ่มใหม่'),
-      text: tr('ทำตาม ') + PUBLIC_URL_DOC + tr(' หัวข้อ A เพื่อเปิด Cloudflare Quick Tunnel ชั่วคราวให้ aiagent นี้ ให้มือถือเปิดผ่าน https ได้ บอกฉันก่อนว่าจะเปิดอะไรออกอินเทอร์เน็ตและรอให้ฉันตอบตกลง เปิดเฉพาะ aiagent เท่านั้น ห้ามเปิด ssh หรือพอร์ตอื่น และห้ามแสดง token หรือ credential ใด ๆ') + where },
+      text: tr('ทำตาม ') + publicUrlDoc() + tr(' หัวข้อ A เพื่อเปิด Cloudflare Quick Tunnel ชั่วคราวให้ aiagent นี้ ให้มือถือเปิดผ่าน https ได้ บอกฉันก่อนว่าจะเปิดอะไรออกอินเทอร์เน็ตและรอให้ฉันตอบตกลง เปิดเฉพาะ aiagent เท่านั้น ห้ามเปิด ssh หรือพอร์ตอื่น และห้ามแสดง token หรือ credential ใด ๆ') + where },
     { id: 'own', label: tr('ที่อยู่ของคุณเอง'), about: tr('Cloudflare Tunnel บนบัญชี Cloudflare ของคุณกับโดเมนของคุณ ที่อยู่ถาวร'),
-      text: tr('ทำตาม ') + PUBLIC_URL_DOC + tr(' หัวข้อ B เพื่อให้ aiagent นี้มีที่อยู่ https สาธารณะบนบัญชี Cloudflare ของฉันเอง ถามฉันก่อนเปิดอะไรออกอินเทอร์เน็ต และหยุดรอให้ฉันล็อกอิน Cloudflare ในเบราว์เซอร์เอง ห้ามขอรหัสผ่านหรือ API token ห้ามเปิด ssh หรือพอร์ตอื่น และห้ามแสดง token หรือ credential ใด ๆ') + where },
+      text: tr('ทำตาม ') + publicUrlDoc() + tr(' หัวข้อ B เพื่อให้ aiagent นี้มีที่อยู่ https สาธารณะบนบัญชี Cloudflare ของฉันเอง ถามฉันก่อนเปิดอะไรออกอินเทอร์เน็ต และหยุดรอให้ฉันล็อกอิน Cloudflare ในเบราว์เซอร์เอง ห้ามขอรหัสผ่านหรือ API token ห้ามเปิด ssh หรือพอร์ตอื่น และห้ามแสดง token หรือ credential ใด ๆ') + where },
     { id: 'cloud', label: tr('Cloud server'), about: tr('เครื่องที่มี IP สาธารณะ ใช้ reverse proxy ที่ทำ HTTPS ให้เอง เช่น Caddy'),
-      text: tr('ทำตาม ') + PUBLIC_URL_DOC + tr(' หัวข้อ C เพื่อให้ aiagent บน server นี้เปิดผ่าน https ได้ ถามฉันก่อนเปิดพอร์ตหรือแก้ firewall เปิดเฉพาะพอร์ต 443 ห้ามแตะการตั้งค่า ssh ที่มีอยู่ ห้ามเปิดพอร์ต 8890 ออกนอกเครื่อง และห้ามแสดง token หรือ credential ใด ๆ') + where }
+      text: tr('ทำตาม ') + publicUrlDoc() + tr(' หัวข้อ C เพื่อให้ aiagent บน server นี้เปิดผ่าน https ได้ ถามฉันก่อนเปิดพอร์ตหรือแก้ firewall เปิดเฉพาะพอร์ต 443 ห้ามแตะการตั้งค่า ssh ที่มีอยู่ ห้ามเปิดพอร์ต 8890 ออกนอกเครื่อง และห้ามแสดง token หรือ credential ใด ๆ') + where }
   ]
 }
 // Agents the person may message, by the same rule as the composer's picker
@@ -3341,6 +3346,8 @@ async function drawPair () {
 }
 $('connectDlg').addEventListener('close', () => {
   clearInterval(st.pairTimer)
+  // the code on screen is a key to this page's token: end it with the dialog
+  api('/connect/pair/cancel', { method: 'POST' }).catch(() => {})
   st.pairSeq = (st.pairSeq || 0) + 1
   $('connectBody').replaceChildren()
   $('connectReach').replaceChildren()

@@ -34,6 +34,7 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v3"
+	"github.com/hotkhwan/aiagent/internal/audit"
 	"rsc.io/qr"
 )
 
@@ -81,7 +82,8 @@ func (p *pairState) issue(token string, now time.Time) (string, time.Time, error
 		p.tickets = map[[32]byte]pairTicket{}
 	}
 	for k, v := range p.tickets {
-		if !now.Before(v.expires) {
+		// only the newest code for a token works: an old screen opens nothing
+		if !now.Before(v.expires) || v.token == token {
 			delete(p.tickets, k)
 		}
 	}
@@ -98,6 +100,17 @@ func (p *pairState) issue(token string, now time.Time) (string, time.Time, error
 	}
 	p.tickets[sha256.Sum256([]byte(ticket))] = pairTicket{token: token, expires: expires}
 	return ticket, expires, nil
+}
+
+// cancel ends every code issued for token.
+func (p *pairState) cancel(token string) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	for k, v := range p.tickets {
+		if v.token == token {
+			delete(p.tickets, k)
+		}
+	}
 }
 
 // take removes the ticket and returns its token if it was still live. The
@@ -187,6 +200,14 @@ func (s *Service) handleConnectPair(c fiber.Ctx) error {
 	}))
 }
 
+// handleConnectPairCancel ends the caller's code when the dialog closes, so a
+// code left on a screen or in a photo does not stay a key for ten minutes.
+func (s *Service) handleConnectPairCancel(c fiber.Ctx) error {
+	c.Set("Cache-Control", "no-store")
+	s.pair.cancel(c.Get(TokenHeader))
+	return c.JSON(okEnv(fiber.Map{}))
+}
+
 // pairInvalid is the one answer to every redeem that fails, so a caller
 // learns nothing about why.
 func pairInvalid(c fiber.Ctx) error {
@@ -218,7 +239,20 @@ func (s *Service) handlePairRedeem(c fiber.Ctx) error {
 	}
 	if !ok {
 		s.pair.failed(ip, now)
+		_ = s.auditPair(ip, "denied")
 		return pairInvalid(c)
 	}
+	// on record before the token leaves: no audit line, no token
+	if err := s.auditPair(ip, "ok"); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(failEnv("AIAGENT_AUDIT_FAILED", "audit log unavailable — action not performed"))
+	}
 	return c.JSON(okEnv(fiber.Map{"token": token}))
+}
+
+// auditPair records a redeem by where it came from, never the code or token.
+func (s *Service) auditPair(ip, result string) error {
+	if s.Auditor == nil {
+		return nil
+	}
+	return s.Auditor.Write(audit.Record{Event: "result", RPC: "aiagent.pairRedeem", AdminSub: "aiagent-pair@" + ip, Result: result})
 }
