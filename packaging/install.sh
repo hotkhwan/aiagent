@@ -132,6 +132,25 @@ if mkdir -p "$state_dir" 2>/dev/null; then
 fi
 (cd "$root" && go build -trimpath -o "$tmp/agcmd" ./cmd/agcmd)
 
+# macOS remembers what a program may open (an external disk, Documents) by its
+# signature. A fresh build is signed ad hoc, so every update looked like a new
+# program and asked again, holding up whatever the service was doing until
+# someone pressed Allow. Signed with one certificate and one identifier, an
+# Allow given once lasts across updates. Put the certificate's SHA-1 (from
+# `security find-identity -v -p codesigning`) in
+# ~/.config/aiagent/codesign-identity to turn this on; without it nothing changes.
+sign_id_file="${XDG_CONFIG_HOME:-$HOME/.config}/aiagent/codesign-identity"
+if [ "$(uname -s)" = Darwin ] && [ -s "$sign_id_file" ]; then
+	sign_id=$(head -n 1 "$sign_id_file" | tr -d '[:space:]')
+	for b in aiagent agcmd; do
+		if codesign --force --sign "$sign_id" --identifier "world.aiagent.$b" "$tmp/$b" 2>"$tmp/sign.err"; then
+			echo "signed $b with a stable identity"
+		else
+			echo "could not sign $b, leaving it ad hoc: $(head -n 1 "$tmp/sign.err")" >&2
+		fi
+	done
+fi
+
 for b in aiagent agcmd; do
 	echo "installing $bindir/$b"
 	if [ -w "$bindir" ]; then
