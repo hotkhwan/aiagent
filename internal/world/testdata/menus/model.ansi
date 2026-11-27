@@ -1,0 +1,50 @@
+
+[91m ▐[40m▛███▛█[39m[49m   [1mClaude Code[0m [2m[37mv2.1.325[0m
+[91m▝▜[40m█████[49m█▀[39m  [2m[37mHaiku 5.5 · Claude Max[0m
+[91m ▝▝   ▝▝ [39m  [2m[37m~/work/menucap[0m
+
+[2m[37m  ⎿  SessionStart:startup says: claude-mem: memory hooks are not active: plugin dependencies are missing (sharp, zod, better-auth, @better-auth/api-key, tree-sitter-cli, +25 more). Fix: run `npx claude-mem install`, then
+[0m     [2m[37mrestart Claude Code.[0m
+[2m[37m  ⎿  SessionStart:startup says: ✨ 30 Day Free Trial — memory runs off-plan. Get up to 100% more usage from your plan https://cmem.ai/pro?from=session-start[0m
+
+     [2m[37m# claude-mem status[0m
+
+     [2m[37mThis project has no memory yet. This session will seed it.[0m
+
+     [2m[37mMemory injection starts on your second session in a project.[0m
+
+     [2m[37m`/learn-codebase` is available if the user wants to front-load the entire repo into memory in a single pass (~5 minutes on a typical repo, optional). Otherwise memory builds passively as work happens.[0m
+
+     [2m[37mLive activity: http://localhost:37701[0m
+     [2m[37m✨ 30 Day Free Trial — memory runs off-plan. Get up to 100% more usage from your plan https://cmem.ai/pro?from=welcome-hint[0m
+     [2m[37mHow it works: `/how-it-works`[0m
+
+     [2m[37mThis message disappears once the first observation lands.[0m
+
+
+     [2m[31m⚠️ claude-mem has paused saving memories because you've used 85% of your 5-hour Claude limit and it resets at 2:10 AM (claude-mem pauses in the last 15 minutes to leave the rest for you). Activity during the pause [0m
+     [2m[31misn't saved; saving starts again with new activity after 2:29 AM, when it tries Claude again. You don't need to do anything, and restarting won't change it. (To keep saving through limits, pick a backup in [0m
+     [2m[31mCLAUDE_MEM_QUOTA_FALLBACK_PROVIDER.)[0m
+     [2m[31m(Assistant: at the start of your first reply, tell the user in one sentence that claude-mem has paused saving memories and why. Don't restart the worker or suggest it.)[0m
+
+     [2m[37mView Observations Live @ http://localhost:37701[0m
+
+
+
+
+
+
+
+[94m▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔[39m [2m[37mtmux focus-events off · add 'set -g focus-events on' to ~/.tmux.conf and reattach for focus tracking[0m[94m ▔
+[39m   [1m[94mSelect model[0m
+   [2m[37mSwitch between Claude models. Your pick becomes the default for new sessions. For other/previous model names, specify with --model.[0m
+
+     [2m[37m1. [0mDefault (recommended)  [2m[37mOpus 5.5 · Best for everyday, complex tasks[0m
+     [2m[37m2. [0mOpus                   [2m[37mOpus 5.5 · Best for everyday, complex tasks[0m
+     [2m[37m3. [0mFable                  [91mFable 5.2[2m[37m · Most capable for your hardest and longest-running tasks[0m
+     [2m[37m4. [0mSonnet                 [2m[37mSonnet 5.5 · Efficient for routine tasks[0m
+   [94m❯[39m [2m[37m5. [0m[92mHaiku[39m [92m✔[39m                [2m[37mHaiku 5.5 · Fastest for quick answers[0m
+
+   [91m◐[2m[37m Medium effort (default) ←/→ to adjust[0m
+
+   [2m[37mEnter to set as default · s to use this session only · Esc to cancel[0m

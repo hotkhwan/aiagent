@@ -318,7 +318,7 @@ func (c *Collector) collectLocked(ctx context.Context) Snapshot {
 	for i := range snap.Sessions {
 		c.decideStop(&snap.Sessions[i])
 		c.decideMessage(&snap.Sessions[i])
-		c.relayPrompt(ctx, &snap.Sessions[i])
+		c.relayPrompt(ctx, &snap.Sessions[i], tm.sessions)
 		if ss := &snap.Sessions[i]; ss.Prompt == nil && ss.MessageVia == "channel" {
 			ss.Prompt = c.Channels.Prompt(ss.SessionID)
 		}

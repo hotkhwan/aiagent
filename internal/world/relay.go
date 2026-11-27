@@ -345,7 +345,7 @@ const agentViewBox = "describe a task for a new session"
 // it draws over the input box ("Teach auto mode…", the rewind menu, a picker).
 // The idle prompt never ends with one. Seen 2026-11-23: two sessions sat on
 // such dialogs, every send was typed into them and reported ok.
-var dialogFooters = []string{"Esc to cancel", "Enter to confirm", "Enter to continue", "Enter to select", "enter continue", "enter Select", "↑/↓ Navigate", "esc to cancel"}
+var dialogFooters = []string{"Esc to cancel", "Esc to clear", "Type to filter", "Enter to confirm", "Enter to continue", "Enter to select", "enter continue", "enter Select", "↑/↓ Navigate", "esc to cancel"}
 
 var askSubmitRE = regexp.MustCompile(`^(❯\s*)?1\.\s+Submit answers$`)
 

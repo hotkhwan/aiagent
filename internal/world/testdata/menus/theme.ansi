@@ -1,0 +1,50 @@
+
+[2m[37m  ⎿  SessionStart:startup says: ✨ 30 Day Free Trial — memory runs off-plan. Get up to 100% more usage from your plan https://cmem.ai/pro?from=session-start[0m
+
+     [2m[37m# claude-mem status[0m
+
+     [2m[37mThis project has no memory yet. This session will seed it.[0m
+
+     [2m[37mMemory injection starts on your second session in a project.[0m
+
+     [2m[37m`/learn-codebase` is available if the user wants to front-load the entire repo into memory in a single pass (~5 minutes on a typical repo, optional). Otherwise memory builds passively as work happens.[0m
+
+     [2m[37mLive activity: http://localhost:37701[0m
+     [2m[37m✨ 30 Day Free Trial — memory runs off-plan. Get up to 100% more usage from your plan https://cmem.ai/pro?from=welcome-hint[0m
+     [2m[37mHow it works: `/how-it-works`[0m
+
+     [2m[37mThis message disappears once the first observation lands.[0m
+
+
+     [2m[31m⚠️ claude-mem has paused saving memories because you've used 85% of your 5-hour Claude limit and it resets at 2:10 AM (claude-mem pauses in the last 15 minutes to leave the rest for you). Activity during the pause [0m
+     [2m[31misn't saved; saving starts again with new activity after 2:29 AM, when it tries Claude again. You don't need to do anything, and restarting won't change it. (To keep saving through limits, pick a backup in [0m
+     [2m[31mCLAUDE_MEM_QUOTA_FALLBACK_PROVIDER.)[0m
+     [2m[31m(Assistant: at the start of your first reply, tell the user in one sentence that claude-mem has paused saving memories and why. Don't restart the worker or suggest it.)[0m
+
+     [2m[37mView Observations Live @ http://localhost:37701[0m
+
+[37m[100m❯[39m [97m/model[39m [49m
+[2m[37m  ⎿  [0mKept model as [94mHaiku 5.5[39m
+[94m▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔[39m [2m[37m◐ medium · /effort[0m[94m ▔
+[39m   [1m[94mTheme[0m
+
+   [1mChoose the text style that looks best with your terminal[0m
+
+       Auto (match terminal)
+       Dark mode
+       Light mode
+       Dark mode (colorblind-friendly)
+       Light mode (colorblind-friendly)
+   [94m❯[39m [92m✔[39m [94mDark mode (ANSI colors only)[39m
+       Light mode (ANSI colors only)
+       New custom theme…
+
+   [37m╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌[39m
+   [2m[37m 1 [0m[37m [96mfunction[37m [93mgreet[37m() {[39m
+   [91m 2 -[2m[37m  console.log("Hello, World!");                                                                                                                                                                                   [0m
+   [92m 2 +[37m  console.[93mlog[37m([92m"Hello, Claude!"[37m);                                                                                                                                                                                  [39m
+   [2m[37m 3 [0m[37m }[39m
+   [37m╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌[39m
+   [2m[37m Syntax theme: ansi (ctrl+t to disable)[0m
+
+   [2;3m[37mEnter to select · Esc to cancel[0m

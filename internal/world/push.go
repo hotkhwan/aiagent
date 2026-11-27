@@ -131,7 +131,7 @@ func pushItems(snap Snapshot, reviews []Review) []PushItem {
 			continue // an admin's session shown to a user: nothing to act on
 		}
 		switch {
-		case ss.Prompt != nil:
+		case ss.Prompt != nil && !ss.Prompt.ReadOnly:
 			var b strings.Builder
 			b.WriteString(ss.Prompt.Question)
 			for _, o := range ss.Prompt.Options {

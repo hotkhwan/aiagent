@@ -2062,7 +2062,9 @@ function promptBox (sess) {
   return h('div', { class: 'promptBox' },
     h('b', null, tr('agent ถามและรอคำตอบ')),
     p.question ? h('p', null, p.question) : null,
-    ...p.options.map(o => h('button', { type: 'button', class: 'ghost', disabled: !!o.needsText, title: o.needsText ? tr('ข้อนี้ต้องพิมพ์ข้อความ ตอบใน terminal') : '', onclick: () => pick(o) },
+    // a menu with a search box or a slider: shown, picked in the terminal
+    p.readOnly ? h('small', null, p.note || '') : null,
+    ...p.options.map(o => h('button', { type: 'button', class: 'ghost', disabled: !!o.needsText || !!p.readOnly, title: o.needsText ? tr('ข้อนี้ต้องพิมพ์ข้อความ ตอบใน terminal') : '', onclick: () => pick(o) },
       h('b', null, o.n + '. ' + o.label), o.detail ? h('small', null, o.detail) : null)))
 }
 

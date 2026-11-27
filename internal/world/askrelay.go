@@ -23,18 +23,27 @@ import (
 	"time"
 )
 
-// relayPrompt fills in the question of a blocked background session.
-func (c *Collector) relayPrompt(ctx context.Context, ss *Session) {
-	if ss.Prompt != nil || ss.MessageVia != "relay" || ss.AgentState != "blocked" || ss.RuntimeType != "claudeCode" {
+// relayPrompt fills in the question of a blocked background session, and a
+// menu (readMenu) shown on its relay pane whatever the agent view says: a
+// slash-command menu opened by someone attached to aiagent-<id> leaves the job
+// "working" or "idle". A menu opened in the job's own terminal (`claude
+// attach` in a window this service does not own) is drawn on no pane it can
+// read, so it is not seen; no relay is started just to look for one.
+func (c *Collector) relayPrompt(ctx context.Context, ss *Session, listed map[string]time.Time) {
+	if ss.Prompt != nil || ss.MessageVia != "relay" || ss.RuntimeType != "claudeCode" {
+		return
+	}
+	name := relayName(shortID(ss.SessionID))
+	blocked := ss.AgentState == "blocked"
+	if _, up := listed[name]; !blocked && !up {
 		return
 	}
 	var qs []AskQuestion
-	if tp := c.sessionTranscript(ss); tp != "" {
+	if tp := c.sessionTranscript(ss); blocked && tp != "" {
 		if fi, err := os.Stat(tp); err == nil {
 			qs = pendingAsk(readTail(tp, fi.Size(), askTailBytes))
 		}
 	}
-	name := relayName(shortID(ss.SessionID))
 	if _, err := c.tmux(ctx, "has-session", "-t", "="+name); err == nil {
 		if dead, _ := c.relayDead(ctx, name); !dead {
 			screen, _ := c.tmux(ctx, "capture-pane", "-e", "-p", "-t", "="+name+":")
@@ -44,12 +53,17 @@ func (c *Collector) relayPrompt(ctx context.Context, ss *Session) {
 						p.Ask.withQuestions(qs)
 					}
 					ss.Prompt = p
+					if !blocked && !p.ReadOnly {
+						ss.Status = StatusNeedsInput
+					}
 					return
 				}
 			}
 		}
 	}
-	ss.Prompt = askPrompt(qs)
+	if blocked {
+		ss.Prompt = askPrompt(qs)
+	}
 }
 
 func (c *Collector) sessionTranscript(ss *Session) string {
