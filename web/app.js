@@ -2786,6 +2786,15 @@ function reviewList (inPop) {
 // that session on its chat tab, so the owner sees the message that went in.
 // A stopped session that was just resumed may not be in the snapshot yet, and
 // the transcript can lag the send, so it looks again a few times.
+// After a review is answered: read the list again now, and once more a few
+// seconds later (a busy agent gets the answer from the outbox, and a room's
+// list is read through its own instance), so the answered one leaves the list
+// without a manual refresh.
+function refreshReviews () {
+  st.revAt = 0
+  poll()
+  setTimeout(() => { st.revAt = 0; poll() }, 6000)
+}
 function sentToSession (r) {
   if ($('reviewDlg').open) $('reviewDlg').close()
   let tries = 0
@@ -2931,8 +2940,7 @@ async function openReview (id) {
       const msg = sendIt ? sentText(res) : tr('คัดลอกข้อความตอบกลับแล้ว — วางใน session ได้เลย')
       showSend(msg, 'ok')
       toast(msg)
-      st.revAt = 0
-      poll()
+      refreshReviews()
       if (sendIt) sentToSession(r)
     } catch (e) {
       showSend(failText(e), 'bad')
@@ -2993,7 +3001,13 @@ async function openReview (id) {
     paint()
   }
   const later = () => { clearTimeout(timer); timer = setTimeout(composeNow, 250) }
-  const confirmItems = () => { confirmed = true; composeNow() }
+  // once confirmed, the message to send is below the list: bring the send
+  // button into view instead of leaving the owner to scroll for it
+  const confirmItems = async () => {
+    confirmed = true
+    await composeNow()
+    sendBtn.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }
   // The reply went out once but no transcript showed it: the service refuses
   // a second press (AIAGENT_REVIEW_UNCONFIRMED) and sends it again only when
   // the operator says so here, as a composer's "send again" does.
@@ -3009,8 +3023,7 @@ async function openReview (id) {
     const msg = sentText(res)
     showSend(msg, 'ok')
     toast(msg)
-    st.revAt = 0
-    poll()
+    refreshReviews()
     sentToSession(r)
   }
   const finish = async (sendIt) => {
@@ -3035,8 +3048,7 @@ async function openReview (id) {
       else { copyText(res.reply, { textContent: '' }); msg = tr('คัดลอกข้อความตอบกลับแล้ว — วางใน session ได้เลย') }
       showSend(msg, 'ok')
       toast(msg)
-      st.revAt = 0
-      poll()
+      refreshReviews()
       if (sendIt) sentToSession(r)
     } catch (e) {
       showSend(failText(e), 'bad')

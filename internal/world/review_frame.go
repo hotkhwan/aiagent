@@ -1,6 +1,9 @@
 package world
 
-import "bytes"
+import (
+	"bytes"
+	"regexp"
+)
 
 // reviewFrameScript adds a verdict bar to every section of a review page (the
 // elements marked data-item, else each h2) and reports the verdicts to the
@@ -53,8 +56,29 @@ const reviewFrameScript = `(function () {
   report();
 })();`
 
-// withReviewFrame returns the page with the verdict script before </body>.
+// darkQueryRE finds a page's dark-mode media queries.
+var darkQueryRE = regexp.MustCompile(`(?i)prefers-color-scheme\s*:\s*dark`)
+
+// lightOnly keeps a review page in its light design wherever it is shown. A
+// browser in dark mode (the web page's own color-scheme: dark, an iPhone in
+// dark mode in the app's web view) tells a framed page it is dark, and agents'
+// pages often carry half-done dark rules: code chips came out white on white.
+// The dark queries are made unknown, so they never match, and the page says
+// it is light.
+func lightOnly(page []byte) []byte {
+	page = darkQueryRE.ReplaceAll(page, []byte("aiagent-light-only"))
+	meta := []byte(`<meta name="color-scheme" content="light"><style>:root{color-scheme:light}</style>`)
+	lower := bytes.ToLower(page)
+	if i := bytes.Index(lower, []byte("<head>")); i >= 0 {
+		i += len("<head>")
+		return append(append(append([]byte{}, page[:i]...), meta...), page[i:]...)
+	}
+	return append(meta, page...)
+}
+
+// withReviewFrame returns the page, light only, with the verdict script before </body>.
 func withReviewFrame(page []byte) []byte {
+	page = lightOnly(page)
 	tag := []byte("<script>" + reviewFrameScript + "</script>")
 	i := bytes.LastIndex(bytes.ToLower(page), []byte("</body>"))
 	if i < 0 {

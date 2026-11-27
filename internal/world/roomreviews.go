@@ -96,3 +96,11 @@ func (s *Service) roomOfReview(ctx context.Context, id string) string {
 	_, owner := s.roomReviews(ctx)
 	return owner[id]
 }
+
+// forgetRoomReviews drops the cached room review lists, so the next read asks
+// the rooms again (after an answer was forwarded to one of them).
+func (s *Service) forgetRoomReviews() {
+	s.roomRev.Lock()
+	s.roomRev.owner, s.roomRev.list = nil, nil
+	s.roomRev.Unlock()
+}
