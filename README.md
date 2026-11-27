@@ -267,7 +267,8 @@ version, including what is **not** protected, is in
   Never paste tokens, pairing QR codes, credentials or unredacted logs.
 - **Security problems:** do not open a public issue; see
   [Reporting a vulnerability](docs/SECURITY.md#reporting-a-vulnerability).
-- **Code:** read [CONTRIBUTING.md](CONTRIBUTING.md) first.
+- **Code:** read [CONTRIBUTING.md](CONTRIBUTING.md) first. Everyone here follows the
+  [Code of Conduct](CODE_OF_CONDUCT.md).
 - **Like it?** A star helps other people find the project. So does telling us
   what you use it for, or what got in your way while installing it.
 
