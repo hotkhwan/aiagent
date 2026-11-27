@@ -386,6 +386,11 @@ func localPath(path string) bool {
 
 // forwardAudited records a write before it leaves, as mutate does.
 func (s *Service) forwardAudited(c fiber.Ctx, name string) error {
+	if c.Method() != "GET" && strings.HasPrefix(strings.TrimPrefix(c.Path(), apiPrefix), "/reviews/") {
+		// the answered review must leave the admin's list at the next read,
+		// not after the room lists' cache runs out
+		defer s.forgetRoomReviews()
+	}
 	if c.Method() != "GET" {
 		rec := audit.Record{Event: "intent", RPC: "aiagent.forward", AdminSub: subject(c), ParamsHash: paramsHash(name, c.Path())}
 		if err := s.Auditor.Write(rec); err != nil {
