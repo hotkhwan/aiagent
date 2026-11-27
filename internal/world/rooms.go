@@ -230,23 +230,31 @@ func (s *Service) StartRooms(ctx context.Context) {
 // list of forbidden ones would be walked around with "/mod".
 var userCommands = map[string]bool{"/compact": true, "/clear": true, "/context": true, "/usage": true, "/rename": true}
 
-// userText decides whether a user's message may reach their agent.
+// userText decides whether a user's message may reach their agent. It is
+// applied in the gate (usertext.go) to every route that types a user's text
+// into an agent, with or without --os-users.
 func userText(msg string) bool {
+	// what a terminal draws as nothing (spaces, controls, format characters,
+	// a lone combining mark) is not a word before the command
 	msg = strings.TrimLeftFunc(msg, func(r rune) bool {
-		return unicode.IsSpace(r) || unicode.IsControl(r) || unicode.Is(unicode.Cf, r)
+		return unicode.IsSpace(r) || unicode.IsControl(r) || unicode.Is(unicode.Cf, r) || unicode.Is(unicode.M, r)
 	})
 	// "!" opens the CLI's shell mode, which runs a command with no agent in
-	// between; "&" sends the work to a cloud session.
-	if strings.HasPrefix(msg, "!") || strings.HasPrefix(msg, "&") {
+	// between; "&" sends the work to a cloud session. Their full-width forms
+	// are refused too: nothing a user needs starts with them.
+	if strings.HasPrefix(msg, "!") || strings.HasPrefix(msg, "&") || strings.HasPrefix(msg, "！") || strings.HasPrefix(msg, "＆") || strings.HasPrefix(msg, "／") {
 		return false
 	}
 	if !strings.HasPrefix(msg, "/") {
 		return true
 	}
+	// Anything else that starts with "/" may be read as a command, a path
+	// such as /home/x/file included (the CLI completes what is typed): only
+	// the allowlist passes. A path goes after a word ("read /home/x/file");
+	// the web's attachment lines always start with a label.
 	word, _, _ := strings.Cut(msg, "\n")
 	word = strings.Fields(word)[0]
-	// a path such as /home/x/file is text, not a command
-	return userCommands[word] || strings.HasPrefix(word, "/home/") || strings.HasPrefix(word, "/tmp/")
+	return userCommands[word]
 }
 
 func (s *Service) handleRooms(c fiber.Ctx) error {

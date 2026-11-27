@@ -257,7 +257,7 @@ func TestPairFailedRedeemsAreRateLimited(t *testing.T) {
 			t.Fatalf("try %d: %d", i, code)
 		}
 	}
-	if code, _, _ := redeem(t, e, good, "192.0.2.7"); code != 429 {
+	if code, _, _ := redeem(t, e, bad, "192.0.2.7"); code != 429 {
 		t.Fatalf("after %d failures: %d", pairMaxFailures, code)
 	}
 	// another address is not held back
@@ -268,8 +268,17 @@ func TestPairFailedRedeemsAreRateLimited(t *testing.T) {
 	}
 	// and the limit lifts after the window
 	now = now.Add(pairFailureWindow + time.Second)
-	if code, _, _ := redeem(t, e, good, "192.0.2.7"); code != 200 {
+	if code, _, _ := redeem(t, e, bad, "192.0.2.7"); code != 404 {
 		t.Fatalf("after the window: %d", code)
+	}
+	// A live code is taken even from a locked-out address: anyone on the
+	// machine can name an address (Cf-Connecting-Ip from loopback) and must
+	// not be able to keep the owner's phone from pairing.
+	for i := 0; i < pairMaxFailures; i++ {
+		redeem(t, e, bad, "192.0.2.7")
+	}
+	if code, _, _ := redeem(t, e, good, "192.0.2.7"); code != 200 {
+		t.Fatalf("a live code from a locked-out address: %d", code)
 	}
 }
 

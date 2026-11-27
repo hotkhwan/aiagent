@@ -19,8 +19,24 @@ codes and other secrets out of the report; describe how to obtain them instead. 
   **once**. Only `sha256(token)` is written, to a `0600` file. If that file
   cannot be read, every request is refused rather than allowed.
 - **Lockout.** More than 10 wrong tokens from one address in 5 minutes locks
-  that address out.
-- **Write rate limit.** One write per second, globally.
+  that address out. The token is checked first and a valid one is always let
+  in, so a lockout only stops guessing: behind the tunnel the address is the
+  `Cf-Connecting-Ip` a loopback peer names, which anyone on the machine can
+  set, and they must not be able to lock the owner out. A full failure table
+  (4096 addresses) drops its stalest address, never the whole table. Pairing
+  redeems (`POST /aiagent/pair`) follow the same rule: a live code is taken
+  from any address, only misses are counted.
+- **Write rate limit.** One write per second per identity: the admin (every
+  admin token and admin phone together) has its own, and each user token
+  (with its phones) its own, so a user can never slow the admin or another
+  user. Uploads likewise: 30 a minute for the admin, 30 for each user.
+- **Host names (optional).** `serve --allowed-hosts a.example,b.example` (or
+  `AIAGENT_ALLOWED_HOSTS`) answers only those Host names and loopback ones
+  (`localhost`, `127.0.0.0/8`, `::1`); any other name gets 404 on every route,
+  page included. Off by default, so existing installs keep working; set it to
+  the tunnel's hostname to shut out DNS-rebinding pages and stray names
+  pointed at the box. A room's instance (`--listen systemd`) ignores it: it
+  is reached only over its own socket.
 - **Audit.** An append-only JSONL log records the *intent* before an action and
   the *result* after it, so a crash in between still leaves evidence that
   someone asked. Parameters are stored as a digest, never verbatim.
@@ -45,6 +61,29 @@ codes and other secrets out of the report; describe how to obtain them instead. 
   terminal or VS Code, can be watched but not driven.
 - Text is length-limited, stripped of control characters, and rejected if it is
   a reserved dispatcher keyword.
+- **A user token cannot type CLI commands**, with or without `--os-users`
+  (`internal/world/usertext.go`, checked in the gate before a request is
+  answered or forwarded to a room): text starting with `!` (shell mode), `&`
+  (cloud session), their full-width forms, or `/` is refused with 403
+  `AIAGENT_COMMAND_BLOCKED`, except the slash commands `/compact`, `/clear`,
+  `/context`, `/usage` and `/rename`. Leading spaces, control, format and
+  combining characters are skipped first, so `"  !x"` or a zero-width
+  character before `/login` changes nothing. A message that starts with a
+  path (`/home/x/file`) is refused too: put a word first; the web's
+  attachment lines always start with a label. It covers `POST /messages`,
+  `POST /sessions/:id/message` (and what the outbox later types from it) and
+  the free-text answers of `POST /sessions/:id/answer`. A review answer is
+  not checked because the service always begins it with its own fixed line,
+  and a session name is typed after `/rename ` on one line. The admin is not
+  restricted.
+- **Protected workspaces are the admin's whole.** A user sees a protected
+  session by name and state only, and no workspace, pending message or run
+  (agcmd task and its decisions) of a protected workspace at all.
+- **A room cannot claim another room's ids.** With `--os-users` the admin's
+  service learns which room a session or review page lives in from the rooms'
+  own lists. A session id or review id that two rooms both list is routed to
+  neither (and logged): the admin's message or answer to it is never sent to
+  a room that merely claims it, and the review is left out of the list.
 
 ## What leaves the machine
 
@@ -57,13 +96,22 @@ codes and other secrets out of the report; describe how to obtain them instead. 
 - **Phone notifications** (`internal/world/push.go`) go through a relay
   (`--push-relay`, default `https://aiagent-push.hotkhwan.workers.dev`;
   `--push-relay off` turns them off). Per item the relay receives the
-  device's handle, the kind (`answer` / `waiting` / `review`), the session or
-  page name, and its id. Never a token, and never what an agent said. The relay
-  writes the notification text itself from fixed phrases.
+  device's handle, the kind (`answer` / `waiting` / `review` / `done`), the
+  session's or review page's id, the character's look, and the session's name
+  or the review page's title. **That name or title can be agent-written** (an
+  agent can rename its session; a review page's title is the agent's), so it
+  is the one piece of agent text that leaves through the relay, and the relay
+  operator sees it. A phone that registers with `{"handle": …, "quiet": true}`
+  is sent an empty name (the payload keeps its shape), and the relay itself
+  drops names for a phone set to hide them. Never a token, never an agent's
+  messages, never a page's contents. The relay writes the notification text
+  from fixed phrases around that name.
 - A phone is registered with the token it presents (`POST /push/devices`) and
   bound to that token's SHA-256 in `push.json` (`0600`). Revoking, reissuing or
   rotating the token stops its pushes at the next tick and drops the device.
-  A user's phone only hears about what that user may see on the web.
+  A user's phone only hears about what that user may see on the web. Users'
+  phones are capped (200 together, 20 per user, 5 per token); the admin's are
+  not counted against those, so users cannot fill the admin out.
 - The connect code (`aiagent://connect?u=…&t=…`) holds a token. Its QR is drawn
   by this service (`POST /connect/qr`, `Cache-Control: no-store`, not audited
   so the token never reaches a log); a user can draw only their own, an admin
@@ -81,7 +129,8 @@ codes and other secrets out of the report; describe how to obtain them instead. 
   redeem wins, and the page's token is checked again so a revoked or reissued
   one pairs nothing. Every failure (bad shape, unknown, used, expired, revoked)
   answers the same 404 `AIAGENT_PAIR_INVALID`; 10 failures a minute from one
-  address answer 429. Every redeem writes `aiagent.pairRedeem` ok|denied with
+  address answer 429 to further misses (a live code is still taken). Every
+  redeem writes `aiagent.pairRedeem` ok|denied with
   the caller's address to the audit log before anything is sent — never the
   code or a token. Both endpoints send `Cache-Control: no-store`.
 - **The phone gets a token of its own** (`internal/world/devices.go`), never
@@ -97,6 +146,24 @@ codes and other secrets out of the report; describe how to obtain them instead. 
   mint tokens that outlive its own revoke.
   Phones paired before this change hold the page's token and keep working
   until it is rotated.
+- **What a phone's token may call** is an allowlist
+  (`internal/world/devicegate.go`), like a user token's: sessions (read,
+  message, answer, stop, name, look, model, resume), reviews, the snapshot,
+  faces, uploads, its own push registration and the device list. Vault,
+  updates, CLI updates, provider accounts, policy, room policy (`POST
+  /rooms`), Codex model, environments and any route added later answer 403
+  `AIAGENT_DEVICE_FORBIDDEN` to a phone, admin or not; those stay on the web
+  with the admin's own token. A room's phone is held to the user allowlist as
+  well.
+- **User tokens made from an admin phone end with it.** An admin phone may
+  list, make, reissue, revoke and set the duty of user tokens, because every
+  token it makes or reissues records that phone (`createdByDevice` in the
+  state file). Revoking the phone, or `aiagent rotate-token` (which ends
+  every admin phone), gives each of those a hash no one holds (they stop at
+  once; the rows and rooms stay, to be reissued from the web) and ends the
+  phones paired under them. A token reissued on the web is no
+  longer tied to any phone.
+  Phones are capped per scope: 100 for the admin, 20 per room.
 
 - **Photo faces** (`internal/world/faces.go`, any role, each token only its own;
   answered by the main service even in `--os-users` mode):
@@ -326,6 +393,8 @@ Two lessons worth keeping:
       dialog ends it, and every redeem is in the audit log
       (`aiagent.pairRedeem`). A code on screen can pair one phone until then.
 - [ ] Paired phones: each has its own token, listed in the 📱 App dialog;
-      revoke a lost phone there.
+      revoke a lost phone there (it takes the user tokens it made with it).
+- [ ] Behind a tunnel or proxy with one public name, consider
+      `--allowed-hosts <that name>`.
 - [ ] The state directory is `0700` and owned by the service user.
 - [ ] You have read what the token actually grants, above.

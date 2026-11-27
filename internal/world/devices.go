@@ -20,7 +20,12 @@ import (
 	"github.com/gofiber/fiber/v3"
 )
 
-const maxDevices = 100
+// Phones are capped per scope, so one room's phones never use up the
+// admin's slots or another room's.
+const (
+	maxDevices        = 100 // the admin's
+	maxDevicesPerUser = 20  // each room's
+)
 
 var deviceIDRE = regexp.MustCompile(`^[0-9a-f]{12}$`)
 
@@ -66,7 +71,17 @@ func (s *Store) AddDevice(id Identity, name string) (DeviceToken, string, error)
 	if err != nil || !st.Enabled {
 		return DeviceToken{}, "", ErrConflict("บริการยังไม่เปิดใช้งาน")
 	}
-	if len(st.Devices) >= maxDevices {
+	scope, limit := "", maxDevices
+	if id.Role == RoleUser {
+		scope, limit = id.UserID, maxDevicesPerUser
+	}
+	n := 0
+	for _, d := range st.Devices {
+		if d.UserID == scope {
+			n++
+		}
+	}
+	if n >= limit {
 		return DeviceToken{}, "", ErrConflict("อุปกรณ์ที่จับคู่เต็มแล้ว เพิกถอนบางเครื่องก่อน")
 	}
 	token, err := newToken()
@@ -87,7 +102,10 @@ func (s *Store) AddDevice(id Identity, name string) (DeviceToken, string, error)
 	return d, token, s.write(st)
 }
 
-// RevokeDevice ends one phone's token, if it is in the scope of by.
+// RevokeDevice ends one phone's token, if it is in the scope of by, and every
+// user token that phone made or reissued (UserToken.CreatedByDevice), with the
+// phones paired under those. Their rows stay, with a hash no one holds, so the
+// admin can reissue them from the web; the rooms behind them are untouched.
 func (s *Store) RevokeDevice(by Identity, deviceID string) error {
 	tokensMu.Lock()
 	defer tokensMu.Unlock()
@@ -108,7 +126,34 @@ func (s *Store) RevokeDevice(by Identity, deviceID string) error {
 		return ErrNotFound("ไม่พบอุปกรณ์นี้")
 	}
 	st.Devices = kept
+	if err := endTokensOf(&st, map[string]bool{deviceID: true}); err != nil {
+		return err
+	}
 	return s.write(st)
+}
+
+// endTokensOf ends the user tokens the given phones made or reissued, and the
+// phones paired under those: each gets a hash no one holds.
+func endTokensOf(st *State, phones map[string]bool) error {
+	users := append([]UserToken{}, st.Users...)
+	for i := range users {
+		if users[i].CreatedByDevice == "" || !phones[users[i].CreatedByDevice] {
+			continue
+		}
+		users[i].CreatedByDevice = ""
+		if users[i].Hash == "" {
+			continue // being removed already
+		}
+		var raw [32]byte
+		if _, err := rand.Read(raw[:]); err != nil {
+			return err
+		}
+		sum := sha256.Sum256(raw[:])
+		users[i].Hash = hex.EncodeToString(sum[:])
+		st.Devices = devicesWithout(st.Devices, users[i].ID)
+	}
+	st.Users = users
+	return nil
 }
 
 func inDeviceScope(by Identity, d DeviceToken) bool {

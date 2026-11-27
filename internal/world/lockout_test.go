@@ -72,3 +72,33 @@ func TestWrongTokensThroughTheTunnelLockOutOnlyThatVisitor(t *testing.T) {
 		t.Fatalf("the owner, from another address, must still get in; got %d", code)
 	}
 }
+
+// Anyone on the machine can name any visitor address (Cf-Connecting-Ip from
+// loopback). Ten wrong guesses under the owner's address must not lock the
+// owner out: a valid token is checked first and always accepted.
+func TestAValidTokenIsAcceptedFromALockedOutAddress(t *testing.T) {
+	e := newEnv(t)
+	tok, _ := e.store.Enable("test")
+	ln := listenLoopback(t, e)
+	get := func(token string) int {
+		t.Helper()
+		req, _ := http.NewRequest("GET", "http://"+ln+"/aiagent/api/snapshot", nil)
+		req.Header.Set("Cf-Connecting-Ip", "198.51.100.7")
+		req.Header.Set(TokenHeader, token)
+		resp, err := (&http.Client{Timeout: 5 * time.Second}).Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		return resp.StatusCode
+	}
+	for range maxFailures {
+		get("kaw_wrong")
+	}
+	if code := get("kaw_wrong"); code != 429 {
+		t.Fatalf("wrong guesses are still locked out, got %d", code)
+	}
+	if code := get(tok); code != 200 {
+		t.Fatalf("the owner's valid token from the same address = %d, want 200", code)
+	}
+}

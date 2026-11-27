@@ -11,6 +11,7 @@ package world
 import (
 	"context"
 	"encoding/json"
+	"log"
 	"sort"
 	"sync"
 	"time"
@@ -37,6 +38,9 @@ func (s *Service) roomReviews(ctx context.Context) ([]Review, map[string]string)
 	}
 	var list []Review
 	owner := map[string]string{}
+	// an id two rooms both list belongs to neither: a room is its user's own
+	// process and could name another room's page to have its answer sent here
+	claimed := map[string]int{}
 	for _, name := range s.roomNames() {
 		cctx, cancel := context.WithTimeout(ctx, 4*time.Second)
 		status, _, b, err := s.OSUsers.do(cctx, name, "GET", apiPrefix+"/reviews", "", nil)
@@ -49,15 +53,32 @@ func (s *Service) roomReviews(ctx context.Context) ([]Review, map[string]string)
 		if err != nil || status != 200 || json.Unmarshal(b, &env) != nil {
 			continue
 		}
+		seen := map[string]bool{}
 		for _, r := range env.Details.Reviews {
-			if !reviewIDRE.MatchString(r.ID) || owner[r.ID] != "" {
+			if !reviewIDRE.MatchString(r.ID) || seen[r.ID] {
 				continue
 			}
+			seen[r.ID] = true
+			claimed[r.ID]++
 			r.Owner, r.Cwd = name, ""
 			owner[r.ID] = name
 			list = append(list, r)
 		}
 	}
+	kept := list[:0]
+	for _, r := range list {
+		if claimed[r.ID] > 1 {
+			delete(owner, r.ID)
+			continue
+		}
+		kept = append(kept, r)
+	}
+	for id, n := range claimed {
+		if n > 1 {
+			log.Printf("rooms: review %s is listed by %d rooms; routed to none", id, n)
+		}
+	}
+	list = kept
 	sort.SliceStable(list, func(i, j int) bool { return list[i].CreatedAt.After(list[j].CreatedAt) })
 	s.roomRev.at, s.roomRev.list, s.roomRev.owner = time.Now(), list, owner
 	return list, owner

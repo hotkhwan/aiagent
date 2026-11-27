@@ -365,6 +365,12 @@ a load balancer): aiagent cannot use loopback there. Start it with
 counts guesses by the right-most `X-Forwarded-For` address that is not one of
 those proxies; nobody else may name a visitor. Never give `0.0.0.0/0`.
 
+**Only your hostname (optional).** With one public name in front, also start
+aiagent with `--allowed-hosts aiagent.example.com` (or the environment variable
+`AIAGENT_ALLOWED_HOSTS`, comma-separated). Every other Host name then gets 404
+on every route; `localhost` and loopback addresses always work, so the box
+itself is never shut out. It is off by default.
+
 ```sh
 sudo systemctl reload caddy
 ```

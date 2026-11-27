@@ -427,8 +427,13 @@ func TestTokenGate(t *testing.T) {
 	for i := 0; i < maxFailures; i++ {
 		e.do(t, "GET", "/aiagent/api/snapshot", "wrong", "")
 	}
-	if code, _, _ := e.do(t, "GET", "/aiagent/api/snapshot", tok, ""); code != 429 {
+	if code, _, _ := e.do(t, "GET", "/aiagent/api/snapshot", "wrong", ""); code != 429 {
 		t.Fatalf("after %d wrong tokens the client must be locked out: %d", maxFailures, code)
+	}
+	// a valid token is still let in: the address is one anyone on the
+	// machine can name, so a lockout must not shut the owner out
+	if code, _, _ := e.do(t, "GET", "/aiagent/api/snapshot", tok, ""); code != 200 {
+		t.Fatalf("a valid token after a lockout: %d", code)
 	}
 }
 

@@ -51,6 +51,10 @@ type UserToken struct {
 	// OSUser is the account this token works in; empty when the service does
 	// not manage OS users. An entry whose Hash is empty is being removed.
 	OSUser string `json:"osUser,omitempty"`
+	// CreatedByDevice is the admin phone that made or last reissued this
+	// token; revoking that phone ends the token too (devicegate.go). Empty
+	// for one made on the web.
+	CreatedByDevice string `json:"createdByDevice,omitempty"`
 }
 
 // Identity is who a presented token belongs to.
@@ -114,6 +118,12 @@ func (s *Store) identifyIn(st State, sum [32]byte) (Identity, bool) {
 
 // AddUser mints a user token and returns it once.
 func (s *Store) AddUser(name, osUser string) (UserToken, string, error) {
+	return s.AddUserBy(name, osUser, "")
+}
+
+// AddUserBy is AddUser for a token made from the admin phone byDevice ("" is
+// the web); the token ends when that phone is revoked.
+func (s *Store) AddUserBy(name, osUser, byDevice string) (UserToken, string, error) {
 	name = strings.TrimSpace(name)
 	if !userNameRE.MatchString(name) {
 		return UserToken{}, "", ErrBadRequest("ชื่อ: ตัวอักษร ตัวเลข เว้นวรรค จุด หรือขีด ยาว 1-40 ตัว")
@@ -141,7 +151,7 @@ func (s *Store) AddUser(name, osUser string) (UserToken, string, error) {
 		return UserToken{}, "", err
 	}
 	sum := sha256.Sum256([]byte(token))
-	u := UserToken{ID: hex.EncodeToString(id[:]), Name: name, Hash: hex.EncodeToString(sum[:]), CreatedAt: time.Now().UTC(), OSUser: osUser}
+	u := UserToken{ID: hex.EncodeToString(id[:]), Name: name, Hash: hex.EncodeToString(sum[:]), CreatedAt: time.Now().UTC(), OSUser: osUser, CreatedByDevice: byDevice}
 	// a fresh slice: Load's result shares its array with the cache
 	st.Users = append(append([]UserToken{}, st.Users...), u)
 	return u, token, s.write(st)
@@ -151,6 +161,12 @@ func (s *Store) AddUser(name, osUser string) (UserToken, string, error) {
 // one stops working at once; the room behind it is untouched. A token cannot
 // be shown again, only replaced: only its hash is kept.
 func (s *Store) ReissueUser(id string) (UserToken, string, error) {
+	return s.ReissueUserBy(id, "")
+}
+
+// ReissueUserBy is ReissueUser from the admin phone byDevice ("" is the web).
+// The new token belongs to whoever saw it: tied to that phone, or to none.
+func (s *Store) ReissueUserBy(id, byDevice string) (UserToken, string, error) {
 	tokensMu.Lock()
 	defer tokensMu.Unlock()
 	st, err := s.Load()
@@ -171,6 +187,7 @@ func (s *Store) ReissueUser(id string) (UserToken, string, error) {
 		}
 		sum := sha256.Sum256([]byte(token))
 		users[i].Hash = hex.EncodeToString(sum[:])
+		users[i].CreatedByDevice = byDevice
 		st.Users = users
 		st.Devices = devicesWithout(st.Devices, id)
 		return users[i], token, s.write(st)
@@ -484,6 +501,14 @@ func (s *Service) forRole(id Identity, snap Snapshot) Snapshot {
 		}
 	}
 	snap.Workspaces = ws
+	// a run's task and decisions are its workspace's work
+	runs := []Run{}
+	for _, r := range snap.Runs {
+		if e, ok := s.Collector.lookupWorkspace(r.Workspace); !ok || !e.protected {
+			runs = append(runs, r)
+		}
+	}
+	snap.Runs = runs
 	return snap
 }
 
@@ -552,7 +577,7 @@ func (s *Service) handleTokenCreate(c fiber.Ctx) error {
 				return nil, ErrBadRequest("ชื่อนี้สงวนไว้ให้ระบบ ใช้ชื่ออื่น")
 			}
 		}
-		u, token, err := s.Store.AddUser(body.Name, osUser)
+		u, token, err := s.Store.AddUserBy(body.Name, osUser, identity(c).DeviceID)
 		if err != nil {
 			return nil, err
 		}
@@ -576,8 +601,9 @@ func (s *Service) handleTokenCreate(c fiber.Ctx) error {
 func (s *Service) handleTokenReissue(c fiber.Ctx) error {
 	id := strings.Clone(c.Params("id"))
 	c.Set("Cache-Control", "no-store")
+	by := identity(c).DeviceID
 	return s.mutate(c, "aiagent.tokenReissue", []string{id}, func() (any, error) {
-		u, token, err := s.Store.ReissueUser(id)
+		u, token, err := s.Store.ReissueUserBy(id, by)
 		if err != nil {
 			return nil, err
 		}

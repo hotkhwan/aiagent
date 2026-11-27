@@ -93,7 +93,7 @@ func (v *pvEnv) req(method, path string, body string, set ...string) *httptest.R
 
 func (v *pvEnv) ticket(t *testing.T, token, room string) (int, string) {
 	t.Helper()
-	v.svc.lastWrite = time.Time{}
+	v.svc.lastWrite, v.svc.userWrites = time.Time{}, nil
 	code, _, body := v.do(t, "POST", apiPrefix+"/preview/ticket", token, `{"room":"`+room+`"}`)
 	_, tk, _ := strings.Cut(body, "#t=")
 	tk, _, _ = strings.Cut(tk, `"`)
@@ -391,7 +391,7 @@ func TestPreviewReservedNames(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, n := range []string{"ci", "cd", "api", "kapi", "events", "gateway", "dev", "admin", "assets", "static", "ws", "login", "health", "taken"} {
-		v.svc.lastWrite = time.Time{}
+		v.svc.lastWrite, v.svc.userWrites = time.Time{}, nil
 		if code, _, body := v.do(t, "POST", apiPrefix+"/tokens", v.admin, `{"name":"`+n+`"}`); code != 400 || !strings.Contains(body, "สงวน") {
 			t.Errorf("a room named %s = %d", n, code)
 		}
@@ -404,7 +404,7 @@ func TestPreviewReservedNames(t *testing.T) {
 	}
 	// reserved without a preview too
 	v.svc.Preview = nil
-	v.svc.lastWrite = time.Time{}
+	v.svc.lastWrite, v.svc.userWrites = time.Time{}, nil
 	if code, _, _ := v.do(t, "POST", apiPrefix+"/tokens", v.admin, `{"name":"ci"}`); code != 400 {
 		t.Errorf("ci without a preview = %d", code)
 	}
@@ -868,12 +868,12 @@ func TestPreviewReviewIsTheRoomsOwn(t *testing.T) {
 		"none": body("x"), "wrong width": body("x", captureImage{391, ok.Data}), "not a picture": body("x", captureImage{390, base64.StdEncoding.EncodeToString([]byte("<script>"))}),
 		"not base64": body("x", captureImage{390, `"><script>`}), "three": body("x", ok, ok, ok), "too tall": body("x", captureImage{390, base64.StdEncoding.EncodeToString(pic(t, 390, captureMaxHeight+1))}),
 	} {
-		e.svc.lastWrite = time.Time{}
+		e.svc.lastWrite, e.svc.userWrites = time.Time{}, nil
 		if code, _, _ := e.do(t, "POST", apiPrefix+"/preview/review", tok, b); code != 400 {
 			t.Errorf("%s = %d", what, code)
 		}
 	}
-	e.svc.lastWrite = time.Time{}
+	e.svc.lastWrite, e.svc.userWrites = time.Time{}, nil
 	code, _, out := e.do(t, "POST", apiPrefix+"/preview/review", tok, body("<b>look</b>", ok, captureImage{1440, base64.StdEncoding.EncodeToString(pic(t, 1440, 900))}))
 	if code != 200 {
 		t.Fatalf("review = %d %s", code, out)

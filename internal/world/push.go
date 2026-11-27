@@ -9,8 +9,12 @@
 // an agent blocked for instructions, an open review page, a finished turn), and posts each NEW
 // item once to the relay, which turns it into a notification with fixed text.
 //
-// What leaves this machine per item: the handle, the kind, the session or page
-// name and its id. Never a token, never what an agent said.
+// What leaves this machine per item: the handle, the kind, the session's or
+// review page's id, the character's look, and the session's name or the review
+// page's title. A name or title can be one an agent wrote (a session renamed
+// by its agent, a review page's <title>), and the relay sees it; a phone that
+// registered as quiet ({"quiet": true}) is sent an empty name. Never a token,
+// never an agent's messages or a page's contents.
 //
 // A device is bound to the SHA-256 of the token that registered it. Revoking,
 // reissuing or rotating that token stops its pushes at the next tick, and the
@@ -41,9 +45,13 @@ import (
 const DefaultPushRelay = "https://aiagent-push.hotkhwan.workers.dev"
 
 const (
-	pushFile       = "push.json"
-	pushTick       = 15 * time.Second
+	pushFile = "push.json"
+	pushTick = 15 * time.Second
+	// pushMaxDevices: the users' phones together. The admin's are not counted
+	// and never refused, so users cannot fill the admin out.
 	pushMaxDevices = 200
+	// pushPerUser: one user's phones, across all its tokens and paired phones
+	pushPerUser = 20
 	// pushPerToken: one token's phones; the oldest gives way to a new one, so
 	// one token can never fill the slots everyone shares
 	pushPerToken   = 5
@@ -86,6 +94,12 @@ type pushDevice struct {
 	Handle    string    `json:"handle"`
 	TokenHash string    `json:"tokenHash"`
 	AddedAt   time.Time `json:"addedAt"`
+	// Admin and User say whose it is when it was registered, for the caps;
+	// an entry from before has neither and counts as a user's.
+	Admin bool   `json:"admin,omitempty"`
+	User  string `json:"user,omitempty"`
+	// Quiet: the phone hides agents' names; it is sent none.
+	Quiet bool `json:"quiet,omitempty"`
 }
 
 type pushState struct {
@@ -200,9 +214,18 @@ func (s *Service) writePushDevices(d []pushDevice) error {
 // addPushDevice binds a handle to the token presented with it. A handle
 // registered again moves to the new token.
 func (s *Service) addPushDevice(handle, token string) error {
+	return s.addPushDeviceQuiet(handle, token, false)
+}
+
+func (s *Service) addPushDeviceQuiet(handle, token string, quiet bool) error {
 	if !pushHandleRE.MatchString(handle) {
 		return ErrBadRequest("handle ไม่ถูกต้อง")
 	}
+	who, ok := s.Store.Identify(token)
+	if !ok {
+		return ErrBadRequest("token ไม่ถูกต้อง")
+	}
+	admin, user := who.Role == RoleAdmin, userKey(who)
 	pushFileMu.Lock()
 	defer pushFileMu.Unlock()
 	cur := s.readPushDevices()
@@ -229,10 +252,21 @@ func (s *Service) addPushDevice(handle, token string) error {
 		out = append(out[:oldest], out[oldest+1:]...)
 		mine--
 	}
-	if len(out) >= pushMaxDevices {
-		return ErrConflict("ลงทะเบียนอุปกรณ์เต็มแล้ว")
+	if !admin {
+		users, theirs := 0, 0
+		for _, d := range out {
+			if !d.Admin {
+				users++
+				if d.User == user {
+					theirs++
+				}
+			}
+		}
+		if users >= pushMaxDevices || theirs >= pushPerUser {
+			return ErrConflict("ลงทะเบียนอุปกรณ์เต็มแล้ว")
+		}
 	}
-	out = append(out, pushDevice{Handle: handle, TokenHash: th, AddedAt: time.Now().UTC()})
+	out = append(out, pushDevice{Handle: handle, TokenHash: th, AddedAt: time.Now().UTC(), Admin: admin, User: user, Quiet: quiet})
 	return s.writePushDevices(out)
 }
 
@@ -254,24 +288,32 @@ func (s *Service) removePushDevices(drop func(pushDevice) bool) error {
 }
 
 func pushHandleOf(c fiber.Ctx) (string, error) {
+	h, _, err := pushBodyOf(c)
+	return h, err
+}
+
+// pushBodyOf reads {handle[, quiet]}; quiet asks for notifications without
+// names, as the phone app's "hide names" setting does at the relay.
+func pushBodyOf(c fiber.Ctx) (string, bool, error) {
 	var body struct {
 		Handle string `json:"handle"`
+		Quiet  bool   `json:"quiet"`
 	}
 	if err := json.Unmarshal(c.Body(), &body); err != nil || !pushHandleRE.MatchString(body.Handle) {
-		return "", ErrBadRequest(`expected {"handle": "aph_…"}`)
+		return "", false, ErrBadRequest(`expected {"handle": "aph_…"}`)
 	}
-	return body.Handle, nil
+	return body.Handle, body.Quiet, nil
 }
 
 func (s *Service) handlePushDeviceAdd(c fiber.Ctx) error {
-	h, err := pushHandleOf(c)
+	h, quiet, err := pushBodyOf(c)
 	if err != nil {
 		return s.fail(c, err)
 	}
 	token := strings.Clone(c.Get(TokenHeader))
 	// the audit log gets a digest: a handle can send to a phone
 	return s.mutate(c, "aiagent.pushDevice", []string{digestHex(h)}, func() (any, error) {
-		return fiber.Map{"registered": true}, s.addPushDevice(h, token)
+		return fiber.Map{"registered": true}, s.addPushDeviceQuiet(h, token, quiet)
 	})
 }
 
@@ -349,7 +391,7 @@ func (s *Service) PushTick(ctx context.Context) {
 		if w.err != nil {
 			continue // read again next tick; nothing is marked seen
 		}
-		if s.pushDevice(ctx, d.Handle, w.items) {
+		if s.pushDevice(ctx, d.Handle, d.Quiet, w.items) {
 			gone[d.Handle] = true
 		}
 	}
@@ -365,7 +407,7 @@ func (s *Service) PushTick(ctx context.Context) {
 
 // pushDevice sends the new items to one device; true means the relay says
 // the device is gone.
-func (s *Service) pushDevice(ctx context.Context, handle string, items []PushItem) bool {
+func (s *Service) pushDevice(ctx context.Context, handle string, quiet bool, items []PushItem) bool {
 	s.push.mu.Lock()
 	if s.push.seen == nil {
 		s.push.seen = map[string]map[string]bool{}
@@ -394,6 +436,9 @@ func (s *Service) pushDevice(ctx context.Context, handle string, items []PushIte
 		fresh = fresh[:pushMaxPerTick]
 	}
 	for _, it := range fresh {
+		if quiet {
+			it.Name = "" // the key stays: the payload's shape does not change
+		}
 		status, err := s.sendPush(ctx, handle, it)
 		if status == http.StatusNotFound || status == http.StatusGone {
 			return true

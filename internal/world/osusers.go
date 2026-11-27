@@ -16,6 +16,7 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"log"
 	"net"
 	"net/http"
 	"os"
@@ -108,14 +109,7 @@ func (o *OSUsers) do(ctx context.Context, name, method, uri, contentType string,
 
 // forward answers an API request from a user's instance.
 func (s *Service) forward(c fiber.Ctx, name string) error {
-	if p := strings.TrimPrefix(c.Path(), apiPrefix); c.Method() == "POST" && identity(c).Role == RoleUser && (p == "/messages" || strings.HasSuffix(p, "/message")) {
-		var body struct {
-			Message string `json:"message"`
-		}
-		if json.Unmarshal(c.Body(), &body) != nil || !userText(body.Message) {
-			return c.Status(fiber.StatusForbidden).JSON(failEnv("AIAGENT_COMMAND_BLOCKED", "คำสั่งนี้ใช้ได้เฉพาะ admin"))
-		}
-	}
+	// a user's typed text was checked in the gate (usertext.go)
 	if m := sessionPathRE.FindStringSubmatch(strings.TrimPrefix(c.Path(), apiPrefix)); m != nil && identity(c).Role == RoleUser {
 		if mate := s.teammateOf(c.Context(), name, m[1]); mate != "" {
 			tail := strings.TrimPrefix(strings.TrimPrefix(c.Path(), apiPrefix), m[0])
@@ -285,6 +279,27 @@ func (s *Service) teammates(ctx context.Context, name string) ([]Session, map[st
 		}
 	}
 	p := s.protections(ctx)
+	// A session id two rooms both list belongs to neither: an instance could
+	// otherwise claim another room's session and have the admin's message to
+	// it sent to itself. Only the first room's copy used to count.
+	claimed := map[string]int{}
+	for _, u := range st.Users {
+		if u.OSUser == "" || u.OSUser == name || u.Hash == "" {
+			continue
+		}
+		seen := map[string]bool{}
+		for _, ss := range s.instanceSessions(ctx, u.OSUser) {
+			if ss.SessionID != "" && !seen[ss.SessionID] {
+				seen[ss.SessionID] = true
+				claimed[ss.SessionID]++
+			}
+		}
+	}
+	for id, n := range claimed {
+		if n > 1 {
+			log.Printf("rooms: session %s is listed by %d rooms; routed to none", id, n)
+		}
+	}
 	var list []Session
 	owner := map[string]string{}
 	for _, u := range st.Users {
@@ -292,7 +307,7 @@ func (s *Service) teammates(ctx context.Context, name string) ([]Session, map[st
 			continue
 		}
 		for _, ss := range s.instanceSessions(ctx, u.OSUser) {
-			if taken[ss.SessionID] || ss.SessionID == "" || p.covers(ss.SessionID) {
+			if taken[ss.SessionID] || ss.SessionID == "" || p.covers(ss.SessionID) || claimed[ss.SessionID] > 1 {
 				continue
 			}
 			// a room set to admin is on the guard's admin list: other rooms

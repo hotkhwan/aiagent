@@ -63,7 +63,7 @@ type faceResp struct {
 
 func (e *env) raw(t *testing.T, method, path, token, ctype string, body []byte) faceResp {
 	t.Helper()
-	e.svc.lastWrite = time.Time{} // one write a second is not what these test
+	e.svc.lastWrite, e.svc.userWrites = time.Time{}, nil // one write a second is not what these test
 	var r io.Reader
 	if body != nil {
 		r = bytes.NewReader(body)
