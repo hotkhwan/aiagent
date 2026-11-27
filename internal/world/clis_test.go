@@ -156,7 +156,7 @@ func TestUpdateCLIsRunsEachUpdaterAndReportsTheVersionChange(t *testing.T) {
 		filepath.Join(bin, "claude") + " update",
 		filepath.Join(bin, "claude") + " --version",
 		filepath.Join(bin, "codex") + " --version",
-		"npm install -g --prefix " + filepath.Dir(bin) + " @openai/codex@latest", // the prefix codex came from
+		"npm install -g --prefix " + realPath(filepath.Dir(bin)) + " @openai/codex@latest", // the prefix codex came from, by its real path
 		filepath.Join(bin, "codex") + " --version",
 	}
 	if strings.Join(f.calls, "\n") != strings.Join(wantCalls, "\n") {

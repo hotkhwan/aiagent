@@ -80,13 +80,24 @@ func DetectReviewCode(g RepoGit, dir string) (*ReviewCode, error) {
 	return nil, errors.New("no commit to compare HEAD with")
 }
 
-// insideHome reports whether dir is home or a folder under it.
+// insideHome reports whether dir is home or a folder under it. Both are
+// compared by their real paths: git reports a checkout that way, and a
+// symlink inside home must not lead the check out of it.
 func insideHome(home, dir string) bool {
 	if home == "" || !filepath.IsAbs(dir) {
 		return false
 	}
-	rel, err := filepath.Rel(home, filepath.Clean(dir))
+	home, dir = realPath(home), realPath(filepath.Clean(dir))
+	rel, err := filepath.Rel(home, dir)
 	return err == nil && (rel == "." || filepath.IsLocal(rel))
+}
+
+// realPath resolves symlinks in p, or returns p as given when it does not exist.
+func realPath(p string) string {
+	if r, err := filepath.EvalSymlinks(p); err == nil {
+		return r
+	}
+	return p
 }
 
 // cleanReviewCode keeps a recorded code reference only when it names a

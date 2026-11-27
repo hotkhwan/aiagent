@@ -64,7 +64,7 @@ func TestDetectReviewCode(t *testing.T) {
 		t.Fatal(err)
 	}
 	head := gitT(t, repo, "rev-parse", "HEAD")
-	if code.Repo != repo || code.Branch != "feat/x" || code.Commit != head || code.Base != base || code.BaseRef != "develop" {
+	if code.Repo != realPath(repo) || code.Branch != "feat/x" || code.Commit != head || code.Base != base || code.BaseRef != "develop" {
 		t.Fatalf("code = %+v (want base %s head %s)", code, base, head)
 	}
 
@@ -142,5 +142,39 @@ func TestReviewCodeTab(t *testing.T) {
 	v, err = e.col.ReviewCodeDiff(plain.ID)
 	if err != nil || v.Error == "" || v.Code != nil {
 		t.Fatalf("page without code: %+v %v", v, err)
+	}
+}
+
+// TestInsideHomeThroughASymlink: git reports a checkout by its real path, so a
+// home reached through a symlink (macOS /tmp, a home moved to another disk)
+// must still contain it; a symlink inside home that leads out must not.
+func TestInsideHomeThroughASymlink(t *testing.T) {
+	root := t.TempDir()
+	realHome := filepath.Join(root, "disk", "dev")
+	outside := filepath.Join(root, "elsewhere")
+	for _, d := range []string{filepath.Join(realHome, "work", "proj"), outside} {
+		if err := os.MkdirAll(d, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	home := filepath.Join(root, "home")
+	if err := os.Symlink(realHome, home); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, filepath.Join(realHome, "out")); err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range []struct {
+		dir  string
+		want bool
+	}{
+		{filepath.Join(realHome, "work", "proj"), true}, // as git reports it
+		{filepath.Join(home, "work", "proj"), true},     // as the user types it
+		{filepath.Join(home, "out"), false},             // leads out of home
+		{outside, false},
+	} {
+		if got := insideHome(home, c.dir); got != c.want {
+			t.Errorf("insideHome(%s, %s) = %v, want %v", home, c.dir, got, c.want)
+		}
 	}
 }
