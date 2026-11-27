@@ -3229,6 +3229,8 @@ function connectCard (url, token) {
 // token: the QR holds a ticket the app trades once for the token, within ten
 // minutes, so a photo of it opens nothing afterwards.
 function openConnect () {
+  // the reach card makes the dialog tall: side by side on a wide screen
+  $('connectDlg').classList.toggle('wide', phoneCannotReach())
   $('connectDlg').showModal()
   $('connectReach').replaceChildren(...(phoneCannotReach() ? [reachCard()] : []))
   drawPair()
@@ -3340,45 +3342,54 @@ async function drawPair () {
       h('p', null, tr('สแกน QR ด้วยแอป AI Agent World หรือบันทึกภาพไว้ แล้วเปิดภาพจาก Photos หรือ Files ในแอป')),
       left,
       h('div', { class: 'accRow pairRow' }, save, again),
-      h('p', { class: 'note' }, tr('รหัสนี้ใช้ได้ครั้งเดียว ภายใน 10 นาที แอปจะได้ token ของตัวเอง สิทธิ์เท่ากับหน้านี้ เพิกถอนได้จากรายการด้านล่าง')))))
+      h('p', { class: 'note' }, tr('รหัสนี้ใช้ได้ครั้งเดียว ภายใน 10 นาที แอปจะได้ token ของตัวเอง สิทธิ์เท่ากับหน้านี้ เพิกถอนได้จากปุ่มอุปกรณ์ที่จับคู่')))))
   tick()
   if (Date.now() < ends) st.pairTimer = setInterval(tick, 1000)
   drawDevices(box)
 }
 // The paired phones in this page's scope, each with its own token (the list
-// carries none), and a way to end one: a lost phone costs one revoke.
+// carries none), and a way to end one: a lost phone costs one revoke. The
+// dialog shows only a button with the count; the rows open in their own
+// popup, so the pairing dialog keeps to one screen.
 async function drawDevices (box) {
-  const wrap = h('div', { class: 'deviceList' }, h('h3', null, tr('อุปกรณ์ที่จับคู่แล้ว')))
-  box.append(wrap)
-  let list
+  const btn = h('button', { type: 'button', class: 'ghost devicesBtn' }, tr('📱 อุปกรณ์ที่จับคู่ ') + '…')
+  box.append(btn)
+  const body = $('devicesBody')
+  let list = []
+  const fill = () => {
+    btn.textContent = tr('📱 อุปกรณ์ที่จับคู่ ') + '(' + list.length + ')'
+    if (!list.length) {
+      body.replaceChildren(h('p', { class: 'note' }, tr('ยังไม่มีอุปกรณ์ที่จับคู่')))
+      return
+    }
+    body.replaceChildren(...list.map(d => {
+      const revoke = h('button', { type: 'button', class: 'ghost' }, tr('เพิกถอน'))
+      revoke.addEventListener('click', async () => {
+        if (!await confirmBox(tr('เพิกถอนอุปกรณ์นี้?'), d.name + ' · ' + d.owner, '', tr('เพิกถอน'))) return
+        try {
+          await api('/connect/devices/' + encodeURIComponent(d.id) + '/revoke', { method: 'POST', body: {} })
+        } catch (e) {
+          body.append(h('p', { class: 'note' }, tr('เพิกถอนไม่ได้: ') + e.message))
+          return
+        }
+        list = list.filter(x => x.id !== d.id)
+        fill()
+      })
+      return h('div', { class: 'accRow deviceRow' },
+        h('span', null, d.name + ' · ' + d.owner + (d.current ? ' (' + tr('เครื่องนี้') + ')' : ''),
+          h('br'), h('small', null, tr('จับคู่เมื่อ ') + new Date(d.createdAt).toLocaleString())),
+        revoke)
+    }))
+  }
+  btn.addEventListener('click', () => { fill(); $('devicesDlg').showModal() })
   try {
     list = (await api('/connect/devices')).devices || []
   } catch (e) {
-    wrap.append(h('p', { class: 'note' }, tr('อ่านรายการอุปกรณ์ไม่ได้: ') + e.message))
+    btn.textContent = tr('อ่านรายการอุปกรณ์ไม่ได้: ') + e.message
+    btn.disabled = true
     return
   }
-  if (!list.length) {
-    wrap.append(h('p', { class: 'note' }, tr('ยังไม่มีอุปกรณ์ที่จับคู่')))
-    return
-  }
-  for (const d of list) {
-    const when = new Date(d.createdAt).toLocaleString()
-    const revoke = h('button', { type: 'button', class: 'ghost' }, tr('เพิกถอน'))
-    revoke.addEventListener('click', async () => {
-      if (!await confirmBox(tr('เพิกถอนอุปกรณ์นี้?'), d.name + ' · ' + d.owner, '', tr('เพิกถอน'))) return
-      try {
-        await api('/connect/devices/' + encodeURIComponent(d.id) + '/revoke', { method: 'POST', body: {} })
-      } catch (e) {
-        wrap.append(h('p', { class: 'note' }, tr('เพิกถอนไม่ได้: ') + e.message))
-        return
-      }
-      wrap.remove()
-      drawDevices(box)
-    })
-    wrap.append(h('div', { class: 'accRow deviceRow' },
-      h('span', null, d.name + ' · ' + d.owner + (d.current ? ' (' + tr('เครื่องนี้') + ')' : '') + ' · ' + tr('จับคู่เมื่อ ') + when),
-      revoke))
-  }
+  fill()
 }
 $('connectDlg').addEventListener('close', () => {
   clearInterval(st.pairTimer)
