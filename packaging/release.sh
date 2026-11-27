@@ -28,7 +28,10 @@ key="${AIAGENT_RELEASE_KEY:-$HOME/littledays-keys/aiagent-release-ed25519.pem}"
 tag="v$ver"
 
 [ "$(git -C "$root" rev-parse --abbrev-ref HEAD)" = main ] || { echo "not on main" >&2; exit 1; }
-[ -z "$(git -C "$root" status --porcelain)" ] || { echo "the tree is not clean" >&2; exit 1; }
+# tracked files must be committed; untracked files only matter if the build
+# would pick them up (Go sources, go.mod/go.sum, embedded web files)
+[ -z "$(git -C "$root" status --porcelain --untracked-files=no)" ] || { echo "the tree is not clean" >&2; exit 1; }
+[ -z "$(git -C "$root" ls-files --others --exclude-standard -- '*.go' go.mod go.sum 'web/*')" ] || { echo "untracked files would go into the build" >&2; exit 1; }
 code_ver=$(sed -n 's/^const Version = "\(.*\)"$/\1/p' "$root/internal/world/version.go")
 [ "$code_ver" = "$ver" ] || { echo "internal/world/version.go says $code_ver, not $ver" >&2; exit 1; }
 if git -C "$root" rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
