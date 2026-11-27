@@ -151,7 +151,7 @@ func TestPushSendsEachNewItemOnceToTheDevicesThatMaySeeIt(t *testing.T) {
 		t.Fatalf("what was already waiting when a device is first seen is not pushed: %v", got)
 	}
 
-	items[RoleAdmin] = append(items[RoleAdmin], PushItem{Kind: "answer", Key: "a|s1|q", Name: "job", Ref: "s1"})
+	items[RoleAdmin] = append(items[RoleAdmin], PushItem{Kind: "answer", Key: "a|s1|q", Name: "job", Ref: "s1", Look: "cx-fox"})
 	items[RoleUser] = []PushItem{{Kind: "waiting", Key: "w|s2", Name: "mine", Ref: "s2"}}
 	e.svc.PushTick(ctx)
 	got := relay.take()
@@ -162,7 +162,7 @@ func TestPushSendsEachNewItemOnceToTheDevicesThatMaySeeIt(t *testing.T) {
 	for _, m := range got {
 		byHandle[m["handle"]] = m
 	}
-	if m := byHandle[handleA]; m["kind"] != "answer" || m["name"] != "job" || m["ref"] != "s1" {
+	if m := byHandle[handleA]; m["kind"] != "answer" || m["name"] != "job" || m["ref"] != "s1" || m["look"] != "cx-fox" {
 		t.Fatalf("admin got %v", m)
 	}
 	if m := byHandle[handleB]; m["kind"] != "waiting" || m["ref"] != "s2" {
@@ -274,5 +274,27 @@ func TestOneTokenKeepsAtMostFivePhones(t *testing.T) {
 	}
 	if mine != pushPerToken || theirs != 1 || kept {
 		t.Fatalf("mine=%d theirs=%d oldest kept=%v", mine, theirs, kept)
+	}
+}
+
+// A notification shows the agent's character: the one chosen for it, else
+// the one the web draws for its id. A review shows the character of the agent
+// that filed it.
+func TestPushItemsCarryTheAgentsCharacter(t *testing.T) {
+	snap := Snapshot{Sessions: []Session{
+		{SessionID: "aaaa1111", DisplayName: "chosen", AgentState: "blocked", Look: "cx-panda"},
+		{SessionID: "bbbb2222", DisplayName: "default", AgentState: "blocked"},
+	}}
+	reviews := []Review{{ID: "r1", Title: "page", Status: "open", SessionID: "bbbb2222"}}
+	got := pushItems(snap, reviews)
+	var looks []string
+	for _, it := range got {
+		looks = append(looks, it.Ref+":"+it.Look)
+	}
+	if want := "aaaa1111:cx-panda|bbbb2222:research|r1:research"; strings.Join(looks, "|") != want {
+		t.Fatalf("looks = %v, want %s", looks, want)
+	}
+	if webLook("cccc3333") != "infra" || webLook("s2") != "deploy" {
+		t.Fatalf("the default must match the web's hash")
 	}
 }

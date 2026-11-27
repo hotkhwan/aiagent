@@ -58,6 +58,28 @@ type PushItem struct {
 	Key  string // stable while the same thing waits
 	Name string
 	Ref  string
+	// Look is the agent's character, shown as the notification's picture.
+	Look string
+}
+
+// webChars are the characters the web gives an agent that has none chosen
+// (app.js `chars`), picked by webLook from its id.
+var webChars = []string{"dev", "tester", "infra", "deploy", "research", "designer"}
+
+// webLook is app.js `chars[hash(id) % chars.length]`: 32-bit, multiply by 31.
+func webLook(id string) string {
+	var x uint32
+	for _, c := range []byte(id) {
+		x = x*31 + uint32(c)
+	}
+	return webChars[x%uint32(len(webChars))]
+}
+
+func lookOf(ss Session) string {
+	if ss.Look != "" {
+		return ss.Look
+	}
+	return webLook(ss.SessionID)
 }
 
 type pushDevice struct {
@@ -100,6 +122,10 @@ func digestHex(s string) string {
 // they may see, and the review pages they may see.
 func pushItems(snap Snapshot, reviews []Review) []PushItem {
 	var out []PushItem
+	looks := map[string]string{}
+	for _, ss := range snap.Sessions {
+		looks[ss.SessionID] = lookOf(ss)
+	}
 	for _, ss := range snap.Sessions {
 		if ss.Protected && ss.MessageBlocked != "" {
 			continue // an admin's session shown to a user: nothing to act on
@@ -111,18 +137,22 @@ func pushItems(snap Snapshot, reviews []Review) []PushItem {
 			for _, o := range ss.Prompt.Options {
 				fmt.Fprintf(&b, "\x00%d %s", o.N, o.Label)
 			}
-			out = append(out, PushItem{Kind: "answer", Key: "a|" + ss.SessionID + "|" + digestHex(b.String())[:16], Name: ss.DisplayName, Ref: ss.SessionID})
+			out = append(out, PushItem{Kind: "answer", Key: "a|" + ss.SessionID + "|" + digestHex(b.String())[:16], Name: ss.DisplayName, Ref: ss.SessionID, Look: lookOf(ss)})
 		case ss.AgentState == "blocked":
-			out = append(out, PushItem{Kind: "waiting", Key: "w|" + ss.SessionID, Name: ss.DisplayName, Ref: ss.SessionID})
+			out = append(out, PushItem{Kind: "waiting", Key: "w|" + ss.SessionID, Name: ss.DisplayName, Ref: ss.SessionID, Look: lookOf(ss)})
 		case ss.Live && (ss.Status == StatusIdle || ss.Status == StatusCompleted) && ss.LastEventAt != nil:
 			// a finished turn: each one is its own item, keyed by when it ended,
 			// so the next finished turn notifies again
-			out = append(out, PushItem{Kind: "done", Key: "d|" + ss.SessionID + "|" + ss.LastEventAt.UTC().Format(time.RFC3339Nano), Name: ss.DisplayName, Ref: ss.SessionID})
+			out = append(out, PushItem{Kind: "done", Key: "d|" + ss.SessionID + "|" + ss.LastEventAt.UTC().Format(time.RFC3339Nano), Name: ss.DisplayName, Ref: ss.SessionID, Look: lookOf(ss)})
 		}
 	}
 	for _, r := range reviews {
 		if r.Status == "open" {
-			out = append(out, PushItem{Kind: "review", Key: "r|" + r.ID, Name: r.Title, Ref: r.ID})
+			look := looks[r.SessionID]
+			if look == "" && r.SessionID != "" {
+				look = webLook(r.SessionID)
+			}
+			out = append(out, PushItem{Kind: "review", Key: "r|" + r.ID, Name: r.Title, Ref: r.ID, Look: look})
 		}
 	}
 	return out
@@ -386,7 +416,11 @@ var pushClient = &http.Client{
 }
 
 func (s *Service) sendPush(ctx context.Context, handle string, it PushItem) (int, error) {
-	b, err := json.Marshal(map[string]string{"handle": handle, "kind": it.Kind, "name": it.Name, "ref": it.Ref})
+	body := map[string]string{"handle": handle, "kind": it.Kind, "name": it.Name, "ref": it.Ref}
+	if it.Look != "" {
+		body["look"] = it.Look
+	}
+	b, err := json.Marshal(body)
 	if err != nil {
 		return 0, err
 	}
