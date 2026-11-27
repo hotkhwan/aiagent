@@ -32,6 +32,17 @@ relay, which carries a session name and never a token or a conversation.
    within 10 minutes; **Download image** saves it for opening from Photos/Files).
 3. In the app press **Scan QR**.
 
+### Reach it from your phone
+
+The phone needs an **https** address; `http://127.0.0.1:8890` exists only on
+the computer itself. [docs/PUBLIC_URL.md](docs/PUBLIC_URL.md) is a playbook
+for that — a quick Cloudflare tunnel to try, a named tunnel on your own
+Cloudflare account, a cloud server with Caddy, or Tailscale — written so one
+of your own agents can follow it, asking you before it opens anything. Opened
+on `127.0.0.1`, the **📱 App** dialog offers to send those instructions to an
+agent for you. Pair after opening the page through the new address: the QR
+carries the address the page was opened with.
+
 The app is in TestFlight beta (iOS). `--push-relay` picks the notification relay
 or turns notifications off.
 

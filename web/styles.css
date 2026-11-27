@@ -1836,4 +1836,10 @@ dialog.screenPop.connectDlg, dialog.screenPop.connectDlg.full { width: min(460px
 .connectDlg .pairLeft { font-weight: 700; font-variant-numeric: tabular-nums }
 .connectDlg .pairRow { justify-content: center; gap: 8px }
 .connectDlg .pairSave { display: inline-flex; align-items: center; min-height: 40px; padding: 8px 16px; border-radius: 999px; background: var(--sky); color: inherit; font-weight: 700; text-decoration: none }
-.connectDlg .spBody > .note { text-align: center }
+.connectDlg #connectBody > .note { text-align: center }
+/* the page was opened on an address the phone cannot reach: how to get one */
+.connectDlg .reachCard { border: 1px solid var(--brand); border-radius: 14px; padding: 12px 14px; margin-bottom: 14px; display: flex; flex-direction: column; gap: 8px }
+.connectDlg .reachCard p { margin: 0 }
+.connectDlg .reachWays { display: flex; flex-wrap: wrap; gap: 6px }
+.connectDlg .reachWays button[aria-pressed="true"] { background: var(--brand); color: #fff }
+.connectDlg .reachText { white-space: pre-wrap; font-size: .9em; background: rgba(0, 0, 0, .05); border-radius: 10px; padding: 8px 10px; margin: 0 }

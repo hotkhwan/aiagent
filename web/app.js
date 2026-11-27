@@ -3229,7 +3229,74 @@ function connectCard (url, token) {
 // minutes, so a photo of it opens nothing afterwards.
 function openConnect () {
   $('connectDlg').showModal()
+  $('connectReach').replaceChildren(...(phoneCannotReach() ? [reachCard()] : []))
   drawPair()
+}
+// The pairing QR carries the page's own origin. Opened as 127.0.0.1, localhost
+// or plain http, that is an address the phone cannot open (the app takes
+// https only), so the dialog first says how to get one. On an https address
+// that is not loopback nothing changes.
+function phoneCannotReach () {
+  const host = location.hostname
+  return location.protocol !== 'https:' || host === 'localhost' || host === '127.0.0.1' || host === '::1' || host === '[::1]'
+}
+// Instructions an agent can follow (docs/PUBLIC_URL.md). They name this
+// page's address and nothing secret: never the token, never a credential.
+const PUBLIC_URL_DOC = 'docs/PUBLIC_URL.md (https://github.com/hotkhwan/aiagent/blob/main/docs/PUBLIC_URL.md)'
+function reachWays () {
+  const where = tr('\naiagent นี้เปิดอยู่ที่ ') + location.origin + '/aiagent/'
+  return [
+    { id: 'try', label: tr('ลองตอนนี้'), about: tr('Cloudflare Quick Tunnel ไม่ต้องมีบัญชี ได้ที่อยู่สุ่ม *.trycloudflare.com ที่เปลี่ยนทุกครั้งที่เริ่มใหม่'),
+      text: tr('ทำตาม ') + PUBLIC_URL_DOC + tr(' หัวข้อ A เพื่อเปิด Cloudflare Quick Tunnel ชั่วคราวให้ aiagent นี้ ให้มือถือเปิดผ่าน https ได้ บอกฉันก่อนว่าจะเปิดอะไรออกอินเทอร์เน็ตและรอให้ฉันตอบตกลง เปิดเฉพาะ aiagent เท่านั้น ห้ามเปิด ssh หรือพอร์ตอื่น และห้ามแสดง token หรือ credential ใด ๆ') + where },
+    { id: 'own', label: tr('ที่อยู่ของคุณเอง'), about: tr('Cloudflare Tunnel บนบัญชี Cloudflare ของคุณกับโดเมนของคุณ ที่อยู่ถาวร'),
+      text: tr('ทำตาม ') + PUBLIC_URL_DOC + tr(' หัวข้อ B เพื่อให้ aiagent นี้มีที่อยู่ https สาธารณะบนบัญชี Cloudflare ของฉันเอง ถามฉันก่อนเปิดอะไรออกอินเทอร์เน็ต และหยุดรอให้ฉันล็อกอิน Cloudflare ในเบราว์เซอร์เอง ห้ามขอรหัสผ่านหรือ API token ห้ามเปิด ssh หรือพอร์ตอื่น และห้ามแสดง token หรือ credential ใด ๆ') + where },
+    { id: 'cloud', label: tr('Cloud server'), about: tr('เครื่องที่มี IP สาธารณะ ใช้ reverse proxy ที่ทำ HTTPS ให้เอง เช่น Caddy'),
+      text: tr('ทำตาม ') + PUBLIC_URL_DOC + tr(' หัวข้อ C เพื่อให้ aiagent บน server นี้เปิดผ่าน https ได้ ถามฉันก่อนเปิดพอร์ตหรือแก้ firewall เปิดเฉพาะพอร์ต 443 ห้ามแตะการตั้งค่า ssh ที่มีอยู่ ห้ามเปิดพอร์ต 8890 ออกนอกเครื่อง และห้ามแสดง token หรือ credential ใด ๆ') + where }
+  ]
+}
+// Agents the person may message, by the same rule as the composer's picker
+// (live, with a way to type to it). Only the admin is offered this: putting
+// the machine on the internet is the admin's call, and a user's room may be
+// someone else's sandbox. It sends through the ordinary message path, nothing
+// the admin could not have typed into the chat.
+function reachTargets () {
+  if (isUser() || !st.snap) return []
+  return (st.snap.sessions || []).filter(x => x.live && x.messageVia && !x.readOnly)
+}
+function reachCard () {
+  const ways = reachWays()
+  const targets = reachTargets()
+  const btns = ways.map(w => h('button', { type: 'button', class: 'ghost', 'aria-pressed': 'false', onclick: () => pick(w) }, w.label))
+  const about = h('p', { class: 'note' })
+  const text = h('pre', { class: 'reachText' })
+  const sel = h('select', { 'aria-label': tr('agent ที่จะส่งให้') }, ...targets.map(x => h('option', { value: x.sessionId }, x.displayName + ' · ' + (x.messageVia === 'relay' ? 'relay' : 'agcmd ' + x.dispatchVia))))
+  let cur = ways[0]
+  const copy = h('button', { type: 'button', class: 'ghost', onclick: e => copyText(cur.text, e.currentTarget) }, tr('คัดลอกคำสั่ง'))
+  const send = targets.length ? h('button', { type: 'button', class: 'pri', onclick: () => sendReach(cur.text, targets, sel.value) }, tr('ส่งให้ agent')) : null
+  function pick (w) {
+    cur = w
+    btns.forEach((b, i) => b.setAttribute('aria-pressed', ways[i] === w ? 'true' : 'false'))
+    about.textContent = w.about
+    text.textContent = w.text
+  }
+  pick(cur)
+  return h('div', { class: 'reachCard' },
+    h('b', null, tr('ทำให้มือถือเปิดถึงได้')),
+    h('p', null, tr('หน้านี้เปิดจาก ') + location.origin + tr(' ซึ่งมือถือเปิดไม่ถึง แอปต้องใช้ที่อยู่ https ที่มือถือเข้าถึงได้ เลือกวิธี แล้วให้ agent ของคุณตั้งให้ หรือคัดลอกคำสั่งไปทำเอง')),
+    h('div', { class: 'reachWays', role: 'group', 'aria-label': tr('วิธีเปิดให้มือถือเข้าถึง') }, ...btns),
+    about, text,
+    h('div', { class: 'accRow' }, targets.length > 1 ? sel : null, send, copy),
+    targets.length ? null : h('p', { class: 'note' }, isUser() ? tr('ให้คนที่ดูแลเครื่องนี้ตั้งให้ หรือคัดลอกคำสั่งไปให้เขา') : tr('ไม่มี agent ที่ส่งข้อความจากเว็บได้ตอนนี้ คัดลอกคำสั่งไปวางใน agent เอง')),
+    h('p', { class: 'note' }, tr('QR ด้านล่างสร้างจากที่อยู่นี้ จึงใช้บนมือถือไม่ได้ เปิดหน้านี้ผ่านที่อยู่ https ใหม่แล้วกด 📱 แอป อีกครั้ง')))
+}
+// A message the admin could have typed: confirmed first, then the same
+// /sessions/<id>/message call the chat uses.
+async function sendReach (text, targets, id) {
+  const target = targets.find(x => x.sessionId === id) || targets[0]
+  await onceFor('reach:' + target.sessionId, async () => {
+    if (!await confirmBox(tr('ส่งให้ ') + target.displayName, tr('agent จะได้รับคำสั่งนี้ และต้องถามคุณก่อนเปิดอะไรออกอินเทอร์เน็ต'), text, tr('ส่งคำสั่ง'))) return
+    await act('/sessions/' + encodeURIComponent(target.sessionId) + '/message', { message: text, sendId: newSendId() }, () => tr('ส่งคำสั่งให้ ') + target.displayName + tr(' แล้ว'))
+  })
 }
 async function drawPair () {
   clearInterval(st.pairTimer)
@@ -3275,6 +3342,7 @@ $('connectDlg').addEventListener('close', () => {
   clearInterval(st.pairTimer)
   st.pairSeq = (st.pairSeq || 0) + 1
   $('connectBody').replaceChildren()
+  $('connectReach').replaceChildren()
 })
 
 async function drawTokens (fresh) {
