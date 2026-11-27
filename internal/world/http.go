@@ -41,7 +41,6 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
-	"net"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -186,18 +185,13 @@ func (s *Service) recordFailure(ip string, now time.Time) {
 // reaching the service directly is counted by its own address, or it could
 // pick a fresh one for every guess.
 func clientAddr(c fiber.Ctx) string {
-	return lockoutKey(c.IP(), c.Get("Cf-Connecting-Ip"))
+	return visitorKey(c.IP(), c.Get("Cf-Connecting-Ip"), c.Get("X-Forwarded-For"), currentTrustedProxies())
 }
 
-// lockoutKey is clientAddr's decision on plain values, so it can be tested
-// without a socket.
+// lockoutKey is clientAddr's decision on plain values with no other proxy
+// named, so it can be tested without a socket (see proxies.go).
 func lockoutKey(peer, cfConnectingIP string) string {
-	if ip := net.ParseIP(peer); ip != nil && ip.IsLoopback() {
-		if v := net.ParseIP(strings.TrimSpace(cfConnectingIP)); v != nil {
-			return "cf:" + v.String()
-		}
-	}
-	return peer
+	return visitorKey(peer, cfConnectingIP, "", nil)
 }
 
 // hidden answers 404 so a disabled feature is indistinguishable from absent.

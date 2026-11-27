@@ -318,6 +318,13 @@ the `Cf-Connecting-Ip` header. Without this line a visitor could send that
 header themselves and get a fresh guess counter for every try; with it, the
 header is always the visitor's real address.
 
+**A proxy that is not on this machine** (a Kubernetes ingress such as Istio,
+a load balancer): aiagent cannot use loopback there. Start it with
+`--trusted-proxies <the proxy's addresses, CIDR>` (or the environment variable
+`AIAGENT_TRUSTED_PROXIES`), e.g. `--trusted-proxies 10.42.0.0/16`. aiagent then
+counts guesses by the right-most `X-Forwarded-For` address that is not one of
+those proxies; nobody else may name a visitor. Never give `0.0.0.0/0`.
+
 ```sh
 sudo systemctl reload caddy
 ```
