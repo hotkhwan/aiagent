@@ -126,7 +126,7 @@ func TestPairIssueNeedsATokenAndDrawsTheQR(t *testing.T) {
 	}
 }
 
-func TestPairRedeemGivesTheIssuersTokenOnce(t *testing.T) {
+func TestPairRedeemGivesAPhoneTokenOnce(t *testing.T) {
 	e := newEnv(t)
 	admin, _ := e.store.Enable("test")
 	_, user, _ := e.store.AddUser("nok", "")
@@ -137,8 +137,12 @@ func TestPairRedeemGivesTheIssuersTokenOnce(t *testing.T) {
 		if code != 200 || !strings.Contains(cc, "no-store") {
 			t.Fatalf("redeem: %d %q %s", code, cc, body)
 		}
-		if got := redeemedToken(t, body); got != tok {
-			t.Fatalf("redeemed a different token")
+		// the phone's own token, with the scope of the page that paired it
+		got := redeemedToken(t, body)
+		page, _ := e.store.Identify(tok)
+		phone, ok := e.store.Identify(got)
+		if got == tok || !ok || phone.Role != page.Role || phone.UserID != page.UserID {
+			t.Fatalf("redeemed %+v %v for a page of %+v", phone, ok, page)
 		}
 		if code, _, _ := redeem(t, e, ticket, "203.0.113.1"); code != 404 {
 			t.Fatalf("second redeem: %d", code)
@@ -362,11 +366,15 @@ func TestPairNewCodeEndsTheOldOne(t *testing.T) {
 	if code, _, _ := redeem(t, e, old, "192.0.2.30"); code != 404 {
 		t.Fatalf("the replaced code still works: %d", code)
 	}
-	if code, _, body := redeem(t, e, fresh, "192.0.2.30"); code != 200 || redeemedToken(t, body) != admin {
+	if code, _, body := redeem(t, e, fresh, "192.0.2.30"); code != 200 {
 		t.Fatalf("the new code: %d %s", code, body)
+	} else if id, ok := e.store.Identify(redeemedToken(t, body)); !ok || id.Role != RoleAdmin {
+		t.Fatalf("the new code paired %+v %v", id, ok)
 	}
-	if code, _, body := redeem(t, e, other, "192.0.2.30"); code != 200 || redeemedToken(t, body) != user {
+	if code, _, body := redeem(t, e, other, "192.0.2.30"); code != 200 {
 		t.Fatalf("another token's code was ended: %d %s", code, body)
+	} else if id, ok := e.store.Identify(redeemedToken(t, body)); !ok || id.Role != RoleUser {
+		t.Fatalf("the other code paired %+v %v", id, ok)
 	}
 }
 

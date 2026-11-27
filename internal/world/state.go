@@ -35,6 +35,9 @@ type State struct {
 	// Users are the tokens an admin made on the web (roles.go). Rotating the
 	// admin token keeps them; disabling forgets them.
 	Users []UserToken `json:"users,omitempty"`
+	// Devices are paired phones (devices.go). Rotating the admin token ends
+	// the admin's; replacing or removing a user's token ends that room's.
+	Devices []DeviceToken `json:"devices,omitempty"`
 }
 
 // Store reads/writes the switch file. Reads are cached by mtime+size so the
@@ -110,7 +113,8 @@ func (s *Store) Enable(by string) (string, error) {
 	}
 	prev, _ := s.Load()
 	sum := sha256.Sum256([]byte(token))
-	st := State{Users: prev.Users, Enabled: true, TokenHash: hex.EncodeToString(sum[:]), ChangedAt: time.Now().UTC(), ChangedBy: by}
+	// a new admin token also ends the phones the old one could have paired
+	st := State{Users: prev.Users, Devices: devicesWithout(prev.Devices, ""), Enabled: true, TokenHash: hex.EncodeToString(sum[:]), ChangedAt: time.Now().UTC(), ChangedBy: by}
 	if err := s.write(st); err != nil {
 		return "", err
 	}

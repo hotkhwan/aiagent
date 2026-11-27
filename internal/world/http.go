@@ -20,6 +20,8 @@
 //	POST /aiagent/api/connect/qr       token — {origin[, token]} → PNG of the phone app's connect code (connect.go)
 //	POST /aiagent/api/connect/pair     token — {origin} → one-time pairing code + QR for the phone app (pair.go)
 //	POST /aiagent/api/connect/pair/cancel token — ends the caller's pairing codes (pair.go)
+//	GET  /aiagent/api/connect/devices     token — paired phones in the caller's scope (devices.go)
+//	POST /aiagent/api/connect/devices/:id/revoke token — end one paired phone (devices.go)
 //	POST /aiagent/pair                 no token — {code} → the token, once, within 10 minutes (pair.go)
 //	POST /aiagent/api/push/devices     token — {handle} from the phone app's relay (push.go)
 //	POST /aiagent/api/uploads          token — raw image or zip body → {path} for a message
@@ -346,6 +348,8 @@ func (s *Service) Mount(app *fiber.App) {
 	api.Post("/connect/qr", s.handleConnectQR)
 	api.Post("/connect/pair", s.handleConnectPair)
 	api.Post("/connect/pair/cancel", s.handleConnectPairCancel)
+	api.Get("/connect/devices", s.handleDeviceList)
+	api.Post("/connect/devices/:id/revoke", s.handleDeviceRevoke)
 	api.Get("/update", s.handleUpdateCheck)
 	api.Get("/update/release", s.handleReleaseCheck)
 	api.Post("/update", s.handleUpdateApply)

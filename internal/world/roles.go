@@ -63,6 +63,8 @@ type Identity struct {
 	// reissue; empty for the admin. Never sent: it names the token in
 	// /tokens/:id routes only an admin may call.
 	UserID string `json:"-"`
+	// DeviceID is set when the token is a paired phone's (devices.go).
+	DeviceID string `json:"-"`
 }
 
 var (
@@ -107,7 +109,7 @@ func (s *Store) identifyIn(st State, sum [32]byte) (Identity, bool) {
 			return Identity{Role: RoleUser, Name: u.Name, OSUser: u.OSUser, UserID: u.ID}, true
 		}
 	}
-	return Identity{}, false
+	return identifyDevice(st, sum)
 }
 
 // AddUser mints a user token and returns it once.
@@ -170,6 +172,7 @@ func (s *Store) ReissueUser(id string) (UserToken, string, error) {
 		sum := sha256.Sum256([]byte(token))
 		users[i].Hash = hex.EncodeToString(sum[:])
 		st.Users = users
+		st.Devices = devicesWithout(st.Devices, id)
 		return users[i], token, s.write(st)
 	}
 	return UserToken{}, "", ErrNotFound("ไม่พบ token นี้")
@@ -193,6 +196,7 @@ func (s *Store) RevokeUser(id string) error {
 		return ErrNotFound("ไม่พบ token นี้")
 	}
 	st.Users = kept
+	st.Devices = devicesWithout(st.Devices, id)
 	return s.write(st)
 }
 
@@ -240,12 +244,13 @@ var userRoutes = map[string][]*regexp.Regexp{
 		`/sessions/[A-Za-z0-9-]+`, `/sessions/[A-Za-z0-9-]+/(messages|suggest)`,
 		`/uploads/[A-Za-z0-9.-]+`,
 		`/faces`, `/faces/account`, `/faces/sessions/[A-Za-z0-9-]+`,
+		`/connect/devices`,
 	),
 	// photo faces (faces.go): each token only ever reaches its own
 	"PUT":    compileAll(`/faces/(account|settings)`, `/faces/sessions/[A-Za-z0-9-]+`),
 	"DELETE": compileAll(`/faces/account`, `/faces/sessions/[A-Za-z0-9-]+`),
 	"POST": compileAll(
-		`/messages`, `/uploads`, `/preview/ticket`, `/push/devices`, `/push/devices/remove`, `/connect/qr`, `/connect/pair`, `/connect/pair/cancel`,
+		`/messages`, `/uploads`, `/preview/ticket`, `/push/devices`, `/push/devices/remove`, `/connect/qr`, `/connect/pair`, `/connect/pair/cancel`, `/connect/devices/[0-9a-f]{12}/revoke`,
 		`/sessions/[A-Za-z0-9-]+/(message|stop|name|look|answer)`,
 		`/reviews/[A-Za-z0-9._-]+/(view|compose|decision)`,
 	),
