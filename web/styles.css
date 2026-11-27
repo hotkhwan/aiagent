@@ -69,6 +69,11 @@ code, pre, .mono { font-family: ui-monospace, 'IBM Plex Mono', monospace; font-s
    as a stray word in the status text beside it rather than as a button. */
 .ghost.lang { padding: 4px 10px; border-color: var(--line); font-size: 13px; font-weight: 600; letter-spacing: .3px }
 .ghost.lang:hover { border-color: var(--brand); color: var(--brand) }
+/* the 🔔: a dot when a newer release is out (admin only) */
+.ghost.bell { position: relative; padding: 4px 8px }
+.bellDot { position: absolute; top: 2px; right: 2px; width: 9px; height: 9px; border-radius: 50%; background: var(--s-awaitingReview) }
+.releaseDlg { width: min(640px, 94vw) }
+.relNotes { white-space: pre-wrap; max-height: 40vh; overflow: auto; font: inherit; font-size: 13px; opacity: .9 }
 .conn.ok::before { content: '●'; color: var(--brand); margin-right: 6px }
 /* With the text gone the margin would hang off the end of the dot. */
 .conn.ok.live::before { margin-right: 0 }

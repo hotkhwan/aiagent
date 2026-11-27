@@ -24,6 +24,7 @@ import (
 	"os"
 	"os/user"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"syscall"
 	"time"
@@ -32,6 +33,7 @@ import (
 
 	"github.com/hotkhwan/aiagent/internal/audit"
 	"github.com/hotkhwan/aiagent/internal/planner"
+	"github.com/hotkhwan/aiagent/internal/release"
 	"github.com/hotkhwan/aiagent/internal/taskstore"
 	"github.com/hotkhwan/aiagent/internal/world"
 )
@@ -53,6 +55,10 @@ const usage = `aiagent — a village view of the AI coding agents running on thi
                             question is answered Yes before a session starts
   aiagent trust-roots ensure DIR | forget DIR
                             mark one folder trusted (only under a root) / undo
+  aiagent verify-release DIR
+                            check a downloaded release (SHA256SUMS, its .sig and
+                            this machine's archive) against the release key
+                            compiled into this aiagent
 
 Run "aiagent serve --help" for the serve flags.
 `
@@ -87,6 +93,8 @@ func main() {
 		trustRootsCmd(os.Args[2:])
 	case "self-update":
 		selfUpdateCmd(os.Args[2:])
+	case "verify-release":
+		verifyReleaseCmd(os.Args[2:])
 	case "-h", "--help", "help":
 		fmt.Print(usage)
 	default:
@@ -542,13 +550,34 @@ func selfUpdateCmd(args []string) {
 	fs := flag.NewFlagSet("self-update", flag.ExitOnError)
 	repo := fs.String("repo", "", "the git checkout to update from")
 	to := fs.String("to", "", "the exact upstream commit to install (refuses if upstream moved)")
+	relDir := fs.String("release-dir", "", "a downloaded release to verify and install instead of a checkout")
+	unit := fs.String("unit", "", "the systemd unit to restart (aiagent@<user>.service)")
 	dir := stateDirFlag(fs)
 	_ = fs.Parse(args)
 	stateDir := *dir
 	if stateDir == "" {
 		stateDir = world.DefaultStateDir()
 	}
-	if err := world.RunSelfUpdate(*repo, stateDir, *to); err != nil {
+	var err error
+	if *relDir != "" {
+		err = world.RunReleaseUpdate(*relDir, stateDir, *unit)
+	} else {
+		err = world.RunSelfUpdate(*repo, stateDir, *to)
+	}
+	if err != nil {
 		log.Fatalf("self-update: %v", err)
 	}
+}
+
+// verifyReleaseCmd checks a downloaded release folder and says which version it
+// is; it installs nothing.
+func verifyReleaseCmd(args []string) {
+	if len(args) != 1 {
+		log.Fatal("usage: aiagent verify-release DIR")
+	}
+	v, err := release.Verify(args[0], runtime.GOOS, runtime.GOARCH, world.ReleasePublicKey())
+	if err != nil {
+		log.Fatalf("verify-release: %v", err)
+	}
+	fmt.Printf("ok: aiagent %s for %s/%s is signed by the aiagent release key\n", v.Version, runtime.GOOS, runtime.GOARCH)
 }

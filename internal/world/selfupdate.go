@@ -29,11 +29,9 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
-	"runtime"
 	"strconv"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/gofiber/fiber/v3"
@@ -78,6 +76,9 @@ type UpdateInfo struct {
 	Reason      string         `json:"reason,omitempty"`
 	Error       string         `json:"error,omitempty"`
 	Status      UpdateStatus   `json:"status"`
+	// Release is the latest published release (selfupdate_release.go); the
+	// page's bell follows it whether or not this machine has a checkout.
+	Release ReleaseInfo `json:"release"`
 }
 
 type updateState struct {
@@ -218,6 +219,7 @@ func (s *Service) updateInfo(ctx context.Context, fresh bool) UpdateInfo {
 	}
 	info := s.update.info
 	info.Status = readUpdateStatus(s.Store.dir)
+	info.Release, _ = s.releaseInfo(ctx, fresh)
 	return info
 }
 
@@ -229,9 +231,13 @@ var commitRE = regexp.MustCompile(`^[0-9a-f]{40}$`)
 
 func (s *Service) handleUpdateApply(c fiber.Ctx) error {
 	var body struct {
-		Sha string `json:"sha"`
+		Sha     string `json:"sha"`
+		Release string `json:"release"`
 	}
 	_ = json.Unmarshal(c.Body(), &body)
+	if body.Release != "" {
+		return s.handleReleaseApply(c, body.Release)
+	}
 	if !commitRE.MatchString(body.Sha) {
 		return s.fail(c, ErrBadRequest(`expected {"sha": "<the commit the check showed>"}`))
 	}
@@ -261,28 +267,7 @@ func (s *Service) handleUpdateApply(c fiber.Ctx) error {
 // startSelfUpdate runs `aiagent self-update` in a session of its own, so the
 // restart it ends with does not take it down with the service.
 func (s *Service) startSelfUpdate(repo, to, sha string) error {
-	exe, err := os.Executable()
-	if err != nil {
-		return err
-	}
-	logf, err := os.OpenFile(filepath.Join(s.Store.dir, updateLogFile), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
-	if err != nil {
-		return err
-	}
-	writeUpdateStatus(s.Store.dir, UpdateStatus{Running: true, From: Version, To: to, At: time.Now().UTC(), Log: "กำลังเริ่ม…"})
-	cmd := exec.Command(exe, "self-update", "--repo", repo, "--state-dir", s.Store.dir, "--to", sha)
-	cmd.Stdout, cmd.Stderr = logf, logf
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
-	if err := cmd.Start(); err != nil {
-		logf.Close()
-		writeUpdateStatus(s.Store.dir, UpdateStatus{From: Version, At: time.Now().UTC(), Log: "เริ่มอัปเดตไม่ได้: " + err.Error()})
-		return err
-	}
-	go func() {
-		_ = cmd.Wait()
-		logf.Close()
-	}()
-	return nil
+	return s.launchSelfUpdate(to, "self-update", "--repo", repo, "--state-dir", s.Store.dir, "--to", sha)
 }
 
 // RunSelfUpdate is `aiagent self-update`: pull, install, restart. It writes its
@@ -345,16 +330,5 @@ func RunSelfUpdate(repo, stateDir, sha string) error {
 	st.Log = strings.TrimSpace(log.String() + "\nติดตั้งแล้ว กำลังเริ่ม service ใหม่")
 	writeUpdateStatus(stateDir, st)
 	// the restart ends the service that started this; this process lives on
-	var restart *exec.Cmd
-	if runtime.GOOS == "darwin" {
-		restart = exec.Command("launchctl", "kickstart", "-k", fmt.Sprintf("gui/%d/com.aiagent.service", os.Getuid()))
-	} else {
-		restart = exec.Command("systemctl", "restart", "aiagent@"+os.Getenv("USER"))
-	}
-	if out, err := restart.CombinedOutput(); err != nil {
-		st.Log = strings.TrimSpace(st.Log + "\nเริ่ม service ใหม่ไม่ได้: " + strings.TrimSpace(string(out)) + " — เริ่มเองด้วยมือ")
-		writeUpdateStatus(stateDir, st)
-		return err
-	}
-	return nil
+	return restartService("", stateDir, &st)
 }

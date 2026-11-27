@@ -40,6 +40,7 @@
   <button type="button" class="ghost lang" id="langBtn" aria-label="Language / ภาษา">EN</button>
   <div id="asBar" class="asBar" hidden><span>กำลังดูห้องของ</span> <b id="asName"></b> <button type="button" class="ghost" id="asBack">กลับห้อง admin</button></div>
   <button type="button" class="ghost" id="previewBtn" hidden title="หน้าที่ agent ของห้องกำลังสร้าง">🖥 พรีวิว</button>
+  <button type="button" class="ghost bell" id="releaseBtn" hidden aria-label="เวอร์ชันใหม่ของ aiagent" title="เวอร์ชันใหม่ของ aiagent">🔔<span class="bellDot" id="releaseDot" hidden></span></button>
   <button type="button" class="ghost" id="accountsBtn" hidden title="บัญชี Claude / Codex บนเครื่องนี้">👤 บัญชี</button>
   <button type="button" class="ghost" id="connectBtn" title="เชื่อมต่อแอปมือถือ AI Agent World">📱 แอป</button>
 </header>
@@ -125,6 +126,11 @@
   <div class="spHead"><h2>เลือกตัวละครของ agent นี้</h2><form method="dialog"><button class="ghost" aria-label="ปิด">✕</button></form></div>
   <div class="spBody"><div class="charGrid" id="charGrid"></div>
     <div class="charFoot"><button type="button" class="ghost" id="charReset">ใช้ค่าเริ่มต้น</button></div></div>
+</dialog>
+
+<dialog id="releaseDlg" class="screenPop releaseDlg">
+  <div class="spHead"><h2>เวอร์ชันใหม่ของ aiagent</h2><form method="dialog"><button class="ghost" aria-label="ปิด">✕</button></form></div>
+  <div class="spBody" id="releaseBody"></div>
 </dialog>
 
 <dialog id="accountsDlg" class="screenPop">

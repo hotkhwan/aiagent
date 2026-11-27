@@ -22,6 +22,7 @@ import (
 	"github.com/gofiber/fiber/v3"
 
 	"github.com/hotkhwan/aiagent/internal/audit"
+	"github.com/hotkhwan/aiagent/internal/release"
 )
 
 // ---------- fixtures ----------
@@ -319,6 +320,8 @@ func newEnv(t *testing.T) *env {
 	}
 	t.Cleanup(func() { auditor.Close() })
 	e.svc = NewService(e.store, e.col, auditor)
+	// no network: a client with nowhere it may go fails at once
+	e.svc.release.client = &release.Client{}
 	e.app = fiber.New()
 	e.svc.Mount(e.app)
 	e.app.Get("/*", func(c fiber.Ctx) error { return c.SendString("WEBINIT-SPA") })
