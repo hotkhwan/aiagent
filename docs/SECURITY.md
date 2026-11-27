@@ -73,15 +73,30 @@ codes and other secrets out of the report; describe how to obtain them instead. 
 - The header's **📱 App** dialog shows a pairing code instead
   (`internal/world/pair.go`): `aiagent://pair?c=pair_<43 base64url>&u=<origin>`.
   `POST /api/connect/pair` (any valid token) stores, in memory only,
-  sha256(ticket) → the presented token, for 10 minutes; at most 50 live
-  tickets, the oldest dropped first; a restart empties the table. The app
-  redeems it at `POST /aiagent/pair` (no token, 404 while the service is off):
-  the ticket is deleted on the first try, so one redeem wins, and the token is
-  checked again so a revoked or reissued token is not handed out. Every failure
-  (bad shape, unknown, used, expired, revoked) answers the same 404
-  `AIAGENT_PAIR_INVALID`; 10 failures a minute from one address answer 429.
-  Neither endpoint is audited or logged, and both send `Cache-Control: no-store`.
-  A photo of the QR is useless once used or after 10 minutes.
+  sha256(ticket) → the presented token, for 10 minutes; a new code ends the
+  older codes of the same token, closing the dialog ends them
+  (`POST /api/connect/pair/cancel`), at most 50 live tickets, and a restart
+  empties the table. The app redeems it at `POST /aiagent/pair` (no token, 404
+  while the service is off): the ticket is deleted on the first try, so one
+  redeem wins, and the page's token is checked again so a revoked or reissued
+  one pairs nothing. Every failure (bad shape, unknown, used, expired, revoked)
+  answers the same 404 `AIAGENT_PAIR_INVALID`; 10 failures a minute from one
+  address answer 429. Every redeem writes `aiagent.pairRedeem` ok|denied with
+  the caller's address to the audit log before anything is sent — never the
+  code or a token. Both endpoints send `Cache-Control: no-store`.
+- **The phone gets a token of its own** (`internal/world/devices.go`), never
+  the page's: a new `kaw_` token with exactly the page's scope (the admin's,
+  or one room's), stored as its SHA-256 in the state file. `GET
+  /api/connect/devices` lists the phones in the caller's scope (the admin
+  sees all, a room's user only theirs) with no hashes; `POST
+  /api/connect/devices/:id/revoke` ends one at once, audited as
+  `aiagent.deviceRevoke`. `aiagent rotate-token` ends every admin-scoped
+  phone, since whoever held the old token could have paired one; reissuing or
+  revoking a room's token ends that room's phones; `disable` forgets them all.
+  A phone's token cannot draw a pairing code (403), so a stolen phone cannot
+  mint tokens that outlive its own revoke.
+  Phones paired before this change hold the page's token and keep working
+  until it is rotated.
 
 - **Photo faces** (`internal/world/faces.go`, any role, each token only its own;
   answered by the main service even in `--os-users` mode):
@@ -309,6 +324,8 @@ Two lessons worth keeping:
       and you keep it private and rotate it if it may have leaked.
 - [ ] Pairing codes: only the newest code per token works, closing the 📱 App
       dialog ends it, and every redeem is in the audit log
-      (`aiagent.pairRedeem`). A code on screen is the token until then.
+      (`aiagent.pairRedeem`). A code on screen can pair one phone until then.
+- [ ] Paired phones: each has its own token, listed in the 📱 App dialog;
+      revoke a lost phone there.
 - [ ] The state directory is `0700` and owned by the service user.
 - [ ] You have read what the token actually grants, above.
