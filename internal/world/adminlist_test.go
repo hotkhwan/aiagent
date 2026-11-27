@@ -187,3 +187,34 @@ func TestAdminListFollowsAJob(t *testing.T) {
 		t.Fatalf("jobs = %v", got)
 	}
 }
+
+// TestMarkRoles: the admin's cards say admin for a session on the guard's
+// list and the room's duty for a room's session; the main service's other
+// sessions get no role.
+func TestMarkRoles(t *testing.T) {
+	e, _, _ := osUserEnv(t)
+	e.svc.Duties = &RoomDuties{Path: filepath.Join(t.TempDir(), "room-duties.conf")}
+	if _, err := e.store.Enable("t"); err != nil {
+		t.Fatal(err)
+	}
+	_ = e.svc.Duties.Set("tiew", DutyFrontend)
+	_ = e.svc.Duties.Set("lew", DutyTester)
+	if err := os.WriteFile(filepath.Join(e.store.dir, protectedFile), []byte(`{"sessions":["adm-1"],"explicit":true,"pinned":["adm-1"]}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	ss := []Session{
+		{SessionID: "adm-1", Owner: e.svc.ownRoom()},
+		{SessionID: "main-2", Owner: e.svc.ownRoom()},
+		{SessionID: "t-1", Owner: "tiew"},
+		{SessionID: "l-1", Owner: "lew"},
+		{SessionID: "g-1", Owner: "gon"},
+	}
+	e.svc.markRoles(ss)
+	got := []string{}
+	for _, x := range ss {
+		got = append(got, x.Role)
+	}
+	if want := []string{"admin", "", "frontend", "tester", ""}; !slices.Equal(got, want) {
+		t.Fatalf("roles = %v, want %v", got, want)
+	}
+}

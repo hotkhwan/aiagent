@@ -1838,6 +1838,13 @@ function reduceMotion () {
 // The session list is the home screen: one card per main agent. It is the only
 // view that does not run out of room, which the five-house map did as soon as a
 // sixth session started.
+// The role the admin gave: admin (on the guard's admin list) or the room's duty.
+const roleIcon = { admin: '🛡️', frontend: '🎨', backend: '⚙️', tester: '🧪' }
+function roleBadge (role) {
+  if (!roleIcon[role]) return null
+  return h('span', { class: 'roleBadge role-' + role, title: tr('บทบาท: ') + dutyLabel(role) }, roleIcon[role] + ' ' + dutyLabel(role))
+}
+
 function sessionCard (sess) {
   const waiting = sess.status === 'needsInput'
   const resting = sess.status === 'idle' || sess.status === 'completed'
@@ -1858,7 +1865,7 @@ function sessionCard (sess) {
   },
   ava,
   h('div', { class: 'sMain' },
-    h('b', null, nameOf(sess)),
+    h('b', null, nameOf(sess), roleBadge(sess.role)),
     h('span', { class: 'sMeta' }, runtimeName[sess.runtimeType] + ' · ' + (sess.repoId || '—') + (sess.gitBranch ? ' · ' + sess.gitBranch : ''))),
   h('div', { class: 'sRight' },
     h('em', { class: 'pill ' + tone }, state),

@@ -66,9 +66,12 @@ type Session struct {
 	// when the operator has renamed it (names.go), so the UI can offer it back.
 	OriginalName string `json:"originalName,omitempty"`
 	Owner        string `json:"owner"`
-	Cwd          string `json:"cwd"`
-	RepoID       string `json:"repoId"`
-	Workspace    string `json:"workspace,omitempty"`
+	// Role is what the admin sees on the card: "admin" for a session on the
+	// guard's admin list (protected.json), else its room's duty. Admin only.
+	Role      string `json:"role,omitempty"`
+	Cwd       string `json:"cwd"`
+	RepoID    string `json:"repoId"`
+	Workspace string `json:"workspace,omitempty"`
 	// DispatchVia names the agcmd workspace whose tmux agent pane IS this
 	// session's process (pid descends from the pane). Only then does sending
 	// work from the web reach this exact session.

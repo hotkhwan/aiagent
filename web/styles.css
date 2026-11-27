@@ -46,6 +46,9 @@ button, input, select { font: inherit; color: inherit }
 :root { color-scheme: dark }
 select { background: var(--sky); color: var(--ink); border: 1px solid var(--line); border-radius: 8px; padding: 4px 8px }
 select option { background: var(--sky2); color: var(--ink) }
+/* the role the admin gave a session or its room (sessionCard) */
+.roleBadge { display: inline-block; margin-left: 8px; padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; vertical-align: middle; background: var(--sky3); color: var(--ink); border: 1px solid var(--line) }
+.roleBadge.role-admin { background: rgba(245,184,75,.16); color: var(--amber); border-color: rgba(245,184,75,.45) }
 select:disabled { opacity: .55 }
 button { cursor: pointer; border: 1px solid var(--line); background: transparent; border-radius: 10px; padding: 8px 14px }
 button.pri { background: var(--brand); color: var(--brandInk); border-color: var(--brand); font-weight: 600 }

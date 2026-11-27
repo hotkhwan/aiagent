@@ -478,6 +478,9 @@ func (s *Service) handleSnapshot(c fiber.Ctx) error {
 		rooms, _ := s.teammates(c.Context(), "")
 		snap.Sessions = append(snap.Sessions, rooms...)
 	}
+	if identity(c).Role == RoleAdmin {
+		s.markRoles(snap.Sessions)
+	}
 	return c.JSON(okEnv(snap))
 }
 

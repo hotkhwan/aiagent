@@ -59,6 +59,9 @@ const usage = `aiagent — a village view of the AI coding agents running on thi
                             check a downloaded release (SHA256SUMS, its .sig and
                             this machine's archive) against the release key
                             compiled into this aiagent
+  aiagent gitlab-mr --name VAULT_NAME GROUP/PROJECT IID
+                            read one GitLab merge request's state with a vault
+                            token; prints the state, never the token
 
 Run "aiagent serve --help" for the serve flags.
 `
@@ -81,6 +84,8 @@ func main() {
 		_ = world.RunStatusline(os.Stdin, os.Stdout, home, time.Now())
 	case "git-credential":
 		gitCredential(os.Args[2:])
+	case "gitlab-mr":
+		gitlabMR(os.Args[2:])
 	case "capture-box":
 		captureBox(os.Args[2:])
 	case "review":

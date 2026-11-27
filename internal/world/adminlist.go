@@ -239,3 +239,33 @@ func toLists(m map[string]string) map[string][]string {
 	}
 	return out
 }
+
+// markRoles names each session's role for the admin's cards: admin when it is
+// on the guard's list, otherwise the duty of the room it runs in. A session
+// of the main service that is not on the list gets none.
+func (s *Service) markRoles(sessions []Session) {
+	var admins map[string]bool
+	protectedMu.Lock()
+	if list, err := s.readProtected(); err == nil {
+		admins = idSet(list.Sessions)
+		if s.Duties == nil {
+			admins = idSet(union(list.Sessions, list.Pinned))
+		}
+	}
+	protectedMu.Unlock()
+	duties := map[string]string{}
+	own := ""
+	if s.Duties != nil {
+		duties = s.Duties.Load()
+		own = s.ownRoom()
+	}
+	for i := range sessions {
+		ss := &sessions[i]
+		switch {
+		case admins[strings.ToLower(ss.SessionID)]:
+			ss.Role = DutyAdmin
+		case ss.Owner != "" && ss.Owner != own && duties[ss.Owner] != "":
+			ss.Role = duties[ss.Owner]
+		}
+	}
+}
