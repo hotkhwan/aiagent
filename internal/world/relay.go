@@ -44,6 +44,10 @@ func (c *Collector) decideMessage(ss *Session) {
 		ss.MessageVia = "agcmd"
 	case ss.RuntimeType == "claudeCode" && ss.Kind == "bg" && ss.home == c.serviceHome() && shortIDPattern.MatchString(shortID(ss.SessionID)):
 		ss.MessageVia = "relay"
+	case ss.RuntimeType == "claudeCode" && ss.Kind != "bg" && c.Channels.Live(ss.SessionID):
+		// the session's own channel process takes the message (channels.go);
+		// nothing is typed into the terminal or VS Code that holds it
+		ss.MessageVia = "channel"
 	case ss.RuntimeType == "claudeCode" && ss.Kind == "bg":
 		ss.MessageBlocked = "background session ของผู้ใช้ " + ss.Owner + " — บริการนี้ส่งได้เฉพาะ session ของตัวเอง"
 	default:
@@ -94,6 +98,8 @@ func (c *Collector) SendToSession(ctx context.Context, id, message string) (stri
 			}
 		}
 		return "relay " + relayName(short), c.relaySend(ctx, target, message)
+	case "channel":
+		return "channel", c.Channels.Send(target.SessionID, message)
 	}
 	return "", ErrConflict(target.MessageBlocked)
 }

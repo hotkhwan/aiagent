@@ -183,6 +183,12 @@ func (c *Collector) answerTarget(ctx context.Context, id string) (pane string, u
 // (ask.go), which sees each key land and submits a multiSelect; any other
 // question gets the cursor moved to the choice and Enter.
 func (c *Collector) AnswerPrompt(ctx context.Context, id string, n int) error {
+	if c.Channels.HasPrompt(id) {
+		// a permission prompt the session relayed through its channel:
+		// the verdict goes back the same way, no keys are pressed
+		defer c.invalidate()
+		return c.Channels.Answer(id, n)
+	}
 	pane, unlock, err := c.answerTarget(ctx, id)
 	if err != nil {
 		return err

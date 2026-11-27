@@ -341,6 +341,8 @@ func (s *Service) Mount(app *fiber.App) {
 	app.Get("/aiagent/review-view/:ticket", s.handleReviewView)
 	// the phone app trades a one-time pairing code for its token (pair.go)
 	app.Post("/aiagent/pair", s.handlePairRedeem)
+	// a terminal or VS Code session's own `aiagent channel` (channels_http.go)
+	s.mountChannels(app)
 
 	api := app.Group("/aiagent/api", s.gate)
 	api.Get("/me", s.handleMe)

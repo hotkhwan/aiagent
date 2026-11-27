@@ -45,6 +45,9 @@ type Collector struct {
 	// empty trusts nothing. OnTrust records each attempt (the audit log).
 	TrustedRoots func() []string
 	OnTrust      func(dir string, changed []string, err error)
+	// Channels reaches terminal and VS Code sessions that run `aiagent
+	// channel` (channels.go); nil, the default, leaves them read-only.
+	Channels *ChannelHub
 
 	mu             sync.Mutex
 	cli            cliState
@@ -317,6 +320,9 @@ func (c *Collector) collectLocked(ctx context.Context) Snapshot {
 		c.decideStop(&snap.Sessions[i])
 		c.decideMessage(&snap.Sessions[i])
 		c.relayPrompt(ctx, &snap.Sessions[i])
+		if ss := &snap.Sessions[i]; ss.Prompt == nil && ss.MessageVia == "channel" {
+			ss.Prompt = c.Channels.Prompt(ss.SessionID)
+		}
 	}
 	sort.SliceStable(snap.Sessions, func(i, j int) bool {
 		a, b := snap.Sessions[i], snap.Sessions[j]
