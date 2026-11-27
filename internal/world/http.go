@@ -97,8 +97,11 @@ type Service struct {
 	PMThread *planner.Thread
 
 	// OSUsers is set when each user token gets its own OS user (osusers.go).
-	OSUsers     *OSUsers
-	userTickets map[string]userTicket
+	OSUsers *OSUsers
+	// AllowedHosts, when set, are the only Host names answered besides
+	// loopback ones (hosts.go); empty answers every name.
+	AllowedHosts []string
+	userTickets  map[string]userTicket
 	// Preview is set when rooms have pages of their own (preview.go).
 	Preview *Preview
 	// PushRelay is the relay phone notifications go through (push.go);
@@ -117,11 +120,16 @@ type Service struct {
 	roomCap roomCaptureState
 	mates   mateCache
 
-	mu        sync.Mutex
-	failures  map[string][]time.Time
-	lastWrite time.Time
-	uploads   uploadLimiter
-	tickets   map[string]viewTicket
+	mu       sync.Mutex
+	failures map[string][]time.Time
+	// lastWrite is the admin's (every admin token and phone), userWrites each
+	// user token's: one user's writes never slow the admin or another user.
+	lastWrite  time.Time
+	userWrites map[string]time.Time
+	// uploads is the admin's limit, userUploads each user token's
+	uploads     uploadLimiter
+	userUploads map[string]*uploadLimiter
+	tickets     map[string]viewTicket
 	// sends remembers recent sends so one is never typed twice (sendonce.go)
 	sends sendOnce
 	// pair holds the phone app's one-time pairing tickets (pair.go)
@@ -158,6 +166,7 @@ func NewService(store *Store, col *Collector, auditor *audit.Logger) *Service {
 
 const (
 	maxFailures    = 10
+	maxFailureKeys = 4096
 	failureWindow  = 5 * time.Minute
 	writeSpacing   = time.Second
 	securityHeader = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
@@ -179,10 +188,29 @@ func (s *Service) tooManyFailures(ip string, now time.Time) bool {
 func (s *Service) recordFailure(ip string, now time.Time) {
 	s.mu.Lock()
 	s.failures[ip] = append(s.failures[ip], now)
-	if len(s.failures) > 4096 {
-		s.failures = map[string][]time.Time{ip: s.failures[ip]}
-	}
+	// a full table loses its stalest address, never everyone: wiping it
+	// unlocked the guesser who filled it
+	evictOldest(s.failures, maxFailureKeys)
 	s.mu.Unlock()
+}
+
+// evictOldest drops the addresses whose last failure is oldest until m holds
+// at most max of them.
+func evictOldest(m map[string][]time.Time, max int) {
+	for len(m) > max {
+		var oldest string
+		var at time.Time
+		for k, ts := range m {
+			last := time.Time{}
+			if len(ts) > 0 {
+				last = ts[len(ts)-1]
+			}
+			if oldest == "" || last.Before(at) {
+				oldest, at = k, last
+			}
+		}
+		delete(m, oldest)
+	}
 }
 
 // clientAddr is the address wrong tokens are counted against.
@@ -212,13 +240,17 @@ func (s *Service) gate(c fiber.Ctx) error {
 	if !s.Store.Enabled() {
 		return hidden(c)
 	}
-	now := time.Now()
-	ip := clientAddr(c)
-	if s.tooManyFailures(ip, now) {
-		return c.Status(fiber.StatusTooManyRequests).JSON(failEnv("AIAGENT_LOCKED", "ใส่ token ผิดหลายครั้งเกินไป รอสักครู่แล้วลองใหม่"))
-	}
+	// The token is checked before the lockout, and a valid one is always let
+	// in: anyone on this machine can name any visitor address (clientAddr),
+	// and could otherwise lock the owner out by guessing under theirs. Only
+	// wrong tokens are counted.
 	who, ok := s.Store.Identify(c.Get(TokenHeader))
 	if !ok {
+		now := time.Now()
+		ip := clientAddr(c)
+		if s.tooManyFailures(ip, now) {
+			return c.Status(fiber.StatusTooManyRequests).JSON(failEnv("AIAGENT_LOCKED", "ใส่ token ผิดหลายครั้งเกินไป รอสักครู่แล้วลองใหม่"))
+		}
 		s.recordFailure(ip, now)
 		return c.Status(fiber.StatusUnauthorized).JSON(failEnv("AIAGENT_TOKEN_INVALID", "ไม่มี token หรือ token ของ AI Agent World ไม่ถูกต้อง"))
 	}
@@ -226,6 +258,12 @@ func (s *Service) gate(c fiber.Ctx) error {
 	c.Locals("identity", who)
 	if who.Role != RoleAdmin && !s.userMay(c) {
 		return c.Status(fiber.StatusForbidden).JSON(failEnv("AIAGENT_ADMIN_ONLY", "ต้องใช้ token ของ admin"))
+	}
+	if who.DeviceID != "" && !deviceMay(c) {
+		return c.Status(fiber.StatusForbidden).JSON(failEnv("AIAGENT_DEVICE_FORBIDDEN", "ทำจากโทรศัพท์ไม่ได้ ใช้หน้าเว็บด้วย token ของ admin"))
+	}
+	if who.Role != RoleAdmin && !userTextAllowed(c) {
+		return c.Status(fiber.StatusForbidden).JSON(failEnv("AIAGENT_COMMAND_BLOCKED", "คำสั่งนี้ใช้ได้เฉพาะ admin"))
 	}
 	// before a send is handed to a room: the room's instance checks again
 	return s.once(c, func() error { return s.route(c, who) })
@@ -306,6 +344,9 @@ func (s *Service) Mount(app *fiber.App) {
 	app.Use(func(c fiber.Ctx) error {
 		if s.Preview.onHost(string(c.Request().Host())) {
 			return c.SendStatus(fiber.StatusNotFound)
+		}
+		if !s.hostAllowed(string(c.Request().Host())) {
+			return hidden(c)
 		}
 		return c.Next()
 	})
@@ -536,13 +577,9 @@ func paramsHash(parts ...string) string {
 // mutate runs one audited, rate-limited write. An audit failure aborts the
 // action: nothing reaches an agent unaudited.
 func (s *Service) mutate(c fiber.Ctx, rpc string, params []string, fn func() (any, error)) error {
-	s.mu.Lock()
-	if time.Since(s.lastWrite) < writeSpacing {
-		s.mu.Unlock()
+	if !s.allowWrite(identity(c), time.Now()) {
 		return c.Status(fiber.StatusTooManyRequests).JSON(failEnv("AIAGENT_SLOW_DOWN", "ทำได้ 1 คำสั่งต่อวินาที รอสักครู่แล้วลองใหม่"))
 	}
-	s.lastWrite = time.Now()
-	s.mu.Unlock()
 
 	sub := subject(c)
 	ph := paramsHash(params...)
@@ -564,6 +601,64 @@ func (s *Service) mutate(c fiber.Ctx, rpc string, params []string, fn func() (an
 	}
 	s.Collector.invalidate()
 	return c.JSON(okEnv(details))
+}
+
+// userKey names a user token for the per-identity limits; "" is the admin.
+// A user's phones share their room's limit.
+func userKey(who Identity) string {
+	if who.Role == RoleAdmin {
+		return ""
+	}
+	if who.UserID != "" {
+		return "id:" + who.UserID
+	}
+	return "name:" + who.Name
+}
+
+// allowWrite spaces each identity's writes writeSpacing apart.
+func (s *Service) allowWrite(who Identity, now time.Time) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	k := userKey(who)
+	if k == "" {
+		if now.Sub(s.lastWrite) < writeSpacing {
+			return false
+		}
+		s.lastWrite = now
+		return true
+	}
+	if s.userWrites == nil {
+		s.userWrites = map[string]time.Time{}
+	}
+	if now.Sub(s.userWrites[k]) < writeSpacing {
+		return false
+	}
+	for x, t := range s.userWrites {
+		if now.Sub(t) >= writeSpacing {
+			delete(s.userWrites, x) // user tokens are few; the table stays small
+		}
+	}
+	s.userWrites[k] = now
+	return true
+}
+
+// uploadsFor is the upload limiter of one identity.
+func (s *Service) uploadsFor(who Identity) *uploadLimiter {
+	k := userKey(who)
+	if k == "" {
+		return &s.uploads
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.userUploads == nil {
+		s.userUploads = map[string]*uploadLimiter{}
+	}
+	l := s.userUploads[k]
+	if l == nil {
+		l = &uploadLimiter{}
+		s.userUploads[k] = l
+	}
+	return l
 }
 
 func (s *Service) handleMission(c fiber.Ctx) error {
@@ -640,7 +735,7 @@ func (s *Service) handleMessages(c fiber.Ctx) error {
 }
 
 func (s *Service) handleUpload(c fiber.Ctx) error {
-	if !s.uploads.allow(time.Now()) {
+	if !s.uploadsFor(identity(c)).allow(time.Now()) {
 		return c.Status(fiber.StatusTooManyRequests).JSON(failEnv("AIAGENT_SLOW_DOWN", "อัปโหลดถี่เกินไป รอ 1 นาที"))
 	}
 	body := c.Body()

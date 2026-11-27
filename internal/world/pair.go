@@ -151,10 +151,11 @@ func (p *pairState) limited(ip string, now time.Time) bool {
 func (p *pairState) failed(ip string, now time.Time) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	if p.fails == nil || len(p.fails) > 4096 {
+	if p.fails == nil {
 		p.fails = map[string][]time.Time{}
 	}
 	p.fails[ip] = append(p.fails[ip], now)
+	evictOldest(p.fails, maxFailureKeys)
 }
 
 func pairCode(origin, ticket string) (string, error) {
@@ -228,8 +229,14 @@ func (s *Service) handlePairRedeem(c fiber.Ctx) error {
 	c.Set("X-Content-Type-Options", "nosniff")
 	now := s.pair.clock()
 	ip := clientAddr(c)
-	if s.pair.limited(ip, now) {
-		return c.Status(fiber.StatusTooManyRequests).JSON(failEnv("AIAGENT_LOCKED", "ลองรหัสผิดหลายครั้งเกินไป รอสักครู่แล้วลองใหม่"))
+	// a live code is always taken, as a valid token is in the gate: the
+	// address is one anyone on this machine can name. Only misses count.
+	miss := func() error {
+		if s.pair.limited(ip, now) {
+			return c.Status(fiber.StatusTooManyRequests).JSON(failEnv("AIAGENT_LOCKED", "ลองรหัสผิดหลายครั้งเกินไป รอสักครู่แล้วลองใหม่"))
+		}
+		s.pair.failed(ip, now)
+		return pairInvalid(c)
 	}
 	var body struct {
 		Code string `json:"code"`
@@ -237,8 +244,7 @@ func (s *Service) handlePairRedeem(c fiber.Ctx) error {
 		Name string `json:"name"`
 	}
 	if json.Unmarshal(c.Body(), &body) != nil || !pairCodeRE.MatchString(body.Code) {
-		s.pair.failed(ip, now)
-		return pairInvalid(c)
+		return miss()
 	}
 	token, ok := s.pair.take(body.Code, now)
 	var page Identity
@@ -247,9 +253,8 @@ func (s *Service) handlePairRedeem(c fiber.Ctx) error {
 		page, ok = s.Store.IdentifyHash(sha256.Sum256([]byte(token)))
 	}
 	if !ok {
-		s.pair.failed(ip, now)
 		_ = s.auditPair(ip, "denied")
-		return pairInvalid(c)
+		return miss()
 	}
 	// on record before the token leaves: no audit line, no token
 	if err := s.auditPair(ip, "ok"); err != nil {

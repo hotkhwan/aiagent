@@ -139,6 +139,7 @@ func serve(args []string) {
 	updateRepo := fs.String("update-repo", "", "git checkout the web page updates from (default: the one packaging/install.sh recorded)")
 	pushRelay := fs.String("push-relay", world.DefaultPushRelay, "relay for phone notifications (an https origin), or off")
 	proxies := fs.String("trusted-proxies", os.Getenv("AIAGENT_TRUSTED_PROXIES"), "reverse proxies in front of aiagent (CIDRs, comma-separated) whose X-Forwarded-For names the visitor; the Cloudflare tunnel on loopback needs none")
+	allowedHosts := fs.String("allowed-hosts", os.Getenv("AIAGENT_ALLOWED_HOSTS"), "host names this service answers (comma-separated), besides localhost and loopback addresses; empty answers any name")
 	osUsers := fs.Bool("os-users", false, "give each user token its own OS user and instance (Linux, systemd, root)")
 	dutiesConf := fs.String("room-duties", "/etc/aiagent/room-duties.conf", "each room's duty (frontend, backend, fullstack, tester, admin), with --os-users; written when the admin sets one")
 	previewConf := fs.String("preview-conf", "/etc/aiagent/preview.conf", "rooms' preview pages, with --os-users; a missing file or empty HOST leaves them off")
@@ -150,6 +151,10 @@ func serve(args []string) {
 		log.Fatalf("--trusted-proxies: %v", err)
 	}
 	world.SetTrustedProxies(trusted)
+	hosts, err := world.ParseAllowedHosts(*allowedHosts)
+	if err != nil {
+		log.Fatalf("--allowed-hosts: %v", err)
+	}
 
 	if (*certFile == "") != (*keyFile == "") {
 		log.Fatal("--tls-cert and --tls-key must be given together")
@@ -257,6 +262,11 @@ func serve(args []string) {
 	}
 	svc.PushRelay = relay
 	svc.UpdateRepo = *updateRepo
+	// a room's instance (--listen systemd) is reached only over its unix
+	// socket, by the admin's service, under its own name
+	if *listen != "systemd" {
+		svc.AllowedHosts = hosts
+	}
 	svc.Mount(app)
 	svc.StartRooms(context.Background())
 	// a room's own instance collects what its sandboxed agent leaves in its

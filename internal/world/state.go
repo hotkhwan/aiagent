@@ -113,8 +113,19 @@ func (s *Store) Enable(by string) (string, error) {
 	}
 	prev, _ := s.Load()
 	sum := sha256.Sum256([]byte(token))
-	// a new admin token also ends the phones the old one could have paired
-	st := State{Users: prev.Users, Devices: devicesWithout(prev.Devices, ""), Enabled: true, TokenHash: hex.EncodeToString(sum[:]), ChangedAt: time.Now().UTC(), ChangedBy: by}
+	// a new admin token also ends the phones the old one could have paired,
+	// and the user tokens those phones made (devicegate.go)
+	st := State{Users: prev.Users, Devices: prev.Devices, Enabled: true, TokenHash: hex.EncodeToString(sum[:]), ChangedAt: time.Now().UTC(), ChangedBy: by}
+	adminPhones := map[string]bool{}
+	for _, d := range prev.Devices {
+		if d.UserID == "" {
+			adminPhones[d.ID] = true
+		}
+	}
+	if err := endTokensOf(&st, adminPhones); err != nil {
+		return "", err
+	}
+	st.Devices = devicesWithout(st.Devices, "")
 	if err := s.write(st); err != nil {
 		return "", err
 	}

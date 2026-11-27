@@ -49,12 +49,12 @@ func TestRoomRestartsOnceAndOnlyWhenNeeded(t *testing.T) {
 }
 
 func TestUserCannotTypeModelCommands(t *testing.T) {
-	for _, m := range []string{"/model", "/model haiku", " /model sonnet", "\u200b/model x", "\x01/mod", "/m", "/config", "/fast", "/odel", "/", "/settings\nx", "/login", "/compactx", "/model/x"} {
+	for _, m := range []string{"/model", "/model haiku", " /model sonnet", "\u200b/model x", "\x01/mod", "/m", "/config", "/fast", "/odel", "/", "/settings\nx", "/login", "/compactx", "/model/x", "/home/x/docs อ่านให้หน่อย", "/tmp/x"} {
 		if userText(m) {
 			t.Errorf("%q was let through", m)
 		}
 	}
-	for _, m := range []string{"สวัสดี", "ใช้ /model ได้ไหม", "/compact", "/rename งานใหม่", "/home/x/docs อ่านให้หน่อย"} {
+	for _, m := range []string{"สวัสดี", "ใช้ /model ได้ไหม", "/compact", "/rename งานใหม่", "อ่าน /home/x/docs ให้หน่อย"} {
 		if !userText(m) {
 			t.Errorf("%q was blocked", m)
 		}
