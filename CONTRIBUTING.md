@@ -50,9 +50,9 @@ advisory. See [docs/SECURITY.md](docs/SECURITY.md).
 
 ## Assets
 
-Do not add images to `web/assets/` until the licensing question in
-[docs/ASSETS.md](docs/ASSETS.md) is resolved, and never add one whose
-provenance you cannot write down.
+Images in `web/assets/` are CC BY 4.0. Add one only if you can record its
+provenance in [docs/ASSETS.md](docs/ASSETS.md) and license it the same way;
+never add one whose provenance you cannot write down.
 
 New art must satisfy [docs/ASSET_SPEC.md](docs/ASSET_SPEC.md) — exact file
 names, canvas sizes, sprite-sheet grids, and real alpha. `go test ./web/`

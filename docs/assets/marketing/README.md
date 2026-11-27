@@ -15,9 +15,8 @@ in the interface was drawn or generated. The machine name was replaced with
 capture. No tokens, pairing QR codes or real paths appear.
 
 **Licence.** The screenshots contain the village art from `web/assets/`, so
-these images share its status: **not** covered by the Apache-2.0 code licence
-until [docs/ASSETS.md](../../ASSETS.md) is resolved. Treat them as all rights
-reserved.
+these images share its licence: © JOINANNY, [CC BY 4.0](../../../LICENSE-ASSETS.md),
+AI-generated. See [docs/ASSETS.md](../../ASSETS.md).
 
 They are composed with the JOINANNY brand colours and the app's own character
 sprites by scripts kept outside this repository.
