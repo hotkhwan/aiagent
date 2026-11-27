@@ -82,6 +82,27 @@ issue. There is one maintainer, so expect a human-speed reply, not an SLA.
   Neither endpoint is audited or logged, and both send `Cache-Control: no-store`.
   A photo of the QR is useless once used or after 10 minutes.
 
+- **Photo faces** (`internal/world/faces.go`, any role, each token only its own;
+  answered by the main service even in `--os-users` mode):
+  - `GET /api/faces` → `{"accountForAll","characterOnly":[ids],"account":"<v>"|"","sessions":{id:"<v>"}}`,
+    `<v>` = first 16 hex of sha256 of the stored PNG.
+  - `GET|PUT|DELETE /api/faces/account` and `/api/faces/sessions/:id`: GET is
+    `image/png` with `ETag: "<v>"`, `Cache-Control: private, no-cache`, 404 when
+    none; PUT takes the raw `image/png` or `image/jpeg` body (≤ 2 MB, 16–2048 px
+    a side, else 415/413/400) and answers `{"v"}`; DELETE is idempotent.
+  - `PUT /api/faces/settings` `{"accountForAll":bool,"characterOnly":[≤ 500 ids]}`
+    answers the manifest.
+  - Stored in `<state-dir>/faces/<owner>/` (`admin`, or the user token's id):
+    `account.png`, `s_<sessionId>.png` (at most 300, 409 when full),
+    `settings.json`. Directories `0700`, files `0600`, written by temp file and
+    rename; path parts come only from checked ids (`[A-Za-z0-9-]{1,64}`).
+  - A photo is decoded and encoded again as a PNG of at most 512 px a side, so
+    EXIF, GPS and every other chunk or segment the phone wrote is dropped; the
+    original bytes are never kept. Writes are audited and rate limited like
+    every other write, with ids and sizes only, never the picture.
+  - Revoking a user token deletes that user's photos. A reissued token keeps
+    them (the id stays).
+
 - **Updating from the page** (`internal/world/selfupdate.go`, admin only, audited):
   the service fetches the upstream of the checkout `packaging/install.sh` was
   run from (recorded in `<state-dir>/source`, or `--update-repo`) and offers an

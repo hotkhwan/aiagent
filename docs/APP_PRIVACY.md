@@ -32,6 +32,16 @@ messages to agents, your review decisions and notes, and pictures you attach
 (normally you) controls that data; see the aiagent server's own
 [security notes](SECURITY.md).
 
+**Photo faces.** A photo you give an agent as its face, or your account photo,
+is kept on **your own aiagent server**, per access token, so the same token
+shows the same faces on every phone. Each token sees and changes only its own
+photos. The server re-encodes every photo as a small PNG (at most 512 px a
+side) before keeping it, which removes EXIF, location (GPS) and any other
+metadata the camera wrote; the original file is not kept. Deleting a photo in
+the app deletes it on the server, and when the server's admin revokes a user
+token, that user's photos are deleted. As with everything else, **nothing goes
+to us**.
+
 ## Notifications
 
 To tell you when an agent needs you or finishes, the app registers with the

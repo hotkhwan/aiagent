@@ -59,6 +59,10 @@ type Identity struct {
 	Name string `json:"name,omitempty"`
 	// OSUser is the instance this token's requests are sent to.
 	OSUser string `json:"osUser,omitempty"`
+	// UserID is a user token's stable id (UserToken.ID), kept across a
+	// reissue; empty for the admin. Never sent: it names the token in
+	// /tokens/:id routes only an admin may call.
+	UserID string `json:"-"`
 }
 
 var (
@@ -100,7 +104,7 @@ func (s *Store) identifyIn(st State, sum [32]byte) (Identity, bool) {
 	}
 	for _, u := range st.Users {
 		if hashMatches(u.Hash, sum) {
-			return Identity{Role: RoleUser, Name: u.Name, OSUser: u.OSUser}, true
+			return Identity{Role: RoleUser, Name: u.Name, OSUser: u.OSUser, UserID: u.ID}, true
 		}
 	}
 	return Identity{}, false
@@ -235,7 +239,11 @@ var userRoutes = map[string][]*regexp.Regexp{
 		`/me`, `/guides/user-(manual|slides)`, `/snapshot`, `/models`, `/reviews`,
 		`/sessions/[A-Za-z0-9-]+`, `/sessions/[A-Za-z0-9-]+/(messages|suggest)`,
 		`/uploads/[A-Za-z0-9.-]+`,
+		`/faces`, `/faces/account`, `/faces/sessions/[A-Za-z0-9-]+`,
 	),
+	// photo faces (faces.go): each token only ever reaches its own
+	"PUT":    compileAll(`/faces/(account|settings)`, `/faces/sessions/[A-Za-z0-9-]+`),
+	"DELETE": compileAll(`/faces/account`, `/faces/sessions/[A-Za-z0-9-]+`),
 	"POST": compileAll(
 		`/messages`, `/uploads`, `/preview/ticket`, `/push/devices`, `/push/devices/remove`, `/connect/qr`, `/connect/pair`,
 		`/sessions/[A-Za-z0-9-]+/(message|stop|name|look|answer)`,
@@ -511,7 +519,12 @@ func (s *Service) handleTokenRevoke(c fiber.Ctx) error {
 				_ = s.Duties.Set(u.OSUser, "")
 			}
 		}
-		return fiber.Map{"id": id}, s.Store.RevokeUser(id)
+		if err := s.Store.RevokeUser(id); err != nil {
+			return fiber.Map{"id": id}, err
+		}
+		// their photo faces go with them
+		s.removeFaces(id)
+		return fiber.Map{"id": id}, nil
 	})
 }
 
