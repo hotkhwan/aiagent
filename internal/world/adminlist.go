@@ -44,13 +44,10 @@ func (s *Service) ownRoom() string {
 	return filepath.Base(s.Collector.serviceHome())
 }
 
-// ownDuty is the admin's own room's duty; unset is admin.
-func (s *Service) ownDuty(duties map[string]string) string {
-	if d := duties[s.ownRoom()]; d != "" {
-		return d
-	}
-	return DutyAdmin
-}
+// ownDuty is the admin's own token's role: always admin. It is shown, never
+// changed (owner, 2026-11-28): an admin who demoted themself would leave the
+// machine with no admin to make one.
+func (s *Service) ownDuty(map[string]string) string { return DutyAdmin }
 
 // explicitList brings list up to date under the explicit rules and reports
 // whether it changed. seen are main sessions now in a protected workspace;

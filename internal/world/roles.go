@@ -651,15 +651,8 @@ func (s *Service) handleTokenDuty(c fiber.Ctx) error {
 			return nil, ErrConflict("บทบาทของห้องใช้ได้เมื่อแต่ละ token มีห้องของตัวเอง (--os-users)")
 		}
 		if id == "self" {
-			// the admin's own room always has a duty; unset reads as admin
-			if body.Duty == "" {
-				return nil, ErrBadRequest(dutyErr)
-			}
-			if err := s.Duties.Set(s.ownRoom(), body.Duty); err != nil {
-				return nil, err
-			}
-			s.syncAdminList(context.Background())
-			return fiber.Map{"id": id, "duty": body.Duty}, nil
+			// the admin's own token is always admin: shown, never changed
+			return nil, ErrConflict("บทบาทของ token admin เป็น admin เสมอ เปลี่ยนไม่ได้ จะได้มี admin ไว้สร้าง token เสมอ")
 		}
 		st, err := s.Store.Load()
 		if err != nil {

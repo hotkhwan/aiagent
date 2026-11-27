@@ -49,6 +49,7 @@ select option { background: var(--sky2); color: var(--ink) }
 /* the Accounts window's jump bar: one button per part */
 .accJump { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 24px; border-bottom: 1px solid var(--line); position: sticky; top: 0; background: var(--sky2); z-index: 1 }
 .accJump button { padding: 4px 10px; font-size: 13px; border-color: var(--line) }
+.accJump .accJumpEnd { margin-left: auto; display: flex; gap: 6px }
 .loginQRAsk { margin-top: 12px; width: 100% }
 /* the role the admin gave a session or its room (sessionCard) */
 .roleBadge { display: inline-block; margin-left: 8px; padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; vertical-align: middle; background: var(--sky3); color: var(--ink); border: 1px solid var(--line) }
@@ -768,6 +769,10 @@ body:not([data-phase="night"]) .focusHint { color: #2C3654 }
 .reviewDlg { width: min(1400px, 96vw); max-width: 96vw }
 .reviewWrap { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 14px; height: min(78vh, 900px) }
 .reviewWrap iframe { width: 100%; height: 100%; border: 0; border-radius: 12px; background: #fff }
+/* a framed page (review, preview) keeps its own light scheme: under this
+   page's color-scheme: dark the browser told it to go dark, and an agent's
+   page with dark-mode rules for code chips drew them white on white */
+iframe { color-scheme: light }
 .reviewWrap iframe[hidden], .reviewCode[hidden] { display: none }
 .reviewCode { min-width: 0; height: 100%; overflow: auto; display: flex; flex-direction: column; gap: 10px }
 .reviewCode .rvDiff { max-height: none; overflow: visible }

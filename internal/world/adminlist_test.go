@@ -62,14 +62,15 @@ func TestAdminListIsExplicit(t *testing.T) {
 		t.Fatalf("sessions = %v", l.Sessions)
 	}
 
-	// the admin's own room is no longer admin: off the guard's list, still hidden from users
+	// the admin's own token is always admin, whatever a hand-edited duties
+	// file says: its workspace sessions stay on the list
 	if err := svc.Duties.Set(svc.ownRoom(), DutyBackend); err != nil {
 		t.Fatal(err)
 	}
 	p = svc.protectionsFor(nil)
 	l = readList(t, e.store.dir)
-	if slices.Contains(l.Sessions, "ws-sess-1") || !p.covers("ws-sess-1") {
-		t.Fatalf("own room not admin: sessions = %v covered = %v", l.Sessions, p.covers("ws-sess-1"))
+	if !slices.Contains(l.Sessions, "ws-sess-1") || !p.covers("ws-sess-1") {
+		t.Fatalf("own token demoted: sessions = %v covered = %v", l.Sessions, p.covers("ws-sess-1"))
 	}
 
 	// a room set to admin: its sessions join the list
@@ -107,8 +108,9 @@ func TestAdminListIsExplicit(t *testing.T) {
 	}
 }
 
-// TestOwnTokenDuty: the token list shows the admin's own room with its duty
-// (admin until changed), the admin can change it, and it cannot be unset.
+// TestOwnTokenDuty: the token list shows the admin's own token as admin, and
+// it cannot be changed (owner, 2026-11-28): a demoted admin would leave the
+// machine with no admin to make one.
 func TestOwnTokenDuty(t *testing.T) {
 	e, _, _ := osUserEnv(t)
 	e.svc.Duties = &RoomDuties{Path: filepath.Join(t.TempDir(), "room-duties.conf")}
@@ -122,17 +124,18 @@ func TestOwnTokenDuty(t *testing.T) {
 	if self == nil || self["duty"] != DutyAdmin || self["room"] != e.svc.ownRoom() {
 		t.Fatalf("self = %s", body)
 	}
-	if code, _, _ := e.do(t, "POST", apiPrefix+"/tokens/self/duty", admin, `{"duty":""}`); code != 400 {
-		t.Fatalf("own duty unset = %d", code)
+	for _, duty := range []string{"", "backend", "admin"} {
+		next()
+		if code, _, body := e.do(t, "POST", apiPrefix+"/tokens/self/duty", admin, `{"duty":"`+duty+`"}`); code != 409 {
+			t.Fatalf("own duty %q = %d %s", duty, code, body)
+		}
 	}
-	next()
-	if code, _, body := e.do(t, "POST", apiPrefix+"/tokens/self/duty", admin, `{"duty":"backend"}`); code != 200 {
-		t.Fatalf("own duty = %d %s", code, body)
-	}
-	if got := e.svc.Duties.Load()[e.svc.ownRoom()]; got != DutyBackend {
+	if got := e.svc.Duties.Load()[e.svc.ownRoom()]; got != "" {
 		t.Fatalf("own duty stored = %q", got)
 	}
-	if _, _, body := e.do(t, "GET", apiPrefix+"/tokens", admin, ""); !strings.Contains(body, `"self":{"duty":"backend"`) {
+	// a hand-edited file cannot demote it either
+	_ = e.svc.Duties.Set(e.svc.ownRoom(), DutyTester)
+	if _, _, body := e.do(t, "GET", apiPrefix+"/tokens", admin, ""); !strings.Contains(body, `"self":{"duty":"admin"`) {
 		t.Fatalf("list = %s", body)
 	}
 }
