@@ -72,10 +72,19 @@ func TestSendingTheReachInstructionsUsesTheOrdinaryMessagePath(t *testing.T) {
 func TestTheReachInstructionsNameThePlaybookAndNoSecret(t *testing.T) {
 	app := readWebFile(t, "app.js")
 	ways := jsFunc(t, app, "reachWays")
-	if !strings.Contains(app, "const PUBLIC_URL_DOC = 'docs/PUBLIC_URL.md") {
-		t.Error("the instructions must name docs/PUBLIC_URL.md")
+	// The agent runs what the playbook says with the user's shell, so it must
+	// read the copy that ships with the running version, never a moving
+	// branch that anyone who can push to it could change.
+	doc := jsFunc(t, app, "publicUrlDoc")
+	for _, want := range []string{"'docs/PUBLIC_URL.md", "/blob/v' + ", "st.snap.version"} {
+		if !strings.Contains(doc, want) {
+			t.Errorf("publicUrlDoc must pin the playbook to the running version; missing %q", want)
+		}
 	}
-	if n := strings.Count(ways, "tr('ทำตาม ') + PUBLIC_URL_DOC"); n != 3 {
+	if strings.Contains(app, "blob/main/docs/PUBLIC_URL.md") {
+		t.Error("the instructions point at main, which can change under the user")
+	}
+	if n := strings.Count(ways, "tr('ทำตาม ') + publicUrlDoc()"); n != 3 {
 		t.Errorf("each of the three ways must point at docs/PUBLIC_URL.md, got %d", n)
 	}
 	for _, section := range []string{"หัวข้อ A", "หัวข้อ B", "หัวข้อ C"} {
