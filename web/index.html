@@ -135,6 +135,14 @@
 
 <dialog id="accountsDlg" class="screenPop">
   <div class="spHead"><h2>บัญชี AI บนเครื่องนี้</h2><form method="dialog"><button class="ghost" aria-label="ปิด">✕</button></form></div>
+  <nav class="accJump" id="accJump" aria-label="ไปที่หมวด">
+    <button type="button" class="ghost" data-jump="accountsBody">บัญชี AI</button>
+    <button type="button" class="ghost" data-jump="updateBody">อัปเดต</button>
+    <button type="button" class="ghost" data-jump="tokenBody">Token ผู้ใช้</button>
+    <button type="button" class="ghost" data-jump="vaultBody">บริการภายนอก</button>
+    <button type="button" class="ghost" data-jump="envBody">Environment</button>
+    <button type="button" class="ghost" data-jump="roomBody">ห้อง</button>
+  </nav>
   <div class="spBody" id="accountsBody"></div>
   <div class="spBody" id="updateBody"></div>
   <div class="spBody" id="cliBody"></div>
@@ -191,6 +199,7 @@
         <!-- QR login (loginqr.go): a one-time request the phone app approves.
              The QR holds no token; only this tab, which keeps the nonce, can
              collect the token the server mints once the app says yes. -->
+        <button type="button" class="ghost loginQRAsk" id="loginQRAsk">📱 เข้าด้วย QR จากแอป</button>
         <div class="loginQR" id="loginQR" hidden>
           <p class="loginQRHead">หรือสแกนด้วยแอป AI Agent World เพื่อเข้าสู่ระบบ</p>
           <img id="loginQRImg" class="connectQR" alt="QR เข้าสู่ระบบด้วยแอป">

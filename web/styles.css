@@ -46,6 +46,10 @@ button, input, select { font: inherit; color: inherit }
 :root { color-scheme: dark }
 select { background: var(--sky); color: var(--ink); border: 1px solid var(--line); border-radius: 8px; padding: 4px 8px }
 select option { background: var(--sky2); color: var(--ink) }
+/* the Accounts window's jump bar: one button per part */
+.accJump { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 24px; border-bottom: 1px solid var(--line); position: sticky; top: 0; background: var(--sky2); z-index: 1 }
+.accJump button { padding: 4px 10px; font-size: 13px; border-color: var(--line) }
+.loginQRAsk { margin-top: 12px; width: 100% }
 /* the role the admin gave a session or its room (sessionCard) */
 .roleBadge { display: inline-block; margin-left: 8px; padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; vertical-align: middle; background: var(--sky3); color: var(--ink); border: 1px solid var(--line) }
 .roleBadge.role-admin { background: rgba(245,184,75,.16); color: var(--amber); border-color: rgba(245,184,75,.45) }

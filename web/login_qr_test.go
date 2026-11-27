@@ -36,3 +36,23 @@ func TestLoginQRKeepsItsNonceInMemory(t *testing.T) {
 		t.Error("the login card lost its QR")
 	}
 }
+
+// The token form is the login page's default; a QR (a login request on the
+// server) is made only when the visitor asks for one (owner, 2026-11-28).
+func TestLoginQRIsMadeOnlyWhenAskedFor(t *testing.T) {
+	app := readWebFile(t, "app.js")
+	i := strings.Index(app, "function showLogin (msg) {")
+	if i < 0 {
+		t.Fatal("showLogin moved; update this test")
+	}
+	end := strings.Index(app[i:], "\n}\n")
+	if fn := app[i : i+end]; strings.Contains(fn, "startLoginQR()") {
+		t.Error("the login page makes a QR before it is asked for")
+	}
+	if !strings.Contains(app, "$('loginQRAsk').addEventListener('click'") {
+		t.Error("nothing asks for the QR")
+	}
+	if html := readWebFile(t, "index.html"); !strings.Contains(html, `id="loginQRAsk"`) {
+		t.Error("the login card lost its QR button")
+	}
+}
