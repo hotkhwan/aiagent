@@ -38,6 +38,7 @@ var EN = {
   'ยังไม่กำหนดบทบาท': 'no duty set',
   'บทบาท: dev หน้าเว็บ = รัน dev server ให้ดูที่ dev/<ห้อง> · backend = ไม่มีหน้าพรีวิว ตรวจด้วยเทสต์ · tester = ไม่รันแอป ทดสอบบน UAT · admin = session ของห้องอยู่ในรายชื่อ admin ที่ guard อ่าน · agent ของห้องอ่านบทบาทนี้จากคู่มือห้อง': 'Duty: frontend dev = runs a dev server shown at dev/<room> · backend = no preview page, checked by tests · tester = runs no app, tests on UAT · admin = the room\'s sessions are on the admin list the guard reads · the room\'s agent reads its duty from the room rules',
   'admin': 'admin',
+  'บทบาท: ': 'Role: ',
   'token ของคุณ (admin)': 'Your token (admin)',
   'บทบาทของ token ของคุณ': 'Duty of your token',
   'token ของคุณ': 'Your token',
