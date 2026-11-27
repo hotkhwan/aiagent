@@ -3340,9 +3340,45 @@ async function drawPair () {
       h('p', null, tr('สแกน QR ด้วยแอป AI Agent World หรือบันทึกภาพไว้ แล้วเปิดภาพจาก Photos หรือ Files ในแอป')),
       left,
       h('div', { class: 'accRow pairRow' }, save, again),
-      h('p', { class: 'note' }, tr('รหัสนี้ใช้ได้ครั้งเดียว ภายใน 10 นาที แอปจะได้สิทธิ์เดียวกับ token ที่คุณใช้อยู่ในหน้านี้')))))
+      h('p', { class: 'note' }, tr('รหัสนี้ใช้ได้ครั้งเดียว ภายใน 10 นาที แอปจะได้ token ของตัวเอง สิทธิ์เท่ากับหน้านี้ เพิกถอนได้จากรายการด้านล่าง')))))
   tick()
   if (Date.now() < ends) st.pairTimer = setInterval(tick, 1000)
+  drawDevices(box)
+}
+// The paired phones in this page's scope, each with its own token (the list
+// carries none), and a way to end one: a lost phone costs one revoke.
+async function drawDevices (box) {
+  const wrap = h('div', { class: 'deviceList' }, h('h3', null, tr('อุปกรณ์ที่จับคู่แล้ว')))
+  box.append(wrap)
+  let list
+  try {
+    list = (await api('/connect/devices')).devices || []
+  } catch (e) {
+    wrap.append(h('p', { class: 'note' }, tr('อ่านรายการอุปกรณ์ไม่ได้: ') + e.message))
+    return
+  }
+  if (!list.length) {
+    wrap.append(h('p', { class: 'note' }, tr('ยังไม่มีอุปกรณ์ที่จับคู่')))
+    return
+  }
+  for (const d of list) {
+    const when = new Date(d.createdAt).toLocaleString()
+    const revoke = h('button', { type: 'button', class: 'ghost' }, tr('เพิกถอน'))
+    revoke.addEventListener('click', async () => {
+      if (!await confirmBox(tr('เพิกถอนอุปกรณ์นี้?'), d.name + ' · ' + d.owner, '', tr('เพิกถอน'))) return
+      try {
+        await api('/connect/devices/' + encodeURIComponent(d.id) + '/revoke', { method: 'POST', body: {} })
+      } catch (e) {
+        wrap.append(h('p', { class: 'note' }, tr('เพิกถอนไม่ได้: ') + e.message))
+        return
+      }
+      wrap.remove()
+      drawDevices(box)
+    })
+    wrap.append(h('div', { class: 'accRow deviceRow' },
+      h('span', null, d.name + ' · ' + d.owner + (d.current ? ' (' + tr('เครื่องนี้') + ')' : '') + ' · ' + tr('จับคู่เมื่อ ') + when),
+      revoke))
+  }
 }
 $('connectDlg').addEventListener('close', () => {
   clearInterval(st.pairTimer)
