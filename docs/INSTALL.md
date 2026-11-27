@@ -1,0 +1,382 @@
+# Install and configure
+
+The [README](../README.md#quick-start) covers the quickest path: a prebuilt release
+on one machine. This page has everything else, moved here unchanged from the
+README so that the front page stays short.
+
+## The whole thing, on a Linux server
+
+One command, as root, on a fresh machine (Ubuntu or Fedora family, with
+systemd). It installs what is missing, builds aiagent, sets up rooms, starts
+the services and prints the admin token **once**:
+
+```sh
+git clone https://github.com/hotkhwan/aiagent.git
+cd aiagent
+sudo ./packaging/setup.sh                 # run it in your own terminal
+```
+
+| Option | What it does |
+| --- | --- |
+| `--site NAME` | name of the tmux session that holds the agents (default: the host name) |
+| `--code DIR` | a folder of checkouts the Codex and Antigravity windows may read |
+| `--listen ADDR:PORT` | where the web listens (default `127.0.0.1:8890`) |
+| `--agy-sandbox` | Ubuntu: add the AppArmor profile Antigravity needs for its command sandbox |
+
+What you have afterwards:
+
+| Thing | Where |
+| --- | --- |
+| The web | `http://127.0.0.1:8890/aiagent` (put a TLS reverse proxy or a private network in front) |
+| Agent CLIs | Claude Code, Codex and Antigravity (`agy`), in root's `~/.local/bin` |
+| One tmux session | named after the site: a menu window, a `codex` window, an `agy` window |
+| Work folders | `ai-work/codex` and `ai-work/agy`, each agent in its own |
+| Services | `aiagent@root`, `aiagent-tmux@root`, `aiagent-agents@root`, and timers for quota, session list and shared rules |
+
+Then:
+
+1. In the same terminal: `claude setup-token`, then `aiagent-claude-token set`
+   (one Claude sign-in for every room; see below).
+2. Open the web, paste the admin token.
+3. **Accounts**: sign in to Claude, Codex and Google Antigravity; create a room
+   for each line of work.
+
+Codex and Antigravity run as unprivileged ids that see the system, the `--code`
+folder read-only, their own work folder and their own sign-in, and nothing else
+of root's. Google's Antigravity terms restrict third-party tools; read them
+before letting other agents send it work.
+
+After a restart of the machine everything comes back by itself: the tmux
+session and its windows (each agent on its last conversation), the Claude
+background sessions that were running, and the rooms.
+
+## Just the viewer, for one user
+
+No root, no rooms: a view of the agents you already run, on macOS or Linux.
+
+```sh
+./packaging/install.sh            # add --with-service for a systemd unit or LaunchAgent
+aiagent enable                    # prints a token ONCE; only its SHA-256 is stored
+aiagent serve                     # http://127.0.0.1:8890/aiagent
+```
+
+`install.sh` installs Go, tmux and the agent CLIs when they are missing; one
+already on the machine is left alone, sign-in included. `--update-clis` updates
+them, `--no-clis` skips them, `--skills DIR` copies a folder of skills into
+`~/.claude/skills`. It installs two binaries: **`aiagent`**, the service and its
+switch, and **`agcmd`**, the small tool that talks to the agents through tmux.
+Until you run `enable`, **every route answers 404**.
+
+## Remove it
+
+```sh
+sudo ./packaging/uninstall.sh            # services, programs, rooms (homes are archived first)
+sudo ./packaging/uninstall.sh --purge    # also sign-ins, conversations, archives, work folders, the CLIs
+```
+
+Without `--purge`, installing again continues where you were. Packages your
+package manager installed (Go, tmux, git) are left alone.
+
+## Rooms
+
+A *room* is an OS user with its own aiagent instance, tmux server and Claude
+session. Rooms keep one person's lines of work apart, each with its own rights.
+`setup.sh` turns them on; make one on the web: **Accounts → user tokens →
+Create token**. A session named after it is open at once, in auto mode, so
+nobody has to answer permission prompts at a terminal. Revoking the token stops
+the room, archives its home to `/var/backups/aiagent-users` and removes the OS
+user.
+
+One Claude sign-in serves every room. Set it once, as root, **in your own
+terminal** (not through an agent or a chat, where the token would stay in the
+transcript):
+
+```sh
+claude setup-token            # sign in with your own Claude account
+aiagent-claude-token set      # paste that token (hidden)
+```
+
+| Command | What it does |
+| --- | --- |
+| `aiagent-claude-token status` | whether a token is set |
+| `aiagent-claude-token set` | set or replace it; running rooms restart |
+| `aiagent-claude-token remove` | rooms go back to their own sign-in |
+
+The token is kept in `/etc/aiagent/claude.env` (root only). A room's agent can
+read the token it runs with. When it expires, run the two commands again.
+
+| | Admin token | User token (a room) |
+| --- | --- | --- |
+| Own session | read, send | read, send, rename |
+| Other rooms | read, send, stop, remove | read only |
+| Admin sessions | read, send | state only |
+| PM, tasks, accounts, tokens, CLI updates | yes | no |
+| Choose the model | yes | no, the admin's rule |
+
+Rooms run the latest Opus. **Accounts → Model of user rooms** sets the weekly
+usage above which they move to Haiku 5.5. Plan usage of Claude and Antigravity
+is read every five minutes with the CLI's own `/usage`.
+
+**What every agent knows.** A room is a fresh home: it has none of your skills,
+memory or `CLAUDE.md`. A timer shares them within a minute, to the rooms and,
+as `AGENTS.md`, to Codex and Antigravity:
+
+| Shared | Source (`/etc/aiagent/share.conf`) |
+| --- | --- |
+| Rules for agents | `BASE=/etc/aiagent/room-base.md` (starts with "never reveal secrets, never copy code out") |
+| A project's rules | `RULES=/path/to/CLAUDE.md` |
+| Skills | `SKILLS=~/.claude/skills`, all of them |
+| Memory | `MEMORY=/path/to/memory`, only files whose frontmatter says `share: rooms` |
+
+A file that looks like it holds a secret is skipped. `room/settings.json` keeps
+a room's agent from reading secret files and from `git push`, `curl`, `scp` and
+`ssh`.
+
+Rooms get uids from 700000 up, away from the ids containers use. Outbound
+network limits are the host's job.
+
+## A page for each room (optional)
+
+`https://<preview host>/dev/<room>/` shows what that room's agent is building,
+with hot reload, to that room's user and the admin, nobody else. The
+**Preview** button in the web opens it. It is off until
+`/etc/aiagent/preview.conf` names a host:
+
+| Key | Meaning |
+| --- | --- |
+| `HOST` | the preview host: a different name from the one the web answers on |
+| `LISTEN` | loopback address of the preview listener (default `127.0.0.1:8891`) |
+| `RESERVED` | other paths under `/dev/` on that host; no room may take such a name |
+| `CHROMIUM` | a `chrome-headless-shell` for screenshots, under `/opt` or `/usr`; optional |
+| `GATEWAY`, `GATEWAY_NAMESPACE`, `SECTION`, `NAMESPACE`, `SERVICE`, `PORT` | Kubernetes routes (below); optional |
+
+Restart `aiagent@root` after changing it. `ci cd api kapi events gateway dev
+admin assets static ws login health` are always reserved.
+
+**What a room shows** is decided by the room, in `~/work/preview.json`:
+
+| File | Shows |
+| --- | --- |
+| `{"folder": "my-app/dist"}` | a folder inside `~/work`; reloads when a file changes |
+| `{"port": 5173}` | a dev server the room started on this machine, ports 3000-5999, WebSocket included |
+| no file | the newest `work/*/site`, `dist` or `public` that has an `index.html` |
+
+A folder is read by the room's own instance as the room's user; dotfiles and
+links that leave the work folder are never served. A port is proxied only while
+its listening socket belongs to that room's uid.
+
+**A page is not trusted.** It runs in a frame sandboxed without
+`allow-same-origin` and every response says so again, so it has no cookies, no
+storage and no authority on the preview host, whatever else that host serves.
+For a page this means: no `localStorage` and no cookies, hash routes instead of
+history routes, and relative addresses in CSS (`url(img.png)`, not
+`url(/img.png)`). Root-absolute addresses in tags, module imports, `fetch` and
+WebSockets are moved below the room's page for it.
+
+**Capture** takes the page at 390 and 1440 px on this machine and files it as a
+review page of that room. The browser runs boxed as an unprivileged id with no
+home and no network but that one page (`packaging/capture-box.sh`). Without
+`CHROMIUM` the page says capture is not available. Install fonts for your
+language system-wide (for Thai, a package such as `fonts-noto-core`), and
+`chrome-headless-shell` with the shared libraries it needs.
+
+A room's agent can capture its own page too, to check it before asking for a
+review: `aiagent capture` prints two JPEG paths in `~/work/.aiagent/captures/`.
+The agent's shell cannot reach the admin service, so the request is a file in
+its work folder; the admin service asks each room's instance, over that room's
+root-owned socket, whether a capture is wanted, so the room is always the one
+whose socket it dialled. It captures only that room's own page, one at a time
+per room and on the machine, at most 20 an hour per room, audited, and sends
+the pictures back over the same socket; the room's instance writes them as the
+room's user. Nothing a room names reaches root but a random request id.
+
+Any reverse proxy can stand in front; send only `/dev/<room>` and what is below
+it, and pass the host name on:
+
+```nginx
+# server { server_name preview.example.com; ... }
+location ~ ^/dev/(anna|bob)(/|$) {
+    proxy_pass http://127.0.0.1:8891;
+    proxy_set_header Host $host;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+    proxy_buffering off;
+    proxy_read_timeout 1h;
+}
+```
+
+Keep the `~…` part of these addresses out of shared logs: it opens the content
+while the page is open.
+
+With Kubernetes Gateway API, fill the six keys and run
+`systemctl enable --now aiagent-preview-routes.timer`: `preview-routes.py` keeps
+one rule per room (`/dev/<room>`, `Host` header equal to `HOST`) pointing at
+`SERVICE:PORT`, which must lead to the preview listener. `--print` shows what it
+would apply, `--remove` takes the routes away.
+
+## One person, several rooms
+
+Rooms that share one Claude sign-in are for **one person**: the subscriber,
+keeping their own work apart on their own machine. Anthropic's
+[Consumer Terms](https://www.anthropic.com/legal/consumer-terms) do not allow
+sharing a Free, Pro or Max account, or making it available to anyone else, and
+[Claude Code's terms](https://code.claude.com/docs/en/legal-and-compliance)
+expect each end user to authenticate with their own credentials.
+
+- Do not give a room's token to another person while it uses your sign-in.
+- If someone else needs a room, do not use `aiagent-claude-token` on that
+  machine (it applies to every room); each person signs in to their own room
+  with their own account.
+- Usage limits are the account's, shared by every room.
+
+This is a summary, not legal advice; the linked terms decide.
+
+## Reaching it from another device
+
+The listener refuses any non-loopback address unless you give it a TLS
+certificate. That is deliberate. Put a private network in front of it:
+
+```sh
+tailscale serve --bg 8890         # or an SSH tunnel, or a reverse proxy
+```
+
+There is no self-signed-certificate fallback: a certificate you must click
+past teaches you to click past certificate warnings, and this service can type
+into your agents.
+
+## On an iPad or a phone
+
+Open it in Safari or Chrome and use **Add to Home Screen**. It installs as an
+icon and opens without an address bar, full screen. The token is kept in that
+install's own storage, so you log in once.
+
+Regenerate the icons after an art change:
+
+```sh
+go run ./tools/appicon -in web/assets/house-kcmd.png -out web/assets
+```
+
+## Status line (recommended)
+
+Claude Code only reports plan usage to its status line, so this is the only way
+to get real quota numbers. In `~/.claude/settings.json`:
+
+```json
+{ "statusLine": { "type": "command", "command": "aiagent statusline" } }
+```
+
+It prints a short line for you and saves just the usage windows to
+`~/.claude/aiagent-usage.json`.
+
+## Workspaces (optional — only needed to send work)
+
+A workspace is a checkout an agent can be dispatched into. With none
+configured the village is **view-only** and every dispatch is refused. Create
+`<state-dir>/workspaces.json`:
+
+```json
+{
+  "workspaces": [
+    { "name": "web", "tmuxSession": "web", "dir": "/home/alice/src/web" }
+  ]
+}
+```
+
+`name` is what the UI shows, `tmuxSession` must be a session whose `agent`
+window is running a real agent CLI, and `dir` must be absolute. Bad entries
+fail at startup, not at dispatch time.
+
+Check what is actually reachable:
+
+```sh
+agcmd ws list        # NAME, TMUX SESSION, what that pane is running, DIR
+```
+
+`agcmd` is also how you drive an agent from a terminal, and the quickest way
+to tell whether a problem is in the service or in tmux:
+
+```sh
+agcmd dispatch web "run the tests"       # send a message
+agcmd eng "fix the login tests" web      # send it as a tracked run
+agcmd eng status                         # the run board
+agcmd restart web                        # interrupt what it is doing
+```
+
+It refuses the same things the service refuses: an unconfigured workspace
+name, and a pane that is running a shell rather than an agent — typing into a
+shell would execute your text as a command.
+
+## Trusted roots (optional)
+
+Claude Code asks whether to trust a folder the first time it runs there, and
+a session resumed from the web stalls on that question. Name the folders you
+trust and aiagent answers Yes for any folder at or below them, in the
+service user's `~/.claude.json`, before it starts or resumes a session there:
+
+```
+aiagent trust-roots add ~/Projects       # macOS, as yourself
+sudo -u alice -H aiagent trust-roots add /srv/projects   # Linux, as the service user
+aiagent trust-roots list | remove DIR
+```
+
+Nothing is trusted until a root is added. `AIAGENT_TRUSTED_ROOTS` (`:`
+separated) overrides the stored list. Every automatic trust is audited as
+`aiagent.autoTrust`.
+
+## Tab completion
+
+`install.sh` sets it up for zsh and bash. Workspace names and run ids are
+completed from the live configuration, so tab shows what this machine can
+actually reach rather than a list baked in at install time:
+
+```
+agcmd dispatch <TAB>       → your configured workspaces
+agcmd eng approve <TAB>    → the run ids that exist
+```
+
+State lives in `$AIAGENT_STATE_DIR`, else `$XDG_STATE_HOME/aiagent`, else
+`~/.local/state/aiagent`.
+
+## Review pages
+
+Instead of pasting a wall of text, an agent can hand you a page to look at:
+
+```sh
+aiagent review --title "What I changed" --repo ~/work/myrepo summary.html
+```
+
+`--repo` (default: the working directory, when it is a git checkout) records
+the checkout, its branch, HEAD and the merge base with `origin/develop`,
+`develop`, `origin/HEAD` or `main`, in that order. The review dialog then has a
+**โค้ดที่แก้** (code changes) tab with the files and the diff, read from that
+checkout by the room's own instance, and a button that opens the room's
+preview page. A recorded checkout outside the filer's home is dropped.
+
+It appears in the testing room. You open it in a sandboxed iframe behind a
+single-use ticket that expires in two minutes, then press **ตกลง ปิดงาน** or
+**ขอแก้ไข**, and your answer can be sent straight back to that session.
+
+Pages are stored in `~/.claude/aiagent-reviews`. Claude Code started with
+`CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1`, as rooms are, runs every command in a
+bubblewrap sandbox where `~/.claude` is read-only and unix sockets are
+blocked. There `aiagent review` leaves the page in `~/work/.aiagent/in/`
+instead and waits for the user's own `aiagent serve` (a room's instance) to
+file it: as that user, never through a link, a hard link or a file of another
+owner, and only UTF-8 HTML up to 3 MB. Reviews filed either way are listed,
+answered and pruned the same.
+
+## Cutting a release
+
+**Cutting a release (owner):** set `Version` in `internal/world/version.go`,
+merge to main, then on the release Mac:
+
+```sh
+./packaging/release.sh 0.36.0
+```
+
+It refuses unless the tree is clean, on `main` and at that version; builds the
+four platforms, writes and signs `SHA256SUMS` with
+`~/littledays-keys/aiagent-release-ed25519.pem`, checks every archive the way an
+installed aiagent will, tags `v0.36.0`, pushes the tag and publishes the release
+with `gh`.
