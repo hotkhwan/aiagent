@@ -120,6 +120,8 @@ type Session struct {
 
 	timeline   []TimelineItem
 	sourcePath string
+	// jobID is a background job's short id (registry jobId); see adminlist.go.
+	jobID string
 	// the transcript ends inside a turn (see transcriptState.turnInProgress)
 	turnInProgress bool
 	home           string

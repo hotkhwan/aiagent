@@ -152,3 +152,38 @@ func TestAdminListWithoutDuties(t *testing.T) {
 		t.Fatalf("list = %+v", l)
 	}
 }
+
+// TestAdminListFollowsAJob: a pinned background job whose conversation moved
+// to a new session id (registry: same jobId, new sessionId) is an admin under
+// the new id too, the one the guard sees, and stays so after the job stops.
+// Seen on ata-core: pinned 3ef9360e-…, the job ran on as 13c52b46-….
+func TestAdminListFollowsAJob(t *testing.T) {
+	e, _, _ := osUserEnv(t)
+	e.svc.Duties = &RoomDuties{Path: filepath.Join(t.TempDir(), "room-duties.conf")}
+	if _, err := e.store.Enable("t"); err != nil {
+		t.Fatal(err)
+	}
+	const old, now = "3ef9360e-e900-4b56-a4a6-a041ecf2cc97", "13c52b46-8701-43f2-9eeb-01d89932b63d"
+	if err := os.WriteFile(filepath.Join(e.store.dir, protectedFile), []byte(`{"sessions":["`+old+`"]}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	svc := e.svc
+	p := svc.protectionsFor([]Session{{SessionID: now, jobID: "3ef9360e"}, {SessionID: "other-1", jobID: "aaaa0000"}})
+	l := readList(t, e.store.dir)
+	if !slices.Equal(l.Sessions, []string{old, now}) || l.Aliases[old] != now {
+		t.Fatalf("list = %+v", l)
+	}
+	if !p.covers(now) || p.covers("other-1") {
+		t.Fatal("the job's new session must be hidden from users like the pinned one, and nothing else")
+	}
+	// the job is not running: the alias stays
+	svc.protectionsFor(nil)
+	if l = readList(t, e.store.dir); !slices.Contains(l.Sessions, now) {
+		t.Fatalf("alias forgotten: %+v", l)
+	}
+	// a room set to admin never names the admin's jobs: only the main
+	// service's own registry feeds jobs
+	if got := jobSessions([]Session{{SessionID: "x", jobID: ""}}); len(got) != 0 {
+		t.Fatalf("jobs = %v", got)
+	}
+}

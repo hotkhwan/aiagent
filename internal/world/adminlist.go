@@ -46,13 +46,15 @@ func (s *Service) ownDuty(duties map[string]string) string {
 // whether it changed. seen are main sessions now in a protected workspace;
 // rooms, when not nil, are the sessions now seen per admin room (nil for a
 // room whose instance did not answer: what was seen before is kept).
-func (s *Service) explicitList(list *protectedList, seen []string, rooms map[string][]string) bool {
+// jobs maps a background job's short id to the session id it runs under now.
+func (s *Service) explicitList(list *protectedList, seen []string, rooms map[string][]string, jobs map[string]string) bool {
 	before := listKey(*list)
 	if !list.Explicit {
 		list.Pinned = union(list.Pinned, list.Sessions)
 		list.Explicit = true
 	}
 	list.Workspace = union(list.Workspace, seen)
+	list.Aliases = aliasesFor(list.Aliases, union(union(nil, list.Pinned), list.Workspace), jobs)
 	duties := s.Duties.Load()
 	next := map[string][]string{}
 	for room, ids := range list.Rooms {
@@ -69,9 +71,9 @@ func (s *Service) explicitList(list *protectedList, seen []string, rooms map[str
 		next = nil
 	}
 	list.Rooms = next
-	want := union(nil, list.Pinned)
+	want := withAliases(union(nil, list.Pinned), list.Aliases)
 	if s.ownDuty(duties) == DutyAdmin {
-		want = union(want, list.Workspace)
+		want = union(want, withAliases(list.Workspace, list.Aliases))
 	}
 	for _, room := range sortedKeys(list.Rooms) {
 		want = union(want, list.Rooms[room])
@@ -106,8 +108,11 @@ func (s *Service) syncAdminList(ctx context.Context) {
 		}
 	}
 	var seen []string
+	var jobs map[string]string
 	if s.Collector != nil {
-		for _, ss := range s.Collector.Snapshot(ctx).Sessions {
+		snap := s.Collector.Snapshot(ctx).Sessions
+		jobs = jobSessions(snap)
+		for _, ss := range snap {
 			if w, ok := s.Collector.lookupWorkspace(ss.DispatchVia); ok && w.protected {
 				seen = append(seen, ss.SessionID)
 			}
@@ -119,7 +124,7 @@ func (s *Service) syncAdminList(ctx context.Context) {
 	if err != nil {
 		return // a corrupt list stays as it is: users are kept out (fail closed)
 	}
-	if s.explicitList(&list, seen, rooms) {
+	if s.explicitList(&list, seen, rooms, jobs) {
 		s.writeProtected(list)
 	}
 }
@@ -159,6 +164,50 @@ func union(a, b []string) []string {
 	return a
 }
 
+// jobSessions maps each live background job's short id to its session id.
+func jobSessions(sessions []Session) map[string]string {
+	m := map[string]string{}
+	for _, ss := range sessions {
+		if ss.jobID != "" && ss.SessionID != "" {
+			m[strings.ToLower(ss.jobID)] = ss.SessionID
+		}
+	}
+	return m
+}
+
+// aliasesFor keeps, for each listed id, the session its job now runs under.
+// A job's short id is the first part of the session id it started with. An
+// alias is kept while its id is listed, also when the job is not running.
+func aliasesFor(old map[string]string, listed []string, jobs map[string]string) map[string]string {
+	out := map[string]string{}
+	for _, id := range listed {
+		short := strings.ToLower(id)
+		if i := strings.IndexByte(short, '-'); i > 0 {
+			short = short[:i]
+		}
+		if now := jobs[short]; now != "" && !strings.EqualFold(now, id) {
+			out[id] = now
+		} else if a := old[id]; a != "" {
+			out[id] = a
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+// withAliases is ids followed by the sessions their jobs run under now.
+func withAliases(ids []string, aliases map[string]string) []string {
+	out := union(nil, ids)
+	for _, id := range ids {
+		if a := aliases[id]; a != "" {
+			out = union(out, []string{a})
+		}
+	}
+	return out
+}
+
 func sortedKeys(m map[string][]string) []string {
 	out := make([]string, 0, len(m))
 	for k := range m {
@@ -177,5 +226,16 @@ func listKey(l protectedList) string {
 	for _, k := range sortedKeys(l.Rooms) {
 		b.WriteString("|" + k + ":" + strings.Join(l.Rooms[k], ","))
 	}
+	for _, k := range sortedKeys(toLists(l.Aliases)) {
+		b.WriteString("|a:" + k + "=" + l.Aliases[k])
+	}
 	return b.String()
+}
+
+func toLists(m map[string]string) map[string][]string {
+	out := make(map[string][]string, len(m))
+	for k, v := range m {
+		out[k] = []string{v}
+	}
+	return out
 }
