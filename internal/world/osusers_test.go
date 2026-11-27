@@ -1,7 +1,9 @@
 package world
 
 import (
+	"bytes"
 	"context"
+	"io"
 	"net"
 	"net/http"
 	"os"
@@ -26,11 +28,24 @@ func (u *unitRunner) Run(_ context.Context, name string, args ...string) ([]byte
 func osUserEnv(t *testing.T) (*env, *unitRunner, *OSUsers) {
 	t.Helper()
 	e := newEnv(t)
-	dir := t.TempDir()
+	dir := shortTempDir(t)
 	r := &unitRunner{}
 	o := &OSUsers{SocketDir: dir, TokenDir: dir, Runner: r}
 	e.svc.OSUsers = o
 	return e, r, o
+}
+
+// shortTempDir is a temporary folder for unix sockets. t.TempDir is too long
+// on macOS: under $TMPDIR (/var/folders/...) plus the test's name, a socket
+// path passes the 104-byte limit of a unix address and every listen fails.
+func shortTempDir(t *testing.T) string {
+	t.Helper()
+	dir, err := os.MkdirTemp("", "aa")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(dir) })
+	return dir
 }
 
 // instance stands in for a user's own aiagent on its socket.
@@ -43,7 +58,14 @@ func instance(t *testing.T, o *OSUsers, name string, h http.HandlerFunc) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	srv := &http.Server{Handler: h}
+	// Read the whole body first, as the real instance (fiber) does; a handler
+	// that answers without reading it breaks the pipe on macOS, whose unix
+	// sockets buffer far less than Linux's.
+	srv := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		b, _ := io.ReadAll(r.Body)
+		r.Body = io.NopCloser(bytes.NewReader(b))
+		h(w, r)
+	})}
 	go func() { _ = srv.Serve(ln) }()
 	t.Cleanup(func() { _ = srv.Close() })
 }
