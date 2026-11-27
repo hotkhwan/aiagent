@@ -65,6 +65,33 @@ jobs:
       - name: test
         run: go test -race -count=1 ./...
 
+  # Releases are cut by packaging/release.sh on the owner's Mac, where the
+  # signing key lives; nothing here signs or publishes. This only proves every
+  # platform a release ships still builds, so a broken target shows up in
+  # review instead of at release time.
+  release-targets:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [darwin/arm64, darwin/amd64, linux/amd64, linux/arm64]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: build aiagent and agcmd
+        env:
+          TARGET: ${{ matrix.target }}
+          CGO_ENABLED: "0"
+        run: |
+          export GOOS="${TARGET%/*}" GOARCH="${TARGET#*/}"
+          for b in aiagent agcmd; do
+            go build -trimpath -ldflags "-s -w" -o "dist/$b" "./cmd/$b"
+          done
+          ls -l dist
+
   security:
     runs-on: ubuntu-latest
     steps:

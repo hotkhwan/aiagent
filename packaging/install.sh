@@ -277,7 +277,7 @@ First run (as root), in this order:
 
 Run the last two in your own terminal, never through an agent or a chat: the
 token would stay in the transcript. This is for rooms you use yourself; anyone
-else needs their own Claude account (see "One person, several rooms" in README).
+else needs their own Claude account (see "One person, several rooms" in docs/INSTALL.md).
 EOF_FIRST
 		else
 			echo "  systemctl daemon-reload && systemctl enable --now aiagent-tmux@\$USER aiagent@\$USER aiagent-agents@\$USER aiagent-keep@\$USER.timer aiagent-quota@\$USER.timer"

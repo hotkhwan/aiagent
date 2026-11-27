@@ -1,0 +1,26 @@
+name: Feature request
+description: Suggest something aiagent should do
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        aiagent is for one human owner and their own AI accounts. Requests to share accounts between
+        people, resell AI usage or work around a provider's limits will be declined.
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What are you trying to do, and what gets in the way today?
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: What you would like
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Workarounds or alternatives you have tried
