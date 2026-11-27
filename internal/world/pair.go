@@ -158,7 +158,7 @@ func (p *pairState) failed(ip string, now time.Time) {
 }
 
 func pairCode(origin, ticket string) (string, error) {
-	o, err := ParsePushRelay(origin) // the same rule as connectCode
+	o, err := ParsePushRelay(origin) // an https origin (loopback http)
 	if err != nil || o == "" {
 		return "", ErrBadRequest("origin must be the https address of this server")
 	}

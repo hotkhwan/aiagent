@@ -479,6 +479,11 @@ var EN = {
   'บันทึกภาพ': 'Download image',
   'รหัสใหม่': 'New code',
   'ใช้ได้อีก ': 'Works for another ',
+  // a fresh user token's pairing QR (pair.go)
+  'รหัสนี้หมดอายุแล้ว กดออก token ใหม่': 'This code has expired. Press Reissue token',
+  'ให้ผู้ใช้สแกน QR ด้วยแอป AI Agent World หรือบันทึกภาพแล้วส่งให้ทางช่องทางส่วนตัว': 'Have the user scan this QR with the AI Agent World app, or save the image and send it privately',
+  'รหัสนี้ใช้ได้ครั้งเดียว ภายใน 10 นาที แอปจะได้ token ของตัวเอง สิทธิ์เท่ากับผู้ใช้นี้': 'This code works once, within 10 minutes. The app gets its own token with this user\'s rights',
+  'สร้าง QR ไม่ได้: ': 'Could not make the QR: ',
   // QR login on the login page (loginqr.go)
   'หรือสแกนด้วยแอป AI Agent World เพื่อเข้าสู่ระบบ': 'Or scan with the AI Agent World app to sign in',
   'QR เข้าสู่ระบบด้วยแอป': 'QR to sign in with the app',

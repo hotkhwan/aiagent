@@ -3211,26 +3211,39 @@ async function drawRooms () {
     h('p', { class: 'note' }, tr('ปกติใช้ Opus รุ่นล่าสุด user เปลี่ยน model เองไม่ได้ ระบบสลับเมื่อห้องว่างและคุยต่อจากเดิม ถ้าไม่ทราบค่าจะใช้ Opus')),
     h('div', { class: 'accRow' }, h('button', { type: 'button', class: 'pri', onclick: save }, tr('บันทึก')))))
 }
-// ----- the phone app: a connect code holds this server's address and a token -----
-// The QR is drawn by this service, never by an outside one: the code is a key.
-async function connectQR (token) {
-  const body = token ? { origin: location.origin, token } : { origin: location.origin }
-  const res = await fetch('/aiagent/api/connect/qr', { method: 'POST', headers: { 'X-Aiagent-Token': st.token, 'Content-Type': 'application/json' }, body: JSON.stringify(body), cache: 'no-store' })
-  if (!res.ok) {
-    let j = null
-    try { j = await res.json() } catch (e) { j = null }
-    throw new Error((j && j.message) || ('HTTP ' + res.status))
+// ----- the phone app: a token just made is handed over as a pairing code -----
+// Never the token itself in a QR: the code holds a one-time ticket (pair.go,
+// POST /tokens/:id/pair), ten minutes, and the phone that scans it gets a
+// device token of its own in that user's scope. The QR is drawn by this
+// service, never by an outside one.
+async function freshPairCard (fresh) {
+  const p = await api('/tokens/' + encodeURIComponent(fresh.id) + '/pair', { method: 'POST', body: { token: fresh.token, origin: location.origin } })
+  // never count past ten minutes, even if this computer's clock runs behind
+  const ends = Math.min(Date.parse(p.expiresAt), Date.now() + 10 * 60 * 1000)
+  const img = h('img', { src: p.qr, alt: tr('QR รหัสจับคู่แอป'), class: 'connectQR' })
+  const left = h('p', { class: 'pairLeft' })
+  const save = h('a', { class: 'pairSave', download: 'aiagent-pair.png', href: p.qr }, tr('บันทึกภาพ'))
+  let timer = 0
+  const tick = () => {
+    const sec = Math.max(0, Math.round((ends - Date.now()) / 1000))
+    if (!left.isConnected && timer) { clearInterval(timer); return }
+    if (sec > 0) {
+      left.textContent = tr('ใช้ได้อีก ') + Math.floor(sec / 60) + ':' + String(sec % 60).padStart(2, '0')
+      return
+    }
+    clearInterval(timer)
+    img.classList.add('expired')
+    save.remove()
+    left.textContent = tr('รหัสนี้หมดอายุแล้ว กดออก token ใหม่')
   }
-  return URL.createObjectURL(await res.blob())
-}
-function connectCodeOf (token) { return 'aiagent://connect?u=' + encodeURIComponent(location.origin) + '&t=' + encodeURIComponent(token) }
-function connectCard (url, token) {
-  return h('div', { class: 'connectCard' },
-    h('img', { src: url, alt: tr('QR รหัสเชื่อมต่อ'), class: 'connectQR' }),
+  tick()
+  timer = setInterval(tick, 1000)
+  return h('div', { class: 'connectCard' }, img,
     h('div', null,
-      h('p', null, tr('เปิดแอป AI Agent World แล้วกดสแกน QR หรือคัดลอกรหัสไปวางในแอป')),
-      h('button', { type: 'button', class: 'ghost', onclick: e => copyText(connectCodeOf(token), e.currentTarget, true) }, tr('คัดลอกรหัสเชื่อมต่อ')),
-      h('p', { class: 'note' }, tr('รหัสนี้คือกุญแจเข้า server เท่ากับ token อย่าถ่ายภาพหน้าจอหรือส่งในที่สาธารณะ'))))
+      h('p', null, tr('ให้ผู้ใช้สแกน QR ด้วยแอป AI Agent World หรือบันทึกภาพแล้วส่งให้ทางช่องทางส่วนตัว')),
+      left,
+      h('div', { class: 'accRow pairRow' }, save),
+      h('p', { class: 'note' }, tr('รหัสนี้ใช้ได้ครั้งเดียว ภายใน 10 นาที แอปจะได้ token ของตัวเอง สิทธิ์เท่ากับผู้ใช้นี้'))))
 }
 // The header's phone dialog shows a one-time pairing code (pair.go), never the
 // token: the QR holds a ticket the app trades once for the token, within ten
@@ -3430,9 +3443,9 @@ async function drawTokens (fresh) {
     if (!await confirmBox(tr('ออก token ใหม่'), tr('token เดิมของผู้ใช้นี้จะใช้ไม่ได้ทันที ห้องและงานในห้องอยู่เหมือนเดิม token ใหม่แสดงครั้งเดียว'), t.name, tr('ออก token ใหม่'))) return
     try { drawTokens(await api('/tokens/' + t.id + '/reissue', { method: 'POST', body: {} })) } catch (e) { toast(tr('ไม่สำเร็จ: ') + e.message, true) }
   }
-  // a fresh token also shows its connect code, for the user's phone
+  // a fresh token also shows a one-time pairing code, for the user's phone
   const freshQR = fresh ? h('div', { class: 'connectSlot' }) : null
-  if (fresh) connectQR(fresh.token).then(u => freshQR.replaceChildren(connectCard(u, fresh.token)), () => {})
+  if (fresh) freshPairCard(fresh).then(card => freshQR.replaceChildren(card), e => freshQR.replaceChildren(h('p', { class: 'note' }, tr('สร้าง QR ไม่ได้: ') + e.message)))
   $('tokenBody').replaceChildren(h('div', { class: 'accCard' },
     h('div', { class: 'accTop' }, h('b', null, tr('Token ของผู้ใช้'))),
     fresh ? h('p', null, fresh.name + ': ', h('code', { class: 'devCode' }, fresh.token), ' ', h('button', { type: 'button', class: 'ghost', onclick: e => copyText(fresh.token, e.currentTarget, true) }, tr('คัดลอก'))) : null,

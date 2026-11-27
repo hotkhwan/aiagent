@@ -5,9 +5,10 @@ import (
 	"testing"
 )
 
-// An admin gets the connect code of a token they just made (the header's own
-// phone dialog uses pairing codes instead, below). The QR is drawn by this
-// service: the code holds a token, so no outside QR service may see it.
+// No QR the page shows ever holds a token. A token an admin just made is
+// handed over as a one-time pairing code (POST /tokens/:id/pair), and the old
+// connect-code route is gone. The QR is drawn by this service, never by an
+// outside one.
 func TestThePhoneAppCanBeConnectedFromThePage(t *testing.T) {
 	page := readWebFile(t, "index.html")
 	for _, want := range []string{`id="connectBtn"`, `id="connectDlg"`, `id="connectBody"`} {
@@ -16,15 +17,22 @@ func TestThePhoneAppCanBeConnectedFromThePage(t *testing.T) {
 		}
 	}
 	app := readWebFile(t, "app.js")
-	qr := jsFunc(t, app, "connectQR")
-	if !strings.Contains(qr, "'/aiagent/api/connect/qr'") || !strings.Contains(qr, "location.origin") || !strings.Contains(qr, "cache: 'no-store'") {
-		t.Error("connectQR must ask this service for the QR, with the page's origin")
+	for _, gone := range []string{"/connect/qr", "aiagent://connect", "connectCodeOf", "function connectQR", "function connectCard"} {
+		if strings.Contains(app, gone) {
+			t.Errorf("app.js still has %q: no QR may carry a token", gone)
+		}
+	}
+	fresh := jsFunc(t, app, "freshPairCard")
+	for _, want := range []string{"api('/tokens/' + encodeURIComponent(fresh.id) + '/pair'", "token: fresh.token, origin: location.origin", "download: 'aiagent-pair.png'", "expiresAt"} {
+		if !strings.Contains(fresh, want) {
+			t.Errorf("freshPairCard is missing %s", want)
+		}
 	}
 	if strings.Contains(app, "api.qrserver.com") || strings.Contains(app, "chart.googleapis.com") {
 		t.Error("a token must never go to an outside QR service")
 	}
-	if !strings.Contains(jsFunc(t, app, "drawTokens"), "connectQR(fresh.token)") {
-		t.Error("a freshly made token shows its connect code")
+	if !strings.Contains(jsFunc(t, app, "drawTokens"), "freshPairCard(fresh)") {
+		t.Error("a freshly made token shows a one-time pairing code")
 	}
 	if !strings.Contains(readWebFile(t, "styles.css"), "dialog.screenPop.connectDlg, dialog.screenPop.connectDlg.full { width: min(460px") {
 		t.Error("the phone-app dialog is a small card in the middle, not a full-width panel")

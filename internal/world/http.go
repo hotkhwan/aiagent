@@ -17,7 +17,6 @@
 //	POST /aiagent/api/sessions/:id/answer   token — {option: n} one choice, or {ask: {tabs,
 //	                                    answers, submit, chat}} a whole AskUserQuestion (ask.go)
 //	                                   (agcmd dispatch, or relay for own bg sessions)
-//	POST /aiagent/api/connect/qr       token — {origin[, token]} → PNG of the phone app's connect code (connect.go)
 //	POST /aiagent/api/connect/pair     token — {origin} → one-time pairing code + QR for the phone app (pair.go)
 //	POST /aiagent/api/connect/pair/cancel token — ends the caller's pairing codes (pair.go)
 //	GET  /aiagent/api/connect/devices     token — paired phones in the caller's scope (devices.go)
@@ -355,7 +354,6 @@ func (s *Service) Mount(app *fiber.App) {
 	api := app.Group("/aiagent/api", s.gate)
 	api.Get("/me", s.handleMe)
 	api.Post("/push/devices", s.handlePushDeviceAdd)
-	api.Post("/connect/qr", s.handleConnectQR)
 	api.Post("/connect/pair", s.handleConnectPair)
 	api.Post("/connect/pair/cancel", s.handleConnectPairCancel)
 	api.Get("/connect/devices", s.handleDeviceList)

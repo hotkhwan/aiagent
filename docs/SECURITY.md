@@ -64,12 +64,13 @@ codes and other secrets out of the report; describe how to obtain them instead. 
   bound to that token's SHA-256 in `push.json` (`0600`). Revoking, reissuing or
   rotating the token stops its pushes at the next tick and drops the device.
   A user's phone only hears about what that user may see on the web.
-- The connect code (`aiagent://connect?u=…&t=…`) holds a token. Its QR is drawn
-  by this service (`POST /connect/qr`, `Cache-Control: no-store`, not audited
-  so the token never reaches a log); a user can draw only their own, an admin
-  also one they just made. No outside QR service is ever used. The web page
-  shows it only on the tokens page, for a token just made; it is kept for
-  older app builds and the App Review demo.
+- No QR holds a token. The old connect code (`aiagent://connect?u=…&t=…`)
+  carried the page's own long-lived token; its route (`POST /connect/qr`) is
+  removed, and the app refuses the `t=` form and asks for a new code (the
+  token in it was not a revocable device token, and the app registers no
+  `aiagent` URL scheme, so a Camera scan could hand it to another app). A
+  token just made on the tokens page is shown as a pairing code instead
+  (below). Every QR is drawn by this service; no outside QR service is used.
 - The header's **📱 App** dialog shows a pairing code instead
   (`internal/world/pair.go`): `aiagent://pair?c=pair_<43 base64url>&u=<origin>`.
   `POST /api/connect/pair` (any valid token) stores, in memory only,
