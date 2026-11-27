@@ -18,6 +18,8 @@
 //	                                    answers, submit, chat}} a whole AskUserQuestion (ask.go)
 //	                                   (agcmd dispatch, or relay for own bg sessions)
 //	POST /aiagent/api/connect/qr       token — {origin[, token]} → PNG of the phone app's connect code (connect.go)
+//	POST /aiagent/api/connect/pair     token — {origin} → one-time pairing code + QR for the phone app (pair.go)
+//	POST /aiagent/pair                 no token — {code} → the token, once, within 10 minutes (pair.go)
 //	POST /aiagent/api/push/devices     token — {handle} from the phone app's relay (push.go)
 //	POST /aiagent/api/uploads          token — raw image or zip body → {path} for a message
 //	POST /aiagent/api/sessions/:id/model token — /model <opus|sonnet|haiku> via the session's channel
@@ -116,6 +118,8 @@ type Service struct {
 	tickets   map[string]viewTicket
 	// sends remembers recent sends so one is never typed twice (sendonce.go)
 	sends sendOnce
+	// pair holds the phone app's one-time pairing tickets (pair.go)
+	pair pairState
 
 	policyOnce sync.Once
 
@@ -337,11 +341,14 @@ func (s *Service) Mount(app *fiber.App) {
 	app.Get("/aiagent/assets/:name", s.handleAsset)
 	app.Get("/aiagent/fonts/:name", s.handleFont)
 	app.Get("/aiagent/review-view/:ticket", s.handleReviewView)
+	// the phone app trades a one-time pairing code for its token (pair.go)
+	app.Post("/aiagent/pair", s.handlePairRedeem)
 
 	api := app.Group("/aiagent/api", s.gate)
 	api.Get("/me", s.handleMe)
 	api.Post("/push/devices", s.handlePushDeviceAdd)
 	api.Post("/connect/qr", s.handleConnectQR)
+	api.Post("/connect/pair", s.handleConnectPair)
 	api.Get("/update", s.handleUpdateCheck)
 	api.Post("/update", s.handleUpdateApply)
 	api.Post("/push/devices/remove", s.handlePushDeviceRemove)

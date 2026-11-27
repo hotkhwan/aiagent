@@ -357,7 +357,7 @@ func (s *Service) withOthers(c fiber.Ctx, name string, b []byte) []byte {
 
 // localPaths are answered here even while a request is for a user's instance.
 func localPath(path string) bool {
-	return path == "/me" || path == "/push/devices" || path == "/push/devices/remove" || path == "/connect/qr" || path == "/preview/ticket" || path == "/vault" || strings.HasPrefix(path, "/vault/") || strings.HasPrefix(path, "/guides/") || path == "/rooms" || path == "/tokens" || strings.HasPrefix(path, "/tokens/")
+	return path == "/me" || path == "/push/devices" || path == "/push/devices/remove" || path == "/connect/qr" || path == "/connect/pair" || path == "/preview/ticket" || path == "/vault" || strings.HasPrefix(path, "/vault/") || strings.HasPrefix(path, "/guides/") || path == "/rooms" || path == "/tokens" || strings.HasPrefix(path, "/tokens/")
 }
 
 // forwardAudited records a write before it leaves, as mutate does.

@@ -66,7 +66,21 @@ issue. There is one maintainer, so expect a human-speed reply, not an SLA.
 - The connect code (`aiagent://connect?u=…&t=…`) holds a token. Its QR is drawn
   by this service (`POST /connect/qr`, `Cache-Control: no-store`, not audited
   so the token never reaches a log); a user can draw only their own, an admin
-  also one they just made. No outside QR service is ever used.
+  also one they just made. No outside QR service is ever used. The web page
+  shows it only on the tokens page, for a token just made; it is kept for
+  older app builds and the App Review demo.
+- The header's **📱 App** dialog shows a pairing code instead
+  (`internal/world/pair.go`): `aiagent://pair?c=pair_<43 base64url>&u=<origin>`.
+  `POST /api/connect/pair` (any valid token) stores, in memory only,
+  sha256(ticket) → the presented token, for 10 minutes; at most 50 live
+  tickets, the oldest dropped first; a restart empties the table. The app
+  redeems it at `POST /aiagent/pair` (no token, 404 while the service is off):
+  the ticket is deleted on the first try, so one redeem wins, and the token is
+  checked again so a revoked or reissued token is not handed out. Every failure
+  (bad shape, unknown, used, expired, revoked) answers the same 404
+  `AIAGENT_PAIR_INVALID`; 10 failures a minute from one address answer 429.
+  Neither endpoint is audited or logged, and both send `Cache-Control: no-store`.
+  A photo of the QR is useless once used or after 10 minutes.
 
 - **Updating from the page** (`internal/world/selfupdate.go`, admin only, audited):
   the service fetches the upstream of the checkout `packaging/install.sh` was

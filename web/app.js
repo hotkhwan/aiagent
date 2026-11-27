@@ -3224,18 +3224,56 @@ function connectCard (url, token) {
       h('button', { type: 'button', class: 'ghost', onclick: e => copyText(connectCodeOf(token), e.currentTarget, true) }, tr('คัดลอกรหัสเชื่อมต่อ')),
       h('p', { class: 'note' }, tr('รหัสนี้คือกุญแจเข้า server เท่ากับ token อย่าถ่ายภาพหน้าจอหรือส่งในที่สาธารณะ'))))
 }
-async function openConnect () {
-  $('connectBody').replaceChildren(h('p', { class: 'note' }, tr('กำลังสร้างรหัส…')))
+// The header's phone dialog shows a one-time pairing code (pair.go), never the
+// token: the QR holds a ticket the app trades once for the token, within ten
+// minutes, so a photo of it opens nothing afterwards.
+function openConnect () {
   $('connectDlg').showModal()
+  drawPair()
+}
+async function drawPair () {
+  clearInterval(st.pairTimer)
+  const seq = st.pairSeq = (st.pairSeq || 0) + 1
+  const box = $('connectBody')
+  const again = h('button', { type: 'button', class: 'ghost', onclick: () => drawPair() }, tr('รหัสใหม่'))
+  box.replaceChildren(h('p', { class: 'note' }, tr('กำลังสร้างรหัส…')))
+  let p
   try {
-    st.connectURL = await connectQR()
-    $('connectBody').replaceChildren(connectCard(st.connectURL, st.token),
-      h('p', { class: 'note' }, tr('แอปจะได้สิทธิ์เดียวกับ token ที่คุณใช้อยู่ในหน้านี้ แจ้งเตือนจะหยุดเองเมื่อ token ถูกเพิกถอนหรือออกใหม่')))
-  } catch (e) { $('connectBody').replaceChildren(h('p', { class: 'note' }, tr('สร้างรหัสไม่ได้: ') + e.message)) }
+    p = await api('/connect/pair', { method: 'POST', body: { origin: location.origin } })
+  } catch (e) {
+    if (seq === st.pairSeq) box.replaceChildren(h('p', { class: 'note' }, tr('สร้างรหัสไม่ได้: ') + e.message), again)
+    return
+  }
+  // a newer request, or a closed dialog, owns the box now
+  if (seq !== st.pairSeq || !$('connectDlg').open) return
+  // never count past ten minutes, even if this computer's clock runs behind
+  const ends = Math.min(Date.parse(p.expiresAt), Date.now() + 10 * 60 * 1000)
+  const img = h('img', { src: p.qr, alt: tr('QR รหัสจับคู่แอป'), class: 'connectQR' })
+  const left = h('p', { class: 'pairLeft' })
+  const save = h('a', { class: 'pairSave', download: 'aiagent-pair.png', href: p.qr }, tr('บันทึกภาพ'))
+  const tick = () => {
+    const sec = Math.max(0, Math.round((ends - Date.now()) / 1000))
+    if (sec > 0) {
+      left.textContent = tr('ใช้ได้อีก ') + Math.floor(sec / 60) + ':' + String(sec % 60).padStart(2, '0')
+      return
+    }
+    clearInterval(st.pairTimer)
+    img.classList.add('expired')
+    save.remove()
+    left.textContent = tr('รหัสนี้หมดอายุแล้ว กดรหัสใหม่')
+  }
+  box.replaceChildren(h('div', { class: 'connectCard' }, img,
+    h('div', null,
+      h('p', null, tr('สแกน QR ด้วยแอป AI Agent World หรือบันทึกภาพไว้ แล้วเปิดภาพจาก Photos หรือ Files ในแอป')),
+      left,
+      h('div', { class: 'accRow pairRow' }, save, again),
+      h('p', { class: 'note' }, tr('รหัสนี้ใช้ได้ครั้งเดียว ภายใน 10 นาที แอปจะได้สิทธิ์เดียวกับ token ที่คุณใช้อยู่ในหน้านี้')))))
+  tick()
+  if (Date.now() < ends) st.pairTimer = setInterval(tick, 1000)
 }
 $('connectDlg').addEventListener('close', () => {
-  if (st.connectURL) URL.revokeObjectURL(st.connectURL)
-  st.connectURL = ''
+  clearInterval(st.pairTimer)
+  st.pairSeq = (st.pairSeq || 0) + 1
   $('connectBody').replaceChildren()
 })
 

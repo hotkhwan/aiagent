@@ -6,8 +6,12 @@ The app controls an aiagent server you run on your own computer.
 
 1. Install the server: see the [README](../README.md).
 2. Open the server's web page and sign in with your token.
-3. Press **📱 App** at the top: it shows a QR.
-4. In the app, press **Scan QR** (or copy the code and use *Paste a code instead*).
+3. Press **📱 App** at the top: it shows a one-time pairing QR. It works once,
+   within 10 minutes; press **New code** for another.
+4. In the app, press **Scan QR**. If the phone cannot scan the screen, press
+   **Download image**, get the picture onto the phone and open it from Photos
+   or Files in the app. *Paste a code instead* is for a connect code an admin
+   sent you when making your token; the web page no longer shows your own.
 
 ## Common questions
 

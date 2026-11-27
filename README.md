@@ -22,7 +22,8 @@ your own aiagent server; nothing passes through anyone else's except the push
 relay, which carries a session name and never a token or a conversation.
 
 1. Run aiagent on your computer (below).
-2. On its web page press **📱 App**: it shows a QR.
+2. On its web page press **📱 App**: it shows a one-time pairing QR (works once,
+   within 10 minutes; **Download image** saves it for opening from Photos/Files).
 3. In the app press **Scan QR**.
 
 The app is in TestFlight beta (iOS). `--push-relay` picks the notification relay
