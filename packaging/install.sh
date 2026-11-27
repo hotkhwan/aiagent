@@ -248,6 +248,8 @@ if [ "$with_service" = yes ]; then
 			# what every agent knows: the admin's rules, skills and marked memories
 			install -m 0755 "$root/packaging/room-share.py" /usr/local/lib/aiagent/room-share.py
 			install -m 0644 "$root/packaging/aiagent-room-share.service" "$root/packaging/aiagent-room-share.timer" "$unitdir/"
+			# the rooms' dev/uat environment files (docs/ENVIRONMENTS.md)
+			install -m 0644 "$root/packaging/aiagent-room-env.service" "$root/packaging/aiagent-room-env.timer" "$unitdir/"
 			install -m 0755 "$root/packaging/capture-box.sh" /usr/local/lib/aiagent/capture-box.sh
 			install -m 0755 "$root/packaging/preview-routes.py" /usr/local/lib/aiagent/preview-routes.py
 			install -m 0644 "$root/packaging/aiagent-capture@.service" "$root/packaging/aiagent-preview-routes.service" "$root/packaging/aiagent-preview-routes.timer" "$unitdir/"
@@ -269,7 +271,7 @@ if [ "$with_service" = yes ]; then
 First run (as root), in this order:
 
   systemctl daemon-reload
-  systemctl enable --now aiagent-tmux@root aiagent@root aiagent-agents@root aiagent-keep@root.timer aiagent-quota@root.timer aiagent-room-share.timer
+  systemctl enable --now aiagent-tmux@root aiagent@root aiagent-agents@root aiagent-keep@root.timer aiagent-quota@root.timer aiagent-room-share.timer aiagent-room-env.timer
   aiagent enable              keep the admin token it prints (shown once)
   claude setup-token          sign in with YOUR Claude account, copy the token
   aiagent-claude-token set    paste it (hidden); every room uses it from now on

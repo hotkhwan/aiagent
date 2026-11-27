@@ -3167,6 +3167,7 @@ async function openAccounts () {
   await drawCLIs()
   await drawTokens()
   await drawVault()
+  await drawEnvironments()
   await drawRooms()
 }
 
@@ -3209,6 +3210,87 @@ async function drawVault (editing) {
     err,
     h('p', { class: 'note' }, tr('ชื่อ: ตัวอักษร ตัวเลข เว้นวรรค . _ / - ไม่เกิน 60 ตัว · ใช้กับอะไร: 3-300 ตัว · ค่า token: 16-400 ตัว ไม่มีเว้นวรรค')),
     h('p', { class: 'note' }, tr('ห้องของ user ไม่เห็นค่า token นี้ ใช้ได้เฉพาะระบบของ admin เช่น การส่ง MR และ CI'))))
+}
+
+// ----- environments: which environment is dev, uat or prod, and the variables
+// a program there needs. A value is sent once and never read back; the list
+// says only whether it is set. dev and uat go to the builders' rooms as files,
+// prod never leaves the admin (docs/ENVIRONMENTS.md).
+// st.edit: the environment being edited; st.open: the one whose variables
+// show; st.editVar: the variable being changed.
+const envTierLabel = { dev: 'dev', uat: 'uat', prod: 'prod' }
+async function drawEnvironments (st) {
+  if (!$('accountsDlg').open) return
+  st = st || {}
+  const box = $('envBody')
+  let list
+  try { list = (await api('/environments')).environments } catch (e) { box.replaceChildren(h('p', { class: 'note' }, tr('อ่านรายการ environment ไม่ได้: ') + e.message)); return }
+  const badge = t => h('span', { class: 'envTier tier-' + t }, envTierLabel[t] || t)
+  const reach = t => t === 'prod' ? tr('ไม่ส่งให้ห้องใดเลย งาน prod ผ่าน admin') : tr('ส่งให้ห้อง frontend, backend, fullstack และ admin')
+  const name = h('input', { type: 'text', id: 'envName', maxlength: '40', placeholder: tr('ชื่อ เช่น netra-dev'), autocomplete: 'off', spellcheck: 'false' })
+  const tier = h('select', { id: 'envTier', 'aria-label': tr('tier') }, h('option', { value: 'dev' }, 'dev'), h('option', { value: 'uat' }, 'uat'), h('option', { value: 'prod' }, 'prod'))
+  const note = h('input', { type: 'text', id: 'envNote', maxlength: '300', placeholder: tr('หมายเหตุ เช่น cluster ไหน ใครดูแล'), autocomplete: 'off' })
+  const err = h('p', { class: 'vaultErr', role: 'alert' })
+  if (st.edit) { name.value = st.edit.name; tier.value = st.edit.tier; note.value = st.edit.note || '' }
+  const save = async () => {
+    err.textContent = ''
+    try {
+      await api(st.edit ? '/environments/' + st.edit.id + '/edit' : '/environments', { method: 'POST', body: { name: name.value.trim(), tier: tier.value, note: note.value.trim() } })
+    } catch (e) { err.textContent = tr('ไม่สำเร็จ: ') + e.message; return }
+    toast(tr('บันทึก environment แล้ว'))
+    drawEnvironments({ open: st.open })
+  }
+  const remove = async en => {
+    if (!await confirmBox(tr('ลบ environment'), tr('ตัวแปรและค่าทั้งหมดของ environment นี้จะหายไป และไฟล์ในห้องจะถูกลบในรอบถัดไป'), en.name, tr('ลบ'))) return
+    try { await api('/environments/' + en.id + '/remove', { method: 'POST', body: {} }) } catch (x) { toast(tr('ไม่สำเร็จ: ') + x.message, true) }
+    drawEnvironments()
+  }
+  const varsOf = en => {
+    const key = h('input', { type: 'text', id: 'envVarKey', maxlength: '64', placeholder: tr('ชื่อตัวแปร เช่น DATABASE_URL'), autocomplete: 'off', spellcheck: 'false' })
+    const desc = h('input', { type: 'text', id: 'envVarDesc', maxlength: '200', placeholder: tr('ใช้ทำอะไร'), autocomplete: 'off' })
+    const value = h('input', { type: 'password', id: 'envVarValue', maxlength: '4096', placeholder: st.editVar ? tr('ค่าใหม่ (เว้นว่าง = ใช้ค่าเดิม)') : tr('ค่า (ส่งครั้งเดียว ไม่มีการอ่านกลับ)'), autocomplete: 'new-password', spellcheck: 'false' })
+    const verr = h('p', { class: 'vaultErr', role: 'alert' })
+    if (st.editVar) { key.value = st.editVar.key; key.disabled = true; desc.value = st.editVar.description || '' }
+    const saveVar = async () => {
+      verr.textContent = ''
+      try {
+        await api('/environments/' + en.id + '/vars', { method: 'POST', body: { key: key.value.trim(), description: desc.value.trim(), value: value.value } })
+      } catch (e) { verr.textContent = tr('ไม่สำเร็จ: ') + e.message; return }
+      value.value = ''
+      toast(tr('บันทึกตัวแปรแล้ว'))
+      drawEnvironments({ open: en.id })
+    }
+    const removeVar = async v => {
+      if (!await confirmBox(tr('ลบตัวแปร'), tr('ค่าของตัวแปรนี้จะหายไป และหายจากไฟล์ในห้องในรอบถัดไป'), v.key, tr('ลบ'))) return
+      try { await api('/environments/' + en.id + '/vars/' + encodeURIComponent(v.key) + '/remove', { method: 'POST', body: {} }) } catch (x) { toast(tr('ไม่สำเร็จ: ') + x.message, true) }
+      drawEnvironments({ open: en.id })
+    }
+    return h('div', { class: 'envVars' },
+      en.vars.length ? h('ul', null, ...en.vars.map(v => h('li', null, h('code', null, v.key),
+        v.description ? ' · ' + v.description : '', ' ',
+        h('span', { class: 'envSet ' + (v.set ? 'on' : 'off') }, v.set ? tr('ตั้งค่าแล้ว') : tr('ยังไม่ตั้งค่า')), ' ',
+        h('button', { type: 'button', class: 'ghost', onclick: () => drawEnvironments({ open: en.id, editVar: v }) }, tr('เปลี่ยนค่า')), ' ',
+        h('button', { type: 'button', class: 'warn', onclick: () => removeVar(v) }, tr('ลบ'))))) : h('p', { class: 'note' }, tr('ยังไม่มีตัวแปร')),
+      h('div', { class: 'accRow' }, key, desc),
+      h('div', { class: 'accRow' }, value, h('button', { type: 'button', class: 'pri', onclick: saveVar }, st.editVar ? tr('บันทึก') : tr('เพิ่มตัวแปร')), st.editVar ? h('button', { type: 'button', class: 'ghost', onclick: () => drawEnvironments({ open: en.id }) }, tr('ยกเลิก')) : null),
+      verr,
+      h('p', { class: 'note' }, tr('ชื่อตัวแปร: A-Z 0-9 _ ขึ้นต้นด้วยตัวอักษร · ค่า: บรรทัดเดียว ไม่เกิน 4096 ไบต์ · หน้าเว็บไม่แสดงค่าที่บันทึกแล้ว')))
+  }
+  box.replaceChildren(h('div', { class: 'accCard' },
+    h('div', { class: 'accTop' }, h('b', null, tr('Environment'))),
+    list.length ? h('ul', { class: 'envList' }, ...list.map(en => h('li', null,
+      h('b', null, en.name), ' ', badge(en.tier), en.note ? ' · ' + en.note : '',
+      h('span', { class: 'note' }, ' · ' + en.vars.length + tr(' ตัวแปร') + ' · ' + reach(en.tier)), ' ',
+      h('button', { type: 'button', class: 'ghost', onclick: () => drawEnvironments({ open: st.open === en.id ? '' : en.id }) }, st.open === en.id ? tr('ซ่อนตัวแปร') : tr('ตัวแปร')), ' ',
+      h('button', { type: 'button', class: 'ghost', onclick: () => drawEnvironments({ edit: en, open: st.open }) }, tr('แก้ไข')), ' ',
+      h('button', { type: 'button', class: 'warn', onclick: () => remove(en) }, tr('ลบ')),
+      st.open === en.id ? varsOf(en) : null))) : h('p', { class: 'note' }, tr('ยังไม่มี environment')),
+    h('b', null, st.edit ? tr('แก้ไข ') + st.edit.name : tr('เพิ่ม environment')),
+    h('div', { class: 'accRow' }, name, tier),
+    h('div', { class: 'accRow' }, note, h('button', { type: 'button', class: 'pri', onclick: save }, tr('บันทึก')), st.edit ? h('button', { type: 'button', class: 'ghost', onclick: () => drawEnvironments({ open: st.open }) }, tr('ยกเลิก')) : null),
+    err,
+    h('p', { class: 'note' }, tr('ชื่อ: a-z 0-9 และขีดกลาง ไม่เกิน 40 ตัว · dev และ uat: ห้อง frontend, backend, fullstack และ admin ได้รับเป็นไฟล์ ~/.config/aiagent/env/<ชื่อ>.env · ห้อง tester ไม่ได้รับ')),
+    h('p', { class: 'note' }, tr('prod: บันทึกไว้ให้ admin รู้ว่าอันไหนคือ prod ค่าของ prod ไม่ถูกส่งให้ห้องใดเลย'))))
 }
 
 // ----- user tokens: the server refuses these calls without an admin token -----

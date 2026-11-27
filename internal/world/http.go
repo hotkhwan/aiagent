@@ -395,6 +395,7 @@ func (s *Service) Mount(app *fiber.App) {
 	api.Post("/sessions/:id/look", s.handleSessionLook)
 	api.Post("/sessions/:id/admin", s.handleSessionAdmin)
 	s.mountFaces(api)
+	s.mountEnvironments(api)
 	api.Post("/messages", s.handleMessage)
 	api.Post("/runs/:id/answer", s.handleAnswer)
 	api.Post("/runs/:id/approve", s.handleRunStatus("approve"))

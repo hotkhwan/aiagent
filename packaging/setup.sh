@@ -80,7 +80,7 @@ fi
 
 systemctl daemon-reload
 systemctl enable --now aiagent-tmux@root aiagent@root aiagent-agents@root \
-	aiagent-keep@root.timer aiagent-quota@root.timer aiagent-room-share.timer
+	aiagent-keep@root.timer aiagent-quota@root.timer aiagent-room-share.timer aiagent-room-env.timer
 
 echo
 # `aiagent enable` on a service that is already on would replace the token.

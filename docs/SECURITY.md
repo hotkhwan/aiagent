@@ -213,6 +213,13 @@ handles a password and never stores a provider credential.
 > interrupted you are left signed out, and you must finish it on the machine to
 > get back in. This is the CLI's behaviour, not something this service can fix.
 
+## Environments
+
+The admin records which environment is dev, uat or prod, and its variables
+(values write-only, `0600`, apart from the metadata). Rooms whose duty builds
+code get dev and uat values as files in their own home; a prod value never
+reaches a room. Design, delivery and threat model: [ENVIRONMENTS.md](ENVIRONMENTS.md).
+
 ## Privileges
 
 Run it as the **same unprivileged user as the agents it watches**. It needs

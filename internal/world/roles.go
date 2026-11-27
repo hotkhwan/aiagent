@@ -643,6 +643,7 @@ func (s *Service) handleTokenDuty(c fiber.Ctx) error {
 					return nil, err
 				}
 				s.syncAdminList(context.Background())
+				s.kickRoomEnv() // a new duty may take environments away (environments.go)
 				return fiber.Map{"id": id, "duty": body.Duty}, nil
 			}
 		}
