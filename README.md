@@ -259,9 +259,6 @@ version, including what is **not** protected, is in
 - **No tests for the browser code.** The Go side has tests and the embedded
   art is checked against its spec (`go test ./...`), but `web/app.js` itself
   has none.
-- **Asset licensing is unresolved** — see [docs/ASSETS.md](docs/ASSETS.md).
-  Until that is settled, treat the images as all rights reserved even though
-  the code is Apache-2.0.
 - Alpha: one author, one machine, no external security review.
 
 ## Contribute and support
@@ -291,13 +288,14 @@ Sponsorship is optional and does not unlock Mobile Pro features.
 | [docs/PUBLIC_URL.md](docs/PUBLIC_URL.md) | Getting an https address for the phone |
 | [docs/SECURITY.md](docs/SECURITY.md) | Threat model and what is not protected |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | How it is built |
-| [docs/ASSETS.md](docs/ASSETS.md) | Image licensing status |
+| [docs/ASSETS.md](docs/ASSETS.md) | Where the images come from, and their CC BY 4.0 licence |
 | [docs/APP_TERMS.md](docs/APP_TERMS.md), [docs/APP_PRIVACY.md](docs/APP_PRIVACY.md), [docs/APP_SUPPORT.md](docs/APP_SUPPORT.md) | Phone app terms, privacy and support |
 
 ## Licence
 
-Code: [Apache-2.0](LICENSE). Images: **not** covered by that licence yet —
-read [docs/ASSETS.md](docs/ASSETS.md) first.
+Code: [Apache-2.0](LICENSE). Images in `web/assets/`: © JOINANNY,
+[CC BY 4.0](LICENSE-ASSETS.md), generated with AI (ChatGPT); provenance in
+[docs/ASSETS.md](docs/ASSETS.md).
 
 "Claude" is a trademark of Anthropic and "Codex" of OpenAI. This project is not
 affiliated with, endorsed by, or sponsored by either; it only talks to their
