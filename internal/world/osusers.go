@@ -364,7 +364,9 @@ func (s *Service) withOthers(c fiber.Ctx, name string, b []byte) []byte {
 func localPath(path string) bool {
 	return path == "/me" || path == "/push/devices" || path == "/push/devices/remove" || path == "/connect/qr" || path == "/connect/pair" || path == "/connect/pair/cancel" || path == "/connect/devices" || strings.HasPrefix(path, "/connect/devices/") || path == "/preview/ticket" || path == "/vault" || strings.HasPrefix(path, "/vault/") || strings.HasPrefix(path, "/guides/") || path == "/rooms" || path == "/tokens" || strings.HasPrefix(path, "/tokens/") ||
 		// photo faces are per token, the same whichever room the phone is in
-		path == "/faces" || strings.HasPrefix(path, "/faces/")
+		path == "/faces" || strings.HasPrefix(path, "/faces/") ||
+		// the guard's admin list is the main service's: a room never answers this
+		sessionAdminPathRE.MatchString(path)
 }
 
 // forwardAudited records a write before it leaves, as mutate does.

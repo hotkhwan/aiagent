@@ -350,6 +350,11 @@ type protectedList struct {
 	// job runs under now: the job keeps its short id when its conversation
 	// moves on, and the guard sees the new session id.
 	Aliases map[string]string `json:"aliases,omitempty"`
+	// Procs maps a pinned or workspace id to the Claude Code process it was
+	// last seen live in ("pid:procStart", the main service's own registry
+	// only). An interactive session has no job id; after /clear the same
+	// process runs under a new session id, and that id becomes its alias.
+	Procs map[string]string `json:"procs,omitempty"`
 }
 
 func (s *Service) protections(ctx context.Context) protections {
@@ -366,15 +371,10 @@ func (s *Service) protectionsFor(sessions []Session) protections {
 	if err != nil {
 		return protections{all: true}
 	}
-	var seen []string
-	for _, ss := range sessions {
-		if w, ok := s.Collector.lookupWorkspace(ss.DispatchVia); ok && w.protected {
-			seen = append(seen, ss.SessionID)
-		}
-	}
+	seen := s.workspaceSeen(sessions)
 	changed := false
 	if s.Duties != nil {
-		changed = s.explicitList(&list, seen, nil, jobSessions(sessions))
+		changed = s.explicitList(&list, seen, nil, s.ownRegistry(sessions))
 	} else {
 		have := idSet(list.Sessions)
 		for _, id := range seen {

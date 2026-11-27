@@ -1,10 +1,17 @@
 // internal/world/roomduties.go
 //
-// A room's duty: what the person behind a user token does — builds pages
-// (frontend, with a dev server behind the room's preview), works on services
-// (backend, no preview), or tests on the shared UAT (tester, runs no app),
-// or is an admin (admin: the room's sessions are on the admin list in
-// protected.json, which the host's guard reads; see adminlist.go).
+// A room's duty: what the person behind a user token does.
+//
+//   - frontend: builds pages; its dev server runs behind dev/<room>.
+//   - backend: works on services; it also has a preview, its own dev server
+//     behind dev/<room> showing Swagger/OpenAPI or a small page of its own,
+//     plus tests.
+//   - fullstack: frontend and backend and the services they use, on dev/UAT.
+//   - tester: runs no app; tests on the shared UAT.
+//   - admin: the room's sessions are on the admin list in protected.json,
+//     which the host's guard reads (see adminlist.go).
+//
+// Whatever the duty, merge requests go through the admin.
 // The admin picks it when creating the token and can change it later.
 //
 // The duties live in one small file, /etc/aiagent/room-duties.conf by
@@ -24,16 +31,17 @@ import (
 
 // Duties a room can have.
 const (
-	DutyFrontend = "frontend"
-	DutyBackend  = "backend"
-	DutyTester   = "tester"
-	DutyAdmin    = "admin"
+	DutyFrontend  = "frontend"
+	DutyBackend   = "backend"
+	DutyFullstack = "fullstack"
+	DutyTester    = "tester"
+	DutyAdmin     = "admin"
 )
 
-var validDuties = map[string]bool{DutyFrontend: true, DutyBackend: true, DutyTester: true, DutyAdmin: true}
+var validDuties = map[string]bool{DutyFrontend: true, DutyBackend: true, DutyFullstack: true, DutyTester: true, DutyAdmin: true}
 
 // dutyErr is the refusal for a duty that is not one of validDuties.
-const dutyErr = "บทบาทต้องเป็น frontend, backend, tester หรือ admin"
+const dutyErr = "บทบาทต้องเป็น frontend (dev server หลัง dev/<ห้อง>), backend (มีพรีวิวของตัวเองหลัง dev/<ห้อง> แสดง Swagger/OpenAPI หรือหน้าเล็ก ๆ พร้อมเทสต์), fullstack (frontend + backend + service ที่ใช้ บน dev/UAT), tester (ไม่รันแอป ทดสอบบน UAT) หรือ admin (อยู่ในรายชื่อ admin ของ guard) — ทุกบทบาทส่ง merge request ผ่าน admin"
 
 // ValidDuty reports whether d is a duty; "" (not set) is valid too.
 func ValidDuty(d string) bool { return d == "" || validDuties[d] }
@@ -96,7 +104,7 @@ func (r *RoomDuties) Set(room, duty string) error {
 	}
 	sort.Strings(rooms)
 	var b strings.Builder
-	b.WriteString("# room=duty (frontend | backend | tester | admin). Written by aiagent when the admin\n# sets a room's duty; room-share.py tells each room's agent its duty.\n")
+	b.WriteString("# room=duty (frontend | backend | fullstack | tester | admin). Written by aiagent when the admin\n# sets a room's duty; room-share.py tells each room's agent its duty.\n")
 	for _, k := range rooms {
 		b.WriteString(k + "=" + m[k] + "\n")
 	}
