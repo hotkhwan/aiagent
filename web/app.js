@@ -4152,13 +4152,15 @@ function showLogin (msg) {
       petals.append(p)
     }
   }
-  if (!d.open) d.showModal()
+  if (!d.open) {
+    d.showModal()
+    startLoginQR()
+  }
   $('loginToken').focus()
 }
-$('loginForm').addEventListener('submit', e => {
-  e.preventDefault()
-  const t = $('loginToken').value.trim()
-  if (!t) return
+function signIn (t) {
+  st.loginQRSeq = (st.loginQRSeq || 0) + 1 // any QR still polling stops
+  clearTimeout(st.loginQRTimer)
   st.token = t
   safeSet(roleKey, '')
   showMenu('')
@@ -4166,7 +4168,67 @@ $('loginForm').addEventListener('submit', e => {
   $('loginToken').value = ''
   $('login').close()
   poll()
+}
+$('loginForm').addEventListener('submit', e => {
+  e.preventDefault()
+  const t = $('loginToken').value.trim()
+  if (!t) return
+  signIn(t)
 })
+// QR login (loginqr.go): the page asks for a one-time request, shows its QR,
+// and polls with the nonce the server gave it. The nonce lives only in this
+// closure: never in the QR, the URL or storage, so a photo of the QR cannot
+// collect the token. The request lasts two minutes and opens once.
+async function startLoginQR () {
+  clearTimeout(st.loginQRTimer)
+  const seq = st.loginQRSeq = (st.loginQRSeq || 0) + 1
+  const box = $('loginQR')
+  const img = $('loginQRImg')
+  const left = $('loginQRLeft')
+  const again = $('loginQRNew')
+  let r
+  try {
+    const res = await fetch('/aiagent/login-qr', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ origin: location.origin }), cache: 'no-store' })
+    const body = await res.json().catch(() => null)
+    if (!res.ok || !body || body.code !== 'SUCCESS') throw new Error('login-qr ' + res.status)
+    r = body.details
+  } catch (e) {
+    // no QR on this address (plain http, an older server, too many asks): the token form still works
+    if (seq === st.loginQRSeq) box.hidden = true
+    return
+  }
+  if (seq !== st.loginQRSeq || !$('login').open) return
+  // never count past two minutes, even if this computer's clock runs behind
+  const ends = Math.min(Date.parse(r.expiresAt), Date.now() + 2 * 60 * 1000)
+  const over = text => {
+    img.classList.add('expired')
+    left.textContent = text
+    again.hidden = false
+  }
+  img.src = r.qr
+  img.classList.remove('expired')
+  again.hidden = true
+  box.hidden = false
+  const step = async () => {
+    if (seq !== st.loginQRSeq || !$('login').open) return
+    const sec = Math.max(0, Math.round((ends - Date.now()) / 1000))
+    if (!sec) { over(tr('QR นี้หมดอายุแล้ว กด QR ใหม่')); return }
+    left.textContent = tr('ใช้ได้อีก ') + Math.floor(sec / 60) + ':' + String(sec % 60).padStart(2, '0')
+    let res = null
+    let body = null
+    try {
+      res = await fetch('/aiagent/login-qr/' + encodeURIComponent(r.id), { headers: { 'X-Aiagent-Login-Nonce': r.nonce }, cache: 'no-store' })
+      body = await res.json().catch(() => null)
+    } catch (e) { res = null }
+    if (seq !== st.loginQRSeq || !$('login').open) return
+    const d = body && body.details
+    if (res && res.ok && d && d.status === 'approved' && d.token) { signIn(d.token); return }
+    if (res && res.status === 404) { over(tr('QR นี้ใช้ไม่ได้แล้ว กด QR ใหม่')); return }
+    st.loginQRTimer = setTimeout(step, 2000)
+  }
+  step()
+}
+$('loginQRNew').addEventListener('click', () => startLoginQR())
 $('login').addEventListener('cancel', e => e.preventDefault())
 // One row per view: its nav button, the name kept in localStorage, its pane.
 // web/assets_test.go checks every row against index.html.

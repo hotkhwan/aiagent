@@ -251,6 +251,8 @@ var userRoutes = map[string][]*regexp.Regexp{
 	"DELETE": compileAll(`/faces/account`, `/faces/sessions/[A-Za-z0-9-]+`),
 	"POST": compileAll(
 		`/messages`, `/uploads`, `/preview/ticket`, `/push/devices`, `/push/devices/remove`, `/connect/qr`, `/connect/pair`, `/connect/pair/cancel`, `/connect/devices/[0-9a-f]{12}/revoke`,
+		// signing a browser in with this token's own scope (loginqr.go)
+		`/login-qr/[A-Za-z0-9_-]{22}/(info|approve)`,
 		`/sessions/[A-Za-z0-9-]+/(message|stop|name|look|answer)`,
 		`/reviews/[A-Za-z0-9._-]+/(view|compose|decision)`,
 	),

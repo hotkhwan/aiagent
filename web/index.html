@@ -187,6 +187,15 @@
         <label class="remember"><input type="checkbox" id="loginRemember"> จำไว้ในเครื่องนี้ (สำหรับมือถือ / แอปหน้าจอหลัก)</label>
         <p class="err" id="loginErr"></p>
         <div class="dlgBtns"><button type="submit" class="pri">เข้าใช้งาน</button></div>
+        <!-- QR login (loginqr.go): a one-time request the phone app approves.
+             The QR holds no token; only this tab, which keeps the nonce, can
+             collect the token the server mints once the app says yes. -->
+        <div class="loginQR" id="loginQR" hidden>
+          <p class="loginQRHead">หรือสแกนด้วยแอป AI Agent World เพื่อเข้าสู่ระบบ</p>
+          <img id="loginQRImg" class="connectQR" alt="QR เข้าสู่ระบบด้วยแอป">
+          <p class="note" id="loginQRLeft"></p>
+          <button type="button" class="ghost" id="loginQRNew" hidden>QR ใหม่</button>
+        </div>
       </form>
     </div>
   </div>

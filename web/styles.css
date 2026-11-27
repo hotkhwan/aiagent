@@ -1199,6 +1199,9 @@ body.listView .stageHead, body.listView .sceneTools { display: none }
    min-content width and pushes the whole card off a phone screen. */
 .loginCard p, .loginCard code { overflow-wrap: anywhere }
 .loginCard input[type="password"] { border-color: rgba(0,220,130,.35) }
+.loginQR { display: grid; justify-items: center; gap: 6px; margin-top: 14px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,.12); text-align: center }
+.loginQR[hidden] { display: none }
+.loginQR .connectQR { width: 180px; height: 180px }
 .loginCard input[type="password"]:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 3px rgba(0,220,130,.18) }
 @media (max-width: 620px) { .loginChar { display: none } }
 @media (prefers-reduced-motion: reduce) { .loginPetals { display: none } .loginChar { animation: none } }

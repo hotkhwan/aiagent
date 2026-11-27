@@ -271,3 +271,50 @@ func (s *Service) auditPair(ip, result string) error {
 	}
 	return s.Auditor.Write(audit.Record{Event: "result", RPC: "aiagent.pairRedeem", AdminSub: "aiagent-pair@" + ip, Result: result})
 }
+
+// handleTokenPair issues a pairing code for a user token the admin holds:
+// the one it was just shown by create or reissue. The admin proves it holds
+// the token by sending it back; the phone that scans the code then gets a
+// device token in that user's scope, never the user token itself. Admin only
+// (not in userRoutes), audited, and the token is never echoed or logged.
+func (s *Service) handleTokenPair(c fiber.Ctx) error {
+	c.Set("Cache-Control", "no-store")
+	id := strings.Clone(c.Params("id"))
+	var body struct {
+		Token  string `json:"token"`
+		Origin string `json:"origin"`
+	}
+	if err := json.Unmarshal(c.Body(), &body); err != nil {
+		return s.fail(c, ErrBadRequest(`expected {"token": "kaw_…", "origin": "https://…"}`))
+	}
+	if _, err := pairCode(body.Origin, pairPrefix); err != nil {
+		return s.fail(c, err)
+	}
+	who, ok := s.Store.IdentifyHash(sha256.Sum256([]byte(body.Token)))
+	if !ok || who.Role != RoleUser || who.DeviceID != "" || who.UserID != id {
+		return s.fail(c, ErrNotFound("ไม่พบ token นี้"))
+	}
+	if s.Auditor != nil {
+		if err := s.Auditor.Write(audit.Record{Event: "result", RPC: "aiagent.tokenPair", AdminSub: subject(c), ParamsHash: paramsHash(id), Result: "ok"}); err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(failEnv("AIAGENT_AUDIT_FAILED", "เขียนบันทึก audit ไม่ได้ จึงไม่ได้ทำคำสั่งนี้"))
+		}
+	}
+	ticket, expires, err := s.pair.issue(strings.Clone(body.Token), s.pair.clock())
+	if err != nil {
+		return s.fail(c, err)
+	}
+	code, err := pairCode(body.Origin, ticket)
+	if err != nil {
+		return s.fail(c, err)
+	}
+	img, err := qr.Encode(code, qr.M)
+	if err != nil {
+		return s.fail(c, err)
+	}
+	img.Scale = 6
+	return c.JSON(okEnv(fiber.Map{
+		"code":      code,
+		"expiresAt": expires.UTC().Format(time.RFC3339),
+		"qr":        "data:image/png;base64," + base64.StdEncoding.EncodeToString(img.PNG()),
+	}))
+}

@@ -479,6 +479,12 @@ var EN = {
   'บันทึกภาพ': 'Download image',
   'รหัสใหม่': 'New code',
   'ใช้ได้อีก ': 'Works for another ',
+  // QR login on the login page (loginqr.go)
+  'หรือสแกนด้วยแอป AI Agent World เพื่อเข้าสู่ระบบ': 'Or scan with the AI Agent World app to sign in',
+  'QR เข้าสู่ระบบด้วยแอป': 'QR to sign in with the app',
+  'QR ใหม่': 'New QR',
+  'QR นี้หมดอายุแล้ว กด QR ใหม่': 'This QR has expired. Press New QR',
+  'QR นี้ใช้ไม่ได้แล้ว กด QR ใหม่': 'This QR no longer works. Press New QR',
   'รหัสนี้หมดอายุแล้ว กดรหัสใหม่': 'This code has expired. Press New code',
   'สแกน QR ด้วยแอป AI Agent World หรือบันทึกภาพไว้ แล้วเปิดภาพจาก Photos หรือ Files ในแอป': 'Scan the QR with the AI Agent World app, or save the image and open it from Photos or Files in the app',
   'รหัสนี้ใช้ได้ครั้งเดียว ภายใน 10 นาที แอปจะได้ token ของตัวเอง สิทธิ์เท่ากับหน้านี้ เพิกถอนได้จากปุ่มอุปกรณ์ที่จับคู่': 'The code works once, within 10 minutes. The app gets a token of its own, with this page\'s rights, that you can revoke under Paired phones',

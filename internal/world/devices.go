@@ -27,10 +27,13 @@ var deviceIDRE = regexp.MustCompile(`^[0-9a-f]{12}$`)
 // DeviceToken is a paired phone. UserID names the room whose scope it has;
 // empty is the admin's.
 type DeviceToken struct {
-	ID        string    `json:"id"`
-	Name      string    `json:"name"`
-	Hash      string    `json:"hash"`
-	UserID    string    `json:"userId,omitempty"`
+	ID     string `json:"id"`
+	Name   string `json:"name"`
+	Hash   string `json:"hash"`
+	UserID string `json:"userId,omitempty"`
+	// ParentID is the phone that signed this one in (a browser approved by
+	// QR, loginqr.go). It works only while that phone does.
+	ParentID  string    `json:"parentId,omitempty"`
 	CreatedAt time.Time `json:"createdAt"`
 }
 
@@ -40,6 +43,9 @@ func identifyDevice(st State, sum [32]byte) (Identity, bool) {
 	for _, d := range st.Devices {
 		if !hashMatches(d.Hash, sum) {
 			continue
+		}
+		if d.ParentID != "" && !hasDevice(st.Devices, d.ParentID) {
+			return Identity{}, false
 		}
 		if d.UserID == "" {
 			return Identity{Role: RoleAdmin, DeviceID: d.ID}, true
@@ -54,7 +60,18 @@ func identifyDevice(st State, sum [32]byte) (Identity, bool) {
 	return Identity{}, false
 }
 
+func hasDevice(ds []DeviceToken, id string) bool {
+	for _, d := range ds {
+		if d.ID == id {
+			return true
+		}
+	}
+	return false
+}
+
 // AddDevice mints a token for a phone with the scope of id and returns it once.
+// When id is itself a device, the new one is tied to it (to the phone at the
+// root, so a chain never grows): revoking that phone ends this one too.
 func (s *Store) AddDevice(id Identity, name string) (DeviceToken, string, error) {
 	name = strings.TrimSpace(name)
 	if !userNameRE.MatchString(name) {
@@ -82,6 +99,21 @@ func (s *Store) AddDevice(id Identity, name string) (DeviceToken, string, error)
 	if id.Role == RoleUser {
 		d.UserID = id.UserID
 	}
+	if id.DeviceID != "" {
+		parent := DeviceToken{}
+		for _, p := range st.Devices {
+			if p.ID == id.DeviceID {
+				parent = p
+			}
+		}
+		if parent.ID == "" {
+			return DeviceToken{}, "", ErrConflict("อุปกรณ์ที่อนุมัติถูกเพิกถอนแล้ว")
+		}
+		d.ParentID = parent.ID
+		if parent.ParentID != "" {
+			d.ParentID = parent.ParentID
+		}
+	}
 	// a fresh slice: Load's result shares its array with the cache
 	st.Devices = append(append([]DeviceToken{}, st.Devices...), d)
 	return d, token, s.write(st)
@@ -106,6 +138,14 @@ func (s *Store) RevokeDevice(by Identity, deviceID string) error {
 	}
 	if !found {
 		return ErrNotFound("ไม่พบอุปกรณ์นี้")
+	}
+	// the browsers this phone signed in go with it
+	children := kept
+	kept = []DeviceToken{}
+	for _, d := range children {
+		if d.ParentID != deviceID {
+			kept = append(kept, d)
+		}
 	}
 	st.Devices = kept
 	return s.write(st)
@@ -146,7 +186,11 @@ func (s *Service) handleDeviceList(c fiber.Ctx) error {
 		if d.UserID != "" {
 			owner = names[d.UserID]
 		}
-		rows = append(rows, fiber.Map{"id": d.ID, "name": d.Name, "owner": owner, "createdAt": d.CreatedAt.UTC().Format(time.RFC3339), "current": d.ID == me.DeviceID})
+		row := fiber.Map{"id": d.ID, "name": d.Name, "owner": owner, "createdAt": d.CreatedAt.UTC().Format(time.RFC3339), "current": d.ID == me.DeviceID}
+		if d.ParentID != "" {
+			row["via"] = d.ParentID
+		}
+		rows = append(rows, row)
 	}
 	return c.JSON(okEnv(fiber.Map{"devices": rows}))
 }
