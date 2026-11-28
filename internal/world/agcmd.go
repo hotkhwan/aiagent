@@ -44,10 +44,21 @@ func (ExecRunner) Run(ctx context.Context, name string, args ...string) ([]byte,
 	cmd := exec.CommandContext(ctx, name, args...)
 	cmd.Env = append(os.Environ(), "TERM=dumb")
 	out, err := cmd.CombinedOutput()
-	if len(out) > 64<<10 {
-		out = out[:64<<10]
+	if limit := runOutputCap(name, args); len(out) > limit {
+		out = out[:limit]
 	}
 	return out, err
+}
+
+// runOutputCap is how much of a command's output is kept. Most commands are
+// read for a line or two, so 64 KB is plenty. A process list and the agent
+// view are read whole: cut, they lost every process after the cut (a busy Mac
+// prints 150 KB of `ps`), and live sessions looked ended (2026-11-28).
+func runOutputCap(name string, args []string) int {
+	if filepath.Base(name) == "ps" || (len(args) > 0 && args[0] == "agents") {
+		return 16 << 20
+	}
+	return 64 << 10
 }
 
 // tmuxState is one read of the tmux server: alive sessions + what the agent
