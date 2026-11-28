@@ -35,8 +35,14 @@ import (
 // relayName is the private tmux session used to reach a background session.
 func relayName(short string) string { return "aiagent-" + short }
 
+// reachable: a live session, or a background job that was stopped and is
+// kept by the agent view as "done" — a message attaches to it again.
+func (ss *Session) reachable() bool {
+	return ss.Live || (ss.Kind == "bg" && ss.AgentState == "done")
+}
+
 func (c *Collector) decideMessage(ss *Session) {
-	if !ss.Live {
+	if !ss.reachable() {
 		return
 	}
 	switch {
@@ -84,7 +90,7 @@ func (c *Collector) SendToSession(ctx context.Context, id, message string) (stri
 			target = &snap.Sessions[i]
 		}
 	}
-	if target == nil || !target.Live {
+	if target == nil || !target.reachable() {
 		return "", ErrNotFound("ไม่พบ session ที่เปิดอยู่ด้วยรหัสนี้")
 	}
 	switch target.MessageVia {
