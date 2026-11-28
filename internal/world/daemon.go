@@ -83,6 +83,8 @@ func (c *Collector) mergeDaemon(ctx context.Context, sessions []Session) []Sessi
 			continue
 		}
 		i, ok := index[e.SessionID]
+		// a running process behind it: the registry found it alive
+		hasProcess := ok && sessions[i].Live && sessions[i].LiveEvidence != "claudeDaemon"
 		if !ok {
 			s := Session{
 				SessionID:    e.SessionID,
@@ -122,7 +124,10 @@ func (c *Collector) mergeDaemon(ctx context.Context, sessions []Session) []Sessi
 			s.DisplayName = e.Name
 		}
 		s.AgentState = e.State
-		s.Live = true
+		// `claude stop` ends the process but the agent view keeps the job as
+		// "done" (it can be resumed): with no process behind it, it is not
+		// online, and it leaves the village and the online list
+		s.Live = e.State != "done" || hasProcess
 		if s.LiveEvidence == "none" {
 			s.LiveEvidence = "claudeDaemon"
 		}
