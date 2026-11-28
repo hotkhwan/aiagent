@@ -1,0 +1,19 @@
+● earlier work
+
+[37m[49m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+[39m←  ☒ Color [30m[104m ☐ Pet [39m[49m ✔ Submit  →
+
+[1m[97mPick a pet?[0m
+
+  [2m[37m1.[0m Cat
+     [2m[37mChoose Cat[0m
+  [2m[37m2.[0m Dog
+     [2m[37mChoose Dog[0m
+[94m❯[39m [2m[37m3. [0mจาก admin: merge แล้ว netra-ui ตอนนี้ develop และ UAT เป็น 0.10.0 แล้ว ทำงานตาม brief ต่อได้เลย this is a long line to exceed the width of the pane maybe more
+     words here to go past one hundred and sixty columns of text in total ok
+     [7m [0m
+[37m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+[39m  4. Chat about this
+
+[2m[37mEnter to select · Tab/Arrow keys to navigate · ctrl+g to edit in Vim · Esc to cancel[0m
+[37m──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── demo-name ─

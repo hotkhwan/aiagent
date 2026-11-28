@@ -217,6 +217,16 @@ type simAsk struct {
 	keys    []string
 	drop    map[int]bool // key numbers the CLI does not take
 	dropTyp bool
+	// caretEnd: the caret of the free-text option is at its end. Moving onto
+	// the option puts it at the start, ctrl+e at the end, typing leaves it at
+	// the end (Claude Code 2.1.325, testdata/ask/tabs_stray_*).
+	caretEnd bool
+	// noClear: ctrl+u is not taken.
+	noClear bool
+	// textWins: a single choice whose free-text option holds text is
+	// summarised as that text, whatever option is ticked, as the room's CLI
+	// did on 2026-11-28.
+	textWins bool
 	// onKey runs before key number n is handled
 	onKey func(n int, s *simAsk)
 }
@@ -272,7 +282,7 @@ func (s *simAsk) answered(i int) bool {
 func (s *simAsk) answer(i int) string {
 	q := s.qs[i]
 	if !q.multi {
-		if q.pick == -1 {
+		if q.pick == -1 || s.textWins && q.text != "" {
 			return q.text
 		}
 		return q.opts[q.pick-1]
@@ -360,7 +370,11 @@ func (s *simAsk) screen() string {
 					box = "[✔] "
 				}
 			}
-			fmt.Fprintf(&b, "%s\x1b[38;5;246m%d.\x1b[39m %s%s\n     \x1b[38;5;246m%s option\x1b[39m\n", cur(i), n, box, q.opts[n-1], q.opts[n-1])
+			tick := "" // a single choice marks its pick (tabs_stray_checked)
+			if !q.multi && q.pick == n {
+				tick = " ✔"
+			}
+			fmt.Fprintf(&b, "%s\x1b[38;5;246m%d.\x1b[39m %s%s%s\n     \x1b[38;5;246m%s option\x1b[39m\n", cur(i), n, box, q.opts[n-1], tick, q.opts[n-1])
 		case it == "text":
 			n++
 			box := ""
@@ -376,6 +390,9 @@ func (s *simAsk) screen() string {
 			}
 			if q.text != "" {
 				label = q.text
+				if !q.multi && q.pick == -1 {
+					label += " ✔"
+				}
 			}
 			fmt.Fprintf(&b, "%s%d. %s%s\n", cur(i), n, box, label)
 		case it == "next":
@@ -413,8 +430,17 @@ func (s *simAsk) key(k string) error {
 	switch k {
 	case "Down":
 		s.cursor = min(s.cursor+1, len(items)-1)
+		s.caretEnd = false
 	case "Up":
 		s.cursor = max(s.cursor-1, 0)
+		s.caretEnd = false
+	case "C-e":
+		s.caretEnd = it == "text"
+	case "C-u":
+		// one screen row back from the caret
+		if it == "text" && s.caretEnd && !s.noClear {
+			q.text = q.text[:max(strings.LastIndex(q.text, "\n"), 0)]
+		}
 	case "Right", "Left":
 		if it == "text" || s.lone() {
 			return nil // the caret moves
@@ -484,6 +510,7 @@ func (s *simAsk) typ(text string) error {
 	if s.items()[s.cursor] == "text" {
 		q := &s.qs[s.active]
 		q.text += text
+		s.caretEnd = true
 		if q.multi {
 			q.textChecked = true
 		}

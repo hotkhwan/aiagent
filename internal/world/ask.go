@@ -32,7 +32,10 @@
 //	Right/Left     next/previous tab — not while the cursor is on the
 //	               free-text option, where they move the caret
 //	text           typed into the free-text option when the cursor is on it,
-//	               which also ticks it in a multiSelect
+//	               which also ticks it in a multiSelect; a paste while the
+//	               cursor is on another option goes there too
+//	ctrl+e/ctrl+u  on the free-text option: caret to the end / delete one
+//	               screen row back (clearText; Claude Code 2.1.325)
 //	digits         pick/toggle at once, but on the free-text option they are
 //	               typed, and the Chat digit declines the whole dialog; never
 //	               used here
@@ -317,7 +320,8 @@ func (d *AskDialog) readReview(rest []string) *AskDialog {
 	for _, l := range rest {
 		t := strings.TrimSpace(l)
 		switch {
-		case strings.Contains(t, "Some questions are unanswered"):
+		// the second is how Claude Code 2.1.325 says it
+		case strings.Contains(t, "Some questions are unanswered"), strings.Contains(t, "You have not answered all questions"):
 			d.Unanswered = true
 		case strings.HasPrefix(t, "● "):
 			d.Summary = append(d.Summary, AskSummary{Question: truncateRunes(Redact(strings.TrimPrefix(t, "● ")), 900)})
@@ -405,6 +409,19 @@ func (d *AskDialog) readOptions(rest []string) bool {
 	}
 	if len(opts) < 2 {
 		return false
+	}
+	if !d.MultiSelect && !d.Review {
+		// a single choice answered already marks the pick with a trailing ✔
+		// ("1. Red ✔", testdata/ask/tabs_stray_checked); it is not part of the
+		// label the page sends back, nor of the answer the summary lists
+		for i := range opts {
+			n := opts[i].N
+			if l, ok := strings.CutSuffix(strings.TrimRight(d.labels[n], " "), " ✔"); ok {
+				d.labels[n] = l
+				opts[i].Label = truncateRunes(Redact(l), 200)
+				opts[i].Selected = true
+			}
+		}
 	}
 	if !d.Review && !d.Preview {
 		// Claude Code adds the free-text option last, before Next/Submit or,
@@ -870,6 +887,16 @@ func (s *AskDialog) typed(text string) bool {
 	return sameText(Redact(s.labels[s.TextOption]), Redact(text)) || sameText(o.Label+" "+o.Detail, Redact(text))
 }
 
+// askRow is what the free-text option shows, its wrapped rows included, ""
+// for the placeholder.
+func askRow(s *AskDialog) string {
+	if s == nil || s.TextOption == 0 || s.TextEmpty {
+		return ""
+	}
+	o := s.opt(s.TextOption)
+	return strings.TrimSpace(s.labels[s.TextOption] + " " + o.Detail)
+}
+
 // at brings question t on screen and checks it is the question answered.
 func (d *askDriver) at(a AskAnswer) (*AskDialog, error) {
 	s, err := d.goTo(a.Tab)
@@ -878,6 +905,51 @@ func (d *askDriver) at(a AskAnswer) (*AskDialog, error) {
 	}
 	if !sameText(s.Question, a.Question) {
 		return nil, askStop("คำถามข้อ \"" + d.req.Tabs[a.Tab] + "\" บนหน้าจอไม่ตรงกับที่เห็นในเว็บ")
+	}
+	return s, nil
+}
+
+// askClearRows bounds the ctrl+u presses of one clearText: one per screen row
+// of text.
+const askClearRows = 40
+
+// clearText empties the free-text option, which may hold text nobody typed
+// from the web: a message pasted while the dialog was opening lands there
+// (room gon, 2026-11-28). Checked against Claude Code 2.1.325 (testdata/ask/
+// tabs_stray_*): moving onto the option puts the caret at its start, ctrl+e
+// takes it to the end, and each ctrl+u deletes one screen row back from the
+// caret, a wrapped or multi-line text taking one press per row. Every press
+// must be seen to shorten the text; when one is not, or the text does not go,
+// it stops before anything is picked, naming the text.
+func (d *askDriver) clearText(s *AskDialog) (*AskDialog, error) {
+	if s.TextOption == 0 || s.TextEmpty {
+		return s, nil
+	}
+	item := "opt:" + strconv.Itoa(s.TextOption)
+	stray, header := askRow(s), s.Header
+	stuck := func() error {
+		return askStop("ช่อง \"Type something\" ของคำถามข้อ \"" + header + "\" มีข้อความค้างอยู่ที่ไม่ได้พิมพ์จากเว็บ: \"" +
+			truncateRunes(Redact(stray), 80) + "\" และลบให้ไม่ได้ ให้เปิดเทอร์มินัลของ agent ลบข้อความนั้นก่อน")
+	}
+	s, err := d.moveTo(s, item)
+	if err != nil {
+		return nil, err
+	}
+	tab := s.Active
+	here := func(n *AskDialog) bool { return d.same(n) == nil && n.Active == tab && n.cursor == item }
+	if s, err = d.press("C-e", here, "เลื่อนไปท้ายข้อความในช่องพิมพ์ไม่สำเร็จ"); err != nil {
+		return nil, err
+	}
+	for i := 0; !s.TextEmpty; i++ {
+		if i == askClearRows {
+			return nil, stuck()
+		}
+		before := askRow(s)
+		if s, err = d.press("C-u", func(n *AskDialog) bool {
+			return here(n) && (n.TextEmpty || askRow(n) != before)
+		}, ""); err != nil {
+			return nil, stuck()
+		}
 	}
 	return s, nil
 }
@@ -895,23 +967,8 @@ func (d *askDriver) fillText(s *AskDialog, a AskAnswer) (*AskDialog, error) {
 	if s.typed(a.Text) {
 		return s, nil
 	}
-	if !s.TextEmpty {
-		// clear what is there, one rune at a time, when all of it is seen
-		old := s.labels[s.TextOption]
-		if strings.HasSuffix(old, "…") || s.opt(s.TextOption).Detail != "" || utf8.RuneCountInString(old) > askMaxText {
-			return nil, askStop("ช่องพิมพ์คำตอบมีข้อความเดิมที่ลบให้ไม่ได้")
-		}
-		for i := utf8.RuneCountInString(old); i > 0; i-- {
-			left := string([]rune(old)[:i-1])
-			if _, err := d.press("BSpace", func(n *AskDialog) bool {
-				if d.same(n) != nil || n.Active != s.Active || n.cursor != item {
-					return false
-				}
-				return i == 1 && n.TextEmpty || i > 1 && n.labels[n.TextOption] == left
-			}, "ลบข้อความเดิมในช่องพิมพ์ไม่สำเร็จ"); err != nil {
-				return nil, err
-			}
-		}
+	if s, err = d.clearText(s); err != nil {
+		return nil, err
 	}
 	// the text goes in literally, as any message the web sends
 	if s, err = d.current(); err != nil {
@@ -955,6 +1012,11 @@ func (d *askDriver) answer(a AskAnswer) error {
 		} else {
 			n, err := s.option(a.Options[0])
 			if err != nil {
+				return err
+			}
+			// text left in the free-text option may be what the summary
+			// lists for this question instead of the pick: it goes first
+			if s, err = d.clearText(s); err != nil {
 				return err
 			}
 			item = "opt:" + strconv.Itoa(n)
@@ -1109,7 +1171,13 @@ func (d *askDriver) run() error {
 			}
 		}
 		if !ok {
-			return askStop("หน้าสรุปแสดงคำตอบข้อ \"" + d.req.Tabs[a.Tab] + "\" ไม่ตรงกับที่เลือก")
+			shown := ""
+			for _, sum := range s.Summary {
+				if sameText(sum.Question, a.Question) {
+					shown = " (หน้าจอแสดง \"" + truncateRunes(sum.Answer, 80) + "\")"
+				}
+			}
+			return askStop("หน้าสรุปแสดงคำตอบข้อ \"" + d.req.Tabs[a.Tab] + "\" ไม่ตรงกับที่เลือก" + shown)
 		}
 	}
 	if s, err = d.moveTo(s, "opt:1"); err != nil {

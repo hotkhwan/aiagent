@@ -30,6 +30,15 @@ func (e *ErrOnDialog) Error() string {
 	return "the agent is showing a question, and typing there would answer it; answer it first"
 }
 
+// ErrTypedIntoDialog: a question opened as the text was typed, the text went
+// into its free-text answer, and it could not be taken out again. It is not
+// retried: typing it again would put it there twice.
+type ErrTypedIntoDialog struct{ Text string }
+
+func (e *ErrTypedIntoDialog) Error() string {
+	return "a question opened in the agent CLI as the text was typed, and the text is in its answer field; clear it in the terminal"
+}
+
 // Typer types one message into one pane.
 type Typer struct {
 	// Tmux runs one tmux command and returns its output.
@@ -90,7 +99,11 @@ func (t Typer) Submit(text string) error {
 			return err
 		}
 	}
-	held, boxed := t.settled(before, text)
+	held, boxed, dialog := t.settled(before, text)
+	if dialog {
+		// A question opened as the text went in, and may have taken it.
+		return t.takeBack(text)
+	}
 	if !boxed {
 		// The text changed the box into something else (shell mode).
 		return t.enter()
@@ -127,27 +140,77 @@ func (t Typer) Submit(text string) error {
 
 // settled waits for the typed text to show up in the box and stop changing. The
 // text is empty when it never did; boxed is false when the box itself is gone.
-func (t Typer) settled(before, text string) (held string, boxed bool) {
+func (t Typer) settled(before, text string) (held string, boxed, dialog bool) {
 	last, gone := "", 0
 	for waited := time.Duration(0); waited < submitAppear; waited += submitPoll {
 		t.Sleep(submitPoll)
 		now, known, dialog := t.look()
 		if dialog {
-			return "", true
+			return "", true, true
 		}
 		if !known {
 			if gone++; gone == 4 {
-				return "", false
+				return "", false, false
 			}
 			continue
 		}
 		gone = 0
 		if now != "" && now == last && (now != before || holdsMessage(now, text)) {
-			return now, true
+			return now, true, false
 		}
 		last = now
 	}
-	return "", true
+	return "", true, false
+}
+
+// takeBack handles a dialog that opened while the text was being typed. A
+// busy CLI takes a paste late, so the screen can be read as idle, the paste
+// sent, and the paste land in an AskUserQuestion dialog drawn meanwhile,
+// where it goes into the free-text answer (room gon, 2026-11-28: an admin
+// message became the answer to the agent's question). When the row holds
+// exactly this text it is deleted again with the keys clearText uses, and the
+// send is reported as held by the dialog: nothing of it is left, so it may be
+// typed again once the dialog closes. Text it cannot take out is reported as
+// ErrTypedIntoDialog. Any other dialog, or a row holding other text, is left
+// alone: the text may be in the input box under the dialog, or taken.
+func (t Typer) takeBack(text string) error {
+	read := func() (string, error) { return t.Tmux("capture-pane", "-e", "-p", "-t", t.Pane) }
+	notSent := &ErrNotSubmitted{"a question opened in the agent CLI as the text was typed; it was not submitted"}
+	// the paste may still be on its way: give it the time a paste gets
+	var a *AskDialog
+	for waited := time.Duration(0); ; waited += submitPoll {
+		screen, err := read()
+		if err != nil {
+			return notSent
+		}
+		a = parseAsk(screen)
+		if a != nil && a.TextOption > 0 && a.cursor == "opt:"+strconv.Itoa(a.TextOption) && rowIs(askRow(a), text) {
+			break
+		}
+		if a == nil || a.TextOption == 0 || askRow(a) != "" || waited >= submitAppear {
+			return notSent
+		}
+		t.Sleep(submitPoll)
+	}
+	tabs := make([]string, len(a.Tabs))
+	for i, tb := range a.Tabs {
+		tabs[i] = tb.Header
+	}
+	d := &askDriver{read: read, sleep: t.Sleep, req: AskRequest{Tabs: tabs},
+		key: func(k string) error { _, err := t.Tmux("send-keys", "-t", t.Pane, k); return err }}
+	if _, err := d.clearText(a); err != nil {
+		return &ErrTypedIntoDialog{Text: text}
+	}
+	return &ErrOnDialog{}
+}
+
+// rowIs: the free-text row shows this text and nothing else (a long one may
+// be cut short with "…").
+func rowIs(row, text string) bool {
+	if row == "" {
+		return false
+	}
+	return sameText(row, Redact(text)) || sameText(row, text)
 }
 
 func (t Typer) enter() error {

@@ -620,6 +620,10 @@ func (c *Collector) relaySend(ctx context.Context, ss *Session, message string) 
 		return &APIError{409, "AIAGENT_RELAY_DIALOG", dialogReason(name)}
 	case *ErrNotSubmitted:
 		return errNotSubmitted()
+	case *ErrTypedIntoDialog:
+		ae := typedIntoDialogError()
+		ae.Msg += " (`tmux attach -t " + name + "`)"
+		return ae
 	default:
 		return &APIError{502, "AIAGENT_RELAY_FAILED", "พิมพ์ข้อความเข้า agent ไม่สำเร็จ"}
 	}

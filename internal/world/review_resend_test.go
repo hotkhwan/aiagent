@@ -153,8 +153,35 @@ func TestTwoReviewSendsAtOnceTypeOnce(t *testing.T) {
 	}
 }
 
-// A reply held for a busy agent that the agent later refuses (a question on
-// its screen) reached nobody: the review opens again and can be sent.
+// A reply held for a busy agent that then shows a question waits for the
+// question: nothing is typed into it, the review stays answered, and the
+// reply goes in once the question is gone.
+func TestAQueuedReviewReplyWaitsForAQuestion(t *testing.T) {
+	e := workingJobEnv(t)
+	tok, _ := e.store.Enable("test")
+	r := reviewFor(t, e, workingJob, "claudeCode")
+	e.runner.relayBusy = true
+	path := "/aiagent/api/reviews/" + r.ID + "/decision"
+	if code, m, _ := e.do(t, "POST", path, tok, oneItem); code != 200 || details(m)["queued"] != true {
+		t.Fatalf("send to a busy agent = %d %v", code, m)
+	}
+	e.runner.mu.Lock()
+	e.runner.relayBusy = false
+	e.runner.dialogScreen = askDialog
+	e.runner.mu.Unlock()
+	e.svc.FlushOutbox(context.Background(), time.Now())
+	reply := e.col.Reviews()[0].Reply
+	if got := e.col.Reviews()[0]; got.Status != "revise" || got.SentVia != "queued" || timesTyped(e, reply) != 0 {
+		t.Fatalf("held behind a question: %+v typed %d", got, timesTyped(e, reply))
+	}
+	setDialog(e, "")
+	if sent := e.svc.FlushOutbox(context.Background(), time.Now()); sent != 1 || timesTyped(e, reply) != 1 {
+		t.Fatalf("after the question: sent %d, typed %d", sent, timesTyped(e, reply))
+	}
+}
+
+// A reply held for a busy agent that the agent later refuses for good (its
+// CLI gone) reached nobody: the review opens again and can be sent.
 func TestAQueuedReviewReplyRefusedLaterReopensTheReview(t *testing.T) {
 	e := workingJobEnv(t)
 	tok, _ := e.store.Enable("test")
@@ -169,13 +196,15 @@ func TestAQueuedReviewReplyRefusedLaterReopensTheReview(t *testing.T) {
 	}
 	e.runner.mu.Lock()
 	e.runner.relayBusy = false
-	e.runner.dialogScreen = askDialog
+	e.runner.paneDead = true
 	e.runner.mu.Unlock()
 	e.svc.FlushOutbox(context.Background(), time.Now())
 	if got := e.col.Reviews()[0]; got.Status != "open" || got.SentAt != nil || got.SentVia != "" {
 		t.Fatalf("a reply the agent never got still answers the review: %+v", got)
 	}
-	setDialog(e, "")
+	e.runner.mu.Lock()
+	e.runner.paneDead = false
+	e.runner.mu.Unlock()
 	nextWrite(e)
 	code, m, _ := e.do(t, "POST", path, tok, oneItem)
 	if code != 200 || details(m)["queued"] == true {
