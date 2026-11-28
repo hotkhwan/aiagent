@@ -117,6 +117,9 @@ func (c *Collector) mergeDaemon(ctx context.Context, sessions []Session) []Sessi
 		}
 		s := &sessions[i]
 		s.Kind = "bg"
+		if s.jobID == "" && shortIDPattern.MatchString(e.ID) {
+			s.jobID = e.ID
+		}
 		if s.home == "" {
 			s.home = home
 		}

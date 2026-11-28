@@ -48,7 +48,7 @@ func (c *Collector) decideMessage(ss *Session) {
 	switch {
 	case ss.DispatchVia != "":
 		ss.MessageVia = "agcmd"
-	case ss.RuntimeType == "claudeCode" && ss.Kind == "bg" && ss.home == c.serviceHome() && shortIDPattern.MatchString(shortID(ss.SessionID)):
+	case ss.RuntimeType == "claudeCode" && ss.Kind == "bg" && ss.home == c.serviceHome() && shortIDPattern.MatchString(ss.jobShort()):
 		ss.MessageVia = "relay"
 	case ss.RuntimeType == "claudeCode" && ss.Kind != "bg" && c.Channels.Live(ss.SessionID):
 		// the session's own channel process takes the message (channels.go);
@@ -59,6 +59,17 @@ func (c *Collector) decideMessage(ss *Session) {
 	default:
 		ss.MessageBlocked = "เปิดอยู่ในเทอร์มินัล/VS Code (interactive) — ไม่มีวิธีพิมพ์เข้าเทอร์มินัลของคนอื่นอย่างปลอดภัย จึงดูได้อย่างเดียว"
 	}
+}
+
+// jobShort is the id `claude attach` and `claude stop` know a background job
+// by: its jobId. It is the first part of the session id it started with, and
+// stays when the job's conversation moves to a new session id (/clear): the
+// session id's own prefix then names no job, and every attach failed (502).
+func (ss *Session) jobShort() string {
+	if ss.jobID != "" {
+		return ss.jobID
+	}
+	return shortID(ss.SessionID)
 }
 
 func shortID(id string) string {
@@ -97,9 +108,9 @@ func (c *Collector) SendToSession(ctx context.Context, id, message string) (stri
 	case "agcmd":
 		return "agcmd dispatch " + target.DispatchVia, c.Message(ctx, target.DispatchVia, message)
 	case "relay":
-		short := shortID(target.SessionID)
+		short := target.jobShort()
 		for _, o := range snap.Sessions {
-			if o.Live && o.SessionID != target.SessionID && strings.HasPrefix(o.SessionID, short) {
+			if o.Live && o.SessionID != target.SessionID && (strings.HasPrefix(o.SessionID, short) || o.jobShort() == short) {
 				return "", ErrConflict("รหัสย่อ " + short + " ซ้ำกับ session อื่น")
 			}
 		}
@@ -226,7 +237,7 @@ func (c *Collector) wakeInBackground(ctx context.Context, ss *Session, dir strin
 	if m == nil {
 		return &APIError{502, "AIAGENT_RESUME_FAILED", "เปิด session ต่อแล้วแต่ไม่รู้ว่าเป็นงานไหน: " + attachReason(out)}
 	}
-	if m[1] != shortID(ss.SessionID) {
+	if m[1] != ss.jobShort() {
 		_, _ = c.Runner.Run(cctx, c.ClaudeBin(), "stop", m[1])
 		_, _ = c.Runner.Run(cctx, c.ClaudeBin(), "rm", m[1])
 		return ErrConflict("session นี้เปิดอยู่ใน Claude Code อีกที่ (เทอร์มินัลหรือ VS Code) จึงทำต่อจากที่นี่ไม่ได้ ให้ปิดที่นั่นก่อน หรือส่งจากที่นั่น")
@@ -487,7 +498,7 @@ func (c *Collector) relayPanePid(ctx context.Context, name string) int {
 // it is first brought back as a background job (wakeInBackground) and then
 // attached the same way.
 func (c *Collector) relaySend(ctx context.Context, ss *Session, message string) error {
-	short := shortID(ss.SessionID)
+	short := ss.jobShort()
 	name := relayName(short)
 	defer c.lockSend("relay:" + name)()
 	if c.heldElsewhere(ctx, ss, name) {

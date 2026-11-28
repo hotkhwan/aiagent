@@ -33,7 +33,7 @@ func (c *Collector) relayPrompt(ctx context.Context, ss *Session, listed map[str
 	if ss.Prompt != nil || ss.MessageVia != "relay" || ss.RuntimeType != "claudeCode" {
 		return
 	}
-	name := relayName(shortID(ss.SessionID))
+	name := relayName(ss.jobShort())
 	blocked := ss.AgentState == "blocked"
 	if _, up := listed[name]; !blocked && !up {
 		return
@@ -96,7 +96,7 @@ func (c *Collector) relayForAnswer(ctx context.Context, ss *Session, name string
 			argv = append(argv, "-c", dir)
 			c.trustFolder(dir)
 		}
-		argv = append(argv, c.ClaudeBin(), "attach", shortID(ss.SessionID))
+		argv = append(argv, c.ClaudeBin(), "attach", ss.jobShort())
 		if _, err := c.tmux(ctx, argv...); err != nil {
 			return "", &APIError{502, "AIAGENT_RELAY_FAILED", "เปิด relay ไม่สำเร็จ: " + err.Error()}
 		}
