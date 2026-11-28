@@ -346,7 +346,7 @@ func (c *Collector) answerTarget(ctx context.Context, id string) (pane string, u
 		return tmuxPane(w.session), c.lockSend("ws:" + w.session), nil
 	}
 	if target.MessageVia == "relay" {
-		name := relayName(shortID(target.SessionID))
+		name := relayName(target.jobShort())
 		// the same lock as relaySend: a message and an answer never interleave
 		unlock := c.lockSend("relay:" + name)
 		pane, err := c.relayForAnswer(ctx, target, name)
