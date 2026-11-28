@@ -189,7 +189,9 @@ func (s *Service) CancelPending(sessionID, id string) int {
 // Each message is marked PendingSending on disk before it is typed and settled
 // after, one at a time, so the file always says what may already be in a pane:
 //   - delivered: removed;
-//   - still refused as busy: back to waiting, tried again on the next tick;
+//   - still refused as busy, or because a question or menu is on the agent's
+//     screen (nothing was typed, and typing would answer it): back to
+//     waiting, tried again on the next tick, after the dialog closes;
 //   - refused for any other reason: kept as PendingFailed with the reason and
 //     never retried, because typing it at some unrelated later moment is worse
 //     than not typing it at all;
@@ -244,9 +246,19 @@ func (s *Service) FlushOutbox(ctx context.Context, now time.Time) int {
 	return sent
 }
 
+// isRelayBusy: nothing was typed, and the session may take it later — it is
+// mid-task, or a dialog covers its input box (room gon, 2026-11-28: a queued
+// message must wait for the question, not be typed into it or given up on).
 func isRelayBusy(err error) bool {
 	ae, ok := err.(*APIError)
-	return ok && ae.Code == "AIAGENT_RELAY_NOT_READY"
+	if !ok {
+		return false
+	}
+	switch ae.Code {
+	case "AIAGENT_RELAY_NOT_READY", "AIAGENT_DIALOG", "AIAGENT_RELAY_DIALOG":
+		return true
+	}
+	return false
 }
 
 // claimPending marks one waiting message as being sent, on disk, and returns

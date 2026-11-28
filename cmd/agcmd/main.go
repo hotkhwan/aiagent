@@ -99,11 +99,14 @@ func main() {
 func exitCode(err error) int {
 	var ns *world.ErrNotSubmitted
 	var od *world.ErrOnDialog
+	var td *world.ErrTypedIntoDialog
 	switch {
 	case errors.As(err, &ns):
 		return world.ExitNotSubmitted
 	case errors.As(err, &od):
 		return world.ExitDialog
+	case errors.As(err, &td):
+		return world.ExitTypedIntoDialog
 	}
 	return 1
 }

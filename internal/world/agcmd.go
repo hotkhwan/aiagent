@@ -382,10 +382,18 @@ func (c *Collector) requireAgentReady(ctx context.Context, session string) error
 const (
 	ExitNotSubmitted = 3
 	ExitDialog       = 4
+	// ExitTypedIntoDialog: the text went into a question that opened as it
+	// was typed, and could not be taken out (ErrTypedIntoDialog).
+	ExitTypedIntoDialog = 5
 )
 
 func errNotSubmitted() error {
 	return &APIError{502, "AIAGENT_NOT_SUBMITTED", "พิมพ์ข้อความแล้วแต่ agent ยังไม่รับ — ข้อความอาจค้างในช่องพิมพ์ของ agent ลองกดส่งข้อความเดิมอีกครั้ง"}
+}
+
+func typedIntoDialogError() *APIError {
+	return &APIError{409, "AIAGENT_TYPED_INTO_DIALOG", "agent เปิดคำถามขึ้นมาตอนที่กำลังพิมพ์ข้อความ ข้อความจึงไปอยู่ในช่อง \"Type something\" ของคำถามนั้นและลบออกเองไม่ได้ " +
+		"ให้เปิดเทอร์มินัลของ agent ลบข้อความในช่องนั้น (ctrl+e แล้ว ctrl+u) แล้วตอบคำถาม ข้อความนี้จะไม่ถูกส่งซ้ำ"}
 }
 
 func (c *Collector) agcmd(ctx context.Context, args ...string) (string, error) {
@@ -401,6 +409,8 @@ func (c *Collector) agcmd(ctx context.Context, args ...string) (string, error) {
 				return text, errNotSubmitted()
 			case ExitDialog:
 				return text, &APIError{409, "AIAGENT_DIALOG", "agent กำลังแสดงคำถามอยู่ ถ้าพิมพ์จะกลายเป็นคำตอบ — ตอบคำถามนั้นก่อนแล้วส่งใหม่"}
+			case ExitTypedIntoDialog:
+				return text, typedIntoDialogError()
 			}
 		}
 		if errors.As(err, &ee) || text != "" {
